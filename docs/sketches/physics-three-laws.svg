@@ -1,0 +1,526 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1300" font-family="-apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif">
+  <defs>
+    <marker id="arrowCyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3ec0c8"/>
+    </marker>
+    <marker id="arrowMagenta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c83ec0"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c83e3e"/>
+    </marker>
+    <marker id="arrowGold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c8a83e"/>
+    </marker>
+    <linearGradient id="abyssGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#040508"/>
+      <stop offset="100%" stop-color="#0a0c14"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1400" height="1300" fill="#0d0e15"/>
+
+  <!-- 标题 -->
+  <text x="700" y="40" text-anchor="middle" fill="#e8e9ed" font-size="24" font-weight="bold">§2.3 动量与质量物理体系 — 三大定律图解</text>
+  <text x="700" y="64" text-anchor="middle" fill="#7a7d8a" font-size="13">完美信息预演：每一次冲撞的结算都遵循以下确定性规则</text>
+
+  <!-- ============================================ -->
+  <!-- 通用图例（顶部）-->
+  <!-- ============================================ -->
+  <g id="legend" transform="translate(60,90)">
+    <rect width="1280" height="60" fill="#11131c" stroke="#2a3040" rx="4"/>
+    <text x="20" y="22" fill="#7a7d8a" font-size="12">单位标记规范</text>
+
+    <g transform="translate(20,32)">
+      <rect width="22" height="22" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0"/>
+      <text x="11" y="16" text-anchor="middle" fill="#0d0e15" font-size="9" font-weight="bold">A</text>
+      <text x="50" y="16" fill="#a8aab5" font-size="11">攻击者（玩家或敌人）</text>
+    </g>
+
+    <g transform="translate(220,32)">
+      <rect width="22" height="22" fill="#c83ec0" opacity="0.85" stroke="#e85ee0"/>
+      <text x="11" y="16" text-anchor="middle" fill="#0d0e15" font-size="9" font-weight="bold">B</text>
+      <text x="50" y="16" fill="#a8aab5" font-size="11">被攻击目标</text>
+    </g>
+
+    <g transform="translate(380,32)">
+      <text x="0" y="16" fill="#3ec0c8" font-size="14" font-weight="bold">M = 质量</text>
+      <text x="100" y="16" fill="#a8aab5" font-size="11">轻 1 / 中 2 / 重 3</text>
+    </g>
+
+    <g transform="translate(580,32)">
+      <text x="0" y="16" fill="#c8a83e" font-size="14" font-weight="bold">P = 动量</text>
+      <text x="100" y="16" fill="#a8aab5" font-size="11">滑动 1 格消耗 1，归零停下</text>
+    </g>
+
+    <g transform="translate(900,32)">
+      <line x1="0" y1="11" x2="40" y2="11" stroke="#c8a83e" stroke-width="3" marker-end="url(#arrowGold)"/>
+      <text x="50" y="16" fill="#a8aab5" font-size="11">动量传递方向</text>
+      <line x1="180" y1="11" x2="220" y2="11" stroke="#c83e3e" stroke-width="3" marker-end="url(#arrowRed)"/>
+      <text x="230" y="16" fill="#a8aab5" font-size="11">伤害结算</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 定律 1：等价交换（等质量） -->
+  <!-- ============================================ -->
+  <g id="law1" transform="translate(60,180)">
+    <rect width="1280" height="200" fill="#11131c" stroke="#3ec0c8" stroke-width="1" rx="4"/>
+
+    <!-- 标题 -->
+    <text x="20" y="30" fill="#3ec0c8" font-size="18" font-weight="bold">定律 1：等价交换（M_A = M_B）</text>
+    <text x="20" y="50" fill="#a8aab5" font-size="12">"台球式连环撞击"——动能 100% 传导，双方各 -1 HP，A 原地停下，B 接力飞出</text>
+
+    <!-- 碰撞前 -->
+    <g transform="translate(40,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">碰撞前</text>
+
+      <!-- 网格 -->
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="280" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+        <line x1="210" y1="0" x2="210" y2="60"/>
+      </g>
+
+      <!-- A: M=2 P=2 -->
+      <g transform="translate(20,20)">
+        <rect x="10" y="10" width="40" height="40" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="30" y="35" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">A</text>
+      </g>
+      <text x="50" y="100" text-anchor="middle" fill="#3ec0c8" font-size="10">M=2  P=2</text>
+
+      <!-- B: M=2 静止 -->
+      <g transform="translate(160,20)">
+        <rect x="10" y="10" width="40" height="40" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="30" y="35" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">B</text>
+      </g>
+      <text x="190" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">M=2  静止</text>
+
+      <!-- A 方向箭头 -->
+      <line x1="50" y1="40" x2="100" y2="40" stroke="#c8a83e" stroke-width="2" marker-end="url(#arrowGold)" transform="translate(20,20)"/>
+    </g>
+
+    <!-- 箭头 -->
+    <text x="365" y="120" text-anchor="middle" fill="#7a7d8a" font-size="20">→</text>
+
+    <!-- 碰撞后 -->
+    <g transform="translate(420,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">碰撞后（动能 100% 传给 B）</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="280" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+        <line x1="210" y1="0" x2="210" y2="60"/>
+      </g>
+
+      <!-- A 留在原位 -->
+      <g transform="translate(20,20)">
+        <rect x="10" y="10" width="40" height="40" fill="#3ec0c8" opacity="0.6" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="30" y="32" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">A</text>
+        <text x="30" y="44" text-anchor="middle" fill="#c83e3e" font-size="9" font-weight="bold">-1</text>
+      </g>
+      <text x="50" y="100" text-anchor="middle" fill="#3ec0c8" font-size="10">P=0 (停下)</text>
+
+      <!-- B 飞到右边，受伤 -->
+      <g transform="translate(230,20)">
+        <rect x="10" y="10" width="40" height="40" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="30" y="32" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">B</text>
+        <text x="30" y="44" text-anchor="middle" fill="#c83e3e" font-size="9" font-weight="bold">-1</text>
+      </g>
+      <text x="260" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">P=2 (传导)</text>
+
+      <!-- 动量传递箭头 -->
+      <line x1="80" y1="40" x2="240" y2="40" stroke="#c8a83e" stroke-width="2" stroke-dasharray="3,2" marker-end="url(#arrowGold)" transform="translate(0,20)"/>
+    </g>
+
+    <!-- 右侧规则文本 -->
+    <g transform="translate(880,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">规则要点</text>
+      <text x="0" y="20" fill="#e8e9ed" font-size="11">• A、B 各受 1 点碰撞伤害</text>
+      <text x="0" y="40" fill="#e8e9ed" font-size="11">• A 原地停下（P 归零）</text>
+      <text x="0" y="60" fill="#e8e9ed" font-size="11">• B 携带 A 的全部剩余动量飞出</text>
+      <text x="0" y="80" fill="#3ec0c8" font-size="11" font-weight="bold">• 可触发连锁：B 撞 C → 同样结算</text>
+      <text x="0" y="100" fill="#c8a83e" font-size="10">案例：棱镜(M=2) ↦ 重装(M=3) 不适用</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 定律 2：保龄球效应（大撞小） -->
+  <!-- ============================================ -->
+  <g id="law2" transform="translate(60,400)">
+    <rect width="1280" height="200" fill="#11131c" stroke="#c8a83e" stroke-width="1" rx="4"/>
+
+    <text x="20" y="30" fill="#c8a83e" font-size="18" font-weight="bold">定律 2：保龄球效应（M_A &gt; M_B）</text>
+    <text x="20" y="50" fill="#a8aab5" font-size="12">"碾压推行"——大块头不停下，推着小块头一起滑行；双方各 -1 HP（B 撞墙加深 1）</text>
+
+    <!-- 碰撞前 -->
+    <g transform="translate(40,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">碰撞前</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="280" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+        <line x1="210" y1="0" x2="210" y2="60"/>
+      </g>
+
+      <!-- A: M=3 P=2 (大) -->
+      <g transform="translate(15,15)">
+        <rect x="0" y="0" width="50" height="50" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="25" y="30" text-anchor="middle" fill="#0d0e15" font-size="12" font-weight="bold">A</text>
+      </g>
+      <text x="50" y="100" text-anchor="middle" fill="#3ec0c8" font-size="10">M=3  P=2</text>
+
+      <!-- B: M=1 静止 (小) -->
+      <g transform="translate(170,30)">
+        <circle cx="20" cy="20" r="18" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">B</text>
+      </g>
+      <text x="190" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">M=1</text>
+
+      <line x1="50" y1="40" x2="100" y2="40" stroke="#c8a83e" stroke-width="2" marker-end="url(#arrowGold)" transform="translate(20,20)"/>
+    </g>
+
+    <text x="365" y="120" text-anchor="middle" fill="#7a7d8a" font-size="20">→</text>
+
+    <!-- 碰撞后 -->
+    <g transform="translate(420,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">碰撞后（A 推 B 一起向前）</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="280" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+        <line x1="210" y1="0" x2="210" y2="60"/>
+      </g>
+
+      <!-- A 推到中间 -->
+      <g transform="translate(85,15)">
+        <rect x="0" y="0" width="50" height="50" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="25" y="28" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">A</text>
+        <text x="25" y="42" text-anchor="middle" fill="#c83e3e" font-size="9" font-weight="bold">-1</text>
+      </g>
+      <text x="120" y="100" text-anchor="middle" fill="#3ec0c8" font-size="10">P=1 (剩余)</text>
+
+      <!-- B 推到右边 -->
+      <g transform="translate(230,30)">
+        <circle cx="20" cy="20" r="18" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="20" y="22" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">B</text>
+        <text x="20" y="32" text-anchor="middle" fill="#c83e3e" font-size="8" font-weight="bold">-1</text>
+      </g>
+      <text x="260" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">被推 1 格</text>
+    </g>
+
+    <!-- 右侧规则 -->
+    <g transform="translate(880,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">规则要点</text>
+      <text x="0" y="20" fill="#e8e9ed" font-size="11">• A 受 1 点磕碰伤害，B 受 1 点碾压</text>
+      <text x="0" y="40" fill="#e8e9ed" font-size="11">• A、B 作为整体一起前移</text>
+      <text x="0" y="60" fill="#e8e9ed" font-size="11">• 若 B 撞墙：B 额外 1 点撞墙伤害</text>
+      <text x="0" y="80" fill="#c8a83e" font-size="11" font-weight="bold">• 像扫雪：能清线但自身也累积战损</text>
+      <text x="0" y="100" fill="#3ec0c8" font-size="10">楔块(M=3)→炮灰(M=1) 经典场景</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 定律 3：以卵击石（小撞大） -->
+  <!-- ============================================ -->
+  <g id="law3" transform="translate(60,620)">
+    <rect width="1280" height="200" fill="#11131c" stroke="#c83e3e" stroke-width="1" rx="4"/>
+
+    <text x="20" y="30" fill="#c83e3e" font-size="18" font-weight="bold">定律 3：以卵击石（M_A &lt; M_B）</text>
+    <text x="20" y="50" fill="#a8aab5" font-size="12">"动能溃散"——小块头瞬间停下并被弹回；A 受 2 点重度反弹，B 仅 1 点破防（除非 P_A &gt; M_B）</text>
+
+    <!-- 碰撞前 -->
+    <g transform="translate(40,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">碰撞前</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="280" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+        <line x1="210" y1="0" x2="210" y2="60"/>
+      </g>
+
+      <!-- A: M=1 P=2 (小，主动撞) -->
+      <g transform="translate(30,30)">
+        <circle cx="20" cy="20" r="18" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="20" y="24" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">A</text>
+      </g>
+      <text x="50" y="100" text-anchor="middle" fill="#3ec0c8" font-size="10">M=1  P=2</text>
+
+      <!-- B: M=3 静止 (大) -->
+      <g transform="translate(165,15)">
+        <rect x="0" y="0" width="50" height="50" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="25" y="30" text-anchor="middle" fill="#0d0e15" font-size="12" font-weight="bold">B</text>
+      </g>
+      <text x="190" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">M=3  静止</text>
+
+      <line x1="50" y1="40" x2="100" y2="40" stroke="#c8a83e" stroke-width="2" marker-end="url(#arrowGold)" transform="translate(20,20)"/>
+    </g>
+
+    <text x="365" y="120" text-anchor="middle" fill="#7a7d8a" font-size="20">→</text>
+
+    <!-- 碰撞后 -->
+    <g transform="translate(420,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">碰撞后（A 弹回，B 仅吃破防）</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="280" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+        <line x1="210" y1="0" x2="210" y2="60"/>
+      </g>
+
+      <!-- A 弹回左 -->
+      <g transform="translate(0,30)">
+        <circle cx="20" cy="20" r="18" fill="#3ec0c8" opacity="0.6" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="20" y="22" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">A</text>
+        <text x="20" y="32" text-anchor="middle" fill="#c83e3e" font-size="8" font-weight="bold">-2!</text>
+      </g>
+      <text x="20" y="100" text-anchor="middle" fill="#3ec0c8" font-size="10">弹回 1 格</text>
+
+      <!-- B 留在原位 -->
+      <g transform="translate(165,15)">
+        <rect x="0" y="0" width="50" height="50" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="25" y="28" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">B</text>
+        <text x="25" y="42" text-anchor="middle" fill="#c83e3e" font-size="9" font-weight="bold">-1</text>
+      </g>
+      <text x="190" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">不动</text>
+
+      <!-- 反弹箭头 -->
+      <line x1="80" y1="50" x2="40" y2="50" stroke="#c83e3e" stroke-width="2" stroke-dasharray="3,2" marker-end="url(#arrowRed)"/>
+    </g>
+
+    <!-- 右侧规则 -->
+    <g transform="translate(880,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">规则要点</text>
+      <text x="0" y="20" fill="#e8e9ed" font-size="11">• A 受 2 点重度反弹（双倍代价）</text>
+      <text x="0" y="40" fill="#e8e9ed" font-size="11">• B 受 1 点破防伤害</text>
+      <text x="0" y="60" fill="#e8e9ed" font-size="11">• A 主动冲撞则被弹回 1 格</text>
+      <text x="0" y="80" fill="#c83e3e" font-size="11" font-weight="bold">• 例外：P_A &gt; M_B 时 B 会被推退</text>
+      <text x="0" y="100" fill="#3ec0c8" font-size="10">回响(M=1)→重装(M=3) 自杀场景</text>
+    </g>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 墙壁判定 -->
+  <!-- ============================================ -->
+  <g id="wall" transform="translate(60,840)">
+    <rect width="630" height="200" fill="#11131c" stroke="#7a3ec8" stroke-width="1" rx="4"/>
+
+    <text x="20" y="30" fill="#7a3ec8" font-size="16" font-weight="bold">墙壁判定 — 撞击不可移动障碍</text>
+    <text x="20" y="50" fill="#a8aab5" font-size="11">单位被推到地形边缘 / 棱柱 / 障碍物 → 动量瞬间溃散 + 受撞墙伤害</text>
+
+    <!-- 碰撞前 -->
+    <g transform="translate(40,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">推前</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="210" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+      </g>
+      <!-- 墙壁/棱柱 -->
+      <g transform="translate(150,15)">
+        <polygon points="20,0 50,0 58,25 50,50 20,50 12,25" fill="#7a3ec8" opacity="0.7" stroke="#a85ee8"/>
+        <text x="35" y="30" text-anchor="middle" fill="#e8e9ed" font-size="9">棱柱</text>
+      </g>
+
+      <!-- 单位 P=3 -->
+      <g transform="translate(15,30)">
+        <rect x="0" y="0" width="40" height="40" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">B</text>
+      </g>
+      <text x="35" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">P=3 (高速)</text>
+
+      <line x1="55" y1="50" x2="155" y2="50" stroke="#c8a83e" stroke-width="2" marker-end="url(#arrowGold)"/>
+    </g>
+
+    <text x="280" y="120" text-anchor="middle" fill="#7a7d8a" font-size="18">→</text>
+
+    <!-- 碰撞后 -->
+    <g transform="translate(330,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">撞墙瞬间</text>
+
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="210" height="60"/>
+        <line x1="70" y1="0" x2="70" y2="60"/>
+        <line x1="140" y1="0" x2="140" y2="60"/>
+      </g>
+      <!-- 墙 -->
+      <g transform="translate(150,15)">
+        <polygon points="20,0 50,0 58,25 50,50 20,50 12,25" fill="#7a3ec8" opacity="0.7" stroke="#a85ee8"/>
+        <text x="35" y="30" text-anchor="middle" fill="#e8e9ed" font-size="9">棱柱</text>
+      </g>
+
+      <!-- B 紧贴墙，重伤 -->
+      <g transform="translate(85,30)">
+        <rect x="0" y="0" width="40" height="40" fill="#c83ec0" opacity="0.6" stroke="#e85ee0" stroke-width="2"/>
+        <text x="20" y="22" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">B</text>
+        <text x="20" y="34" text-anchor="middle" fill="#c83e3e" font-size="8" font-weight="bold">-2!</text>
+      </g>
+      <text x="105" y="100" text-anchor="middle" fill="#c83ec0" font-size="10">P=0 溃散</text>
+    </g>
+
+    <text x="20" y="190" fill="#a8aab5" font-size="11">• P ≤ 2 → 撞墙 -1 HP</text>
+    <text x="200" y="190" fill="#c83e3e" font-size="11">• P ≥ 3 → 撞墙 -2 HP（高速重伤）</text>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 坠渊判定 -->
+  <!-- ============================================ -->
+  <g id="abyss" transform="translate(710,840)">
+    <rect width="630" height="200" fill="#11131c" stroke="#c83e3e" stroke-width="1" rx="4"/>
+
+    <text x="20" y="30" fill="#c83e3e" font-size="16" font-weight="bold">坠渊判定 — 推出盘外边缘</text>
+    <text x="20" y="50" fill="#a8aab5" font-size="11">任何单位被推出棋盘边缘 → 立即坠落消亡（玩家最强武器）</text>
+
+    <!-- 碰撞前 -->
+    <g transform="translate(40,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">推前（B 在边缘）</text>
+
+      <g transform="translate(0,10)">
+        <rect x="0" y="0" width="140" height="60" fill="#11131c" stroke="#2a3040"/>
+        <line x1="70" y1="0" x2="70" y2="60" stroke="#2a3040"/>
+        <!-- 深渊区 -->
+        <rect x="140" y="0" width="80" height="60" fill="url(#abyssGrad)" stroke="#3a3d48" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="180" y="35" text-anchor="middle" fill="#3a3d48" font-size="10" font-style="italic">虚空</text>
+      </g>
+
+      <!-- A 在左 -->
+      <g transform="translate(15,30)">
+        <rect x="0" y="0" width="40" height="40" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">A</text>
+      </g>
+
+      <!-- B 在边缘 -->
+      <g transform="translate(85,30)">
+        <rect x="0" y="0" width="40" height="40" fill="#c83ec0" opacity="0.85" stroke="#e85ee0" stroke-width="2"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">B</text>
+      </g>
+
+      <line x1="55" y1="50" x2="80" y2="50" stroke="#c8a83e" stroke-width="2" marker-end="url(#arrowGold)"/>
+    </g>
+
+    <text x="280" y="120" text-anchor="middle" fill="#7a7d8a" font-size="18">→</text>
+
+    <!-- 碰撞后 -->
+    <g transform="translate(330,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">B 坠落消亡</text>
+
+      <g transform="translate(0,10)">
+        <rect x="0" y="0" width="140" height="60" fill="#11131c" stroke="#2a3040"/>
+        <line x1="70" y1="0" x2="70" y2="60" stroke="#2a3040"/>
+        <rect x="140" y="0" width="80" height="60" fill="url(#abyssGrad)" stroke="#3a3d48" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="180" y="35" text-anchor="middle" fill="#3a3d48" font-size="10" font-style="italic">虚空</text>
+      </g>
+
+      <!-- A 占据原 B 位置 -->
+      <g transform="translate(85,30)">
+        <rect x="0" y="0" width="40" height="40" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0" stroke-width="2"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="11" font-weight="bold">A</text>
+      </g>
+
+      <!-- B 在虚空里淡化 -->
+      <g transform="translate(155,30)" opacity="0.3">
+        <rect x="0" y="0" width="40" height="40" fill="#c83ec0" stroke="#c83e3e" stroke-width="2" stroke-dasharray="2,2"/>
+        <text x="20" y="22" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">B</text>
+        <text x="20" y="34" text-anchor="middle" fill="#c83e3e" font-size="8">坠落</text>
+      </g>
+    </g>
+
+    <text x="20" y="178" fill="#3ec88a" font-size="11" font-weight="bold">敌方坠渊 → 直接消灭 + 玩家累积灵能 ✨</text>
+    <text x="20" y="194" fill="#c83e3e" font-size="11" font-weight="bold">玩家构件坠渊 → 进入"重组冷却"2 回合</text>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 底部：连锁推演示例 -->
+  <!-- ============================================ -->
+  <g id="chain" transform="translate(60,1060)">
+    <rect width="1280" height="200" fill="#11131c" stroke="#3ec88a" stroke-width="2" rx="4"/>
+
+    <text x="20" y="30" fill="#3ec88a" font-size="18" font-weight="bold">⚡ 连锁推演示例：棱镜 → 重装 → 棱柱折射 → 坠渊</text>
+    <text x="20" y="50" fill="#a8aab5" font-size="12">玩家用一次冲撞触发 4 步连锁结算（默认精确预演会全部预告）</text>
+
+    <!-- 连锁分镜 -->
+    <g transform="translate(40,80)">
+      <g transform="translate(0,10)" stroke="#2a3040" fill="none">
+        <rect width="490" height="80"/>
+        <line x1="70" y1="0" x2="70" y2="80"/>
+        <line x1="140" y1="0" x2="140" y2="80"/>
+        <line x1="210" y1="0" x2="210" y2="80"/>
+        <line x1="280" y1="0" x2="280" y2="80"/>
+        <line x1="350" y1="0" x2="350" y2="80"/>
+        <line x1="420" y1="0" x2="420" y2="80"/>
+      </g>
+
+      <!-- Step 1: 棱镜 (M=2) -->
+      <g transform="translate(15,25)">
+        <rect x="0" y="0" width="40" height="40" fill="#3ec0c8" opacity="0.85" stroke="#6ad8e0"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">棱镜</text>
+      </g>
+      <text x="35" y="115" text-anchor="middle" fill="#3ec0c8" font-size="9">M=2 P=2</text>
+
+      <!-- Step 2: 重装 (M=2 等价交换) -->
+      <g transform="translate(85,25)">
+        <rect x="0" y="0" width="40" height="40" fill="#c83ec0" opacity="0.85" stroke="#e85ee0"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">重装</text>
+      </g>
+      <text x="105" y="115" text-anchor="middle" fill="#c83ec0" font-size="9">M=2 (改 -1)</text>
+
+      <!-- Step 3: 重装吃 1 P=2 → 棱柱 -->
+      <g transform="translate(155,25)">
+        <polygon points="10,0 30,0 38,20 30,40 10,40 2,20" fill="#7a3ec8" opacity="0.7" stroke="#a85ee8"/>
+        <text x="20" y="25" text-anchor="middle" fill="#e8e9ed" font-size="9">棱柱</text>
+        <text x="20" y="36" text-anchor="middle" fill="#e8e9ed" font-size="10">▲</text>
+      </g>
+      <text x="175" y="115" text-anchor="middle" fill="#7a3ec8" font-size="9">折射↑</text>
+
+      <!-- Step 4: 重装弹起 -->
+      <g transform="translate(225,25)">
+        <rect x="0" y="0" width="40" height="40" fill="#c83ec0" opacity="0.6" stroke="#e85ee0" stroke-dasharray="3,2"/>
+        <text x="20" y="25" text-anchor="middle" fill="#0d0e15" font-size="10" font-weight="bold">↑</text>
+      </g>
+      <text x="245" y="115" text-anchor="middle" fill="#c83ec0" font-size="9">折射后向上</text>
+
+      <!-- Step 5: 边缘 -->
+      <g transform="translate(295,25)">
+        <rect x="0" y="0" width="40" height="40" fill="url(#abyssGrad)" stroke="#3a3d48" stroke-dasharray="2,2"/>
+      </g>
+      <text x="315" y="115" text-anchor="middle" fill="#3a3d48" font-size="9">深渊边缘</text>
+
+      <!-- Step 6: 坠落 -->
+      <g transform="translate(365,25)">
+        <rect x="0" y="0" width="40" height="40" fill="url(#abyssGrad)" stroke="#3a3d48" stroke-dasharray="2,2"/>
+        <text x="20" y="22" text-anchor="middle" fill="#c83e3e" font-size="9" opacity="0.5">重装</text>
+        <text x="20" y="34" text-anchor="middle" fill="#c83e3e" font-size="8">坠落</text>
+      </g>
+      <text x="385" y="115" text-anchor="middle" fill="#3ec88a" font-size="9" font-weight="bold">+5 灵能 ✨</text>
+
+      <!-- 动量传递箭头 -->
+      <g stroke-width="2" fill="none">
+        <line x1="55" y1="45" x2="80" y2="45" stroke="#c8a83e" marker-end="url(#arrowGold)"/>
+        <line x1="125" y1="45" x2="150" y2="45" stroke="#c8a83e" marker-end="url(#arrowGold)"/>
+        <line x1="195" y1="45" x2="220" y2="45" stroke="#7a3ec8" stroke-dasharray="3,2" marker-end="url(#arrowMagenta)"/>
+        <line x1="265" y1="45" x2="290" y2="45" stroke="#c8a83e" marker-end="url(#arrowGold)"/>
+        <line x1="335" y1="45" x2="360" y2="45" stroke="#c83e3e" stroke-dasharray="3,2" marker-end="url(#arrowRed)"/>
+      </g>
+    </g>
+
+    <!-- 连锁说明 -->
+    <g transform="translate(580,80)">
+      <text x="0" y="0" fill="#7a7d8a" font-size="11">连锁结算（每步独立计算）</text>
+      <text x="0" y="20" fill="#e8e9ed" font-size="11">① 棱镜 → 重装：定律 1（同质等价），各 -1，重装接力 P=2</text>
+      <text x="0" y="40" fill="#e8e9ed" font-size="11">② 重装 → 棱柱：定律 3（M=2 vs M=∞），重装 -2，棱柱 -1</text>
+      <text x="0" y="60" fill="#e8e9ed" font-size="11">③ 棱柱折射：动量方向变 ↑（保留 P=2，伤害不变）</text>
+      <text x="0" y="80" fill="#e8e9ed" font-size="11">④ 重装继续向上 → 边缘 → 坠渊</text>
+      <text x="0" y="105" fill="#3ec88a" font-size="11" font-weight="bold">总结：1 次冲撞 杀 1 个重装 + 棱镜与棱柱各 -1 HP</text>
+      <text x="0" y="123" fill="#c8a83e" font-size="10">这就是"工程师感"——预设的连锁，由一击启动</text>
+    </g>
+  </g>
+</svg>
