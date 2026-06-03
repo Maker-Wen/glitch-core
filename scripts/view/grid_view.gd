@@ -6,6 +6,9 @@ const COLOR_TILE_A := Color(0.16, 0.15, 0.18)
 const COLOR_TILE_B := Color(0.12, 0.11, 0.14)
 const COLOR_PILLAR := Color(0.32, 0.30, 0.34)
 const COLOR_PILLAR_EDGE := Color(0.55, 0.5, 0.4)
+const COLOR_BUILDING := Color(0.42, 0.33, 0.24)
+const COLOR_BUILDING_EDGE := Color(0.78, 0.62, 0.38)
+const COLOR_RUIN := Color(0.18, 0.16, 0.15)
 ## Inactive rifts: subtle dark crack on the tile, no red glow. Players can
 ## still see WHERE rifts are (for tactical planning per §5.3) but rifts
 ## without imminent spawns don't draw the eye. The PreviewOverlay overlays a
@@ -33,6 +36,30 @@ func _draw() -> void:
 					var inset := Rect2(rect.position + Vector2(8, 8), rect.size - Vector2(16, 16))
 					draw_rect(inset, COLOR_PILLAR)
 					draw_rect(inset, COLOR_PILLAR_EDGE, false, 2.0)
+				Grid.TileType.BUILDING:
+					var inset := Rect2(rect.position + Vector2(7, 7), rect.size - Vector2(14, 14))
+					draw_rect(inset, COLOR_BUILDING)
+					draw_rect(inset, COLOR_BUILDING_EDGE, false, 2.0)
+					var hp: int = _grid.tile_hp.get(Vector2i(x, y), Grid.DEFAULT_BUILDING_HP)
+					draw_string(
+						ThemeDB.fallback_font,
+						rect.position + Vector2(12, 22),
+						"HP %d" % hp,
+						HORIZONTAL_ALIGNMENT_LEFT,
+						-1,
+						14,
+						Color(1.0, 0.9, 0.65),
+					)
+				Grid.TileType.RUIN:
+					var inset := Rect2(rect.position + Vector2(10, 10), rect.size - Vector2(20, 20))
+					draw_rect(inset, COLOR_RUIN)
+					draw_line(inset.position, inset.position + inset.size, Color(0.45, 0.38, 0.34), 2.0)
+					draw_line(
+						inset.position + Vector2(inset.size.x, 0),
+						inset.position + Vector2(0, inset.size.y),
+						Color(0.45, 0.38, 0.34),
+						2.0,
+					)
 				Grid.TileType.RIFT:
 					# Subtle dark crack -- visible enough that the player knows
 					# this is a rift cell, but quiet enough that round 1 looks

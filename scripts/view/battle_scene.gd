@@ -49,6 +49,15 @@ func _start_slice_battle() -> void:
 	# A couple of pillars for tactical interest.
 	grid.set_tile(Vector2i(3, 3), Grid.TileType.PILLAR)
 	grid.set_tile(Vector2i(4, 4), Grid.TileType.PILLAR)
+	# Protected buildings: the battle now follows the stable defense rule.
+	# Clearing enemies is useful, but victory waits until max_rounds.
+	var protected_targets: Array[Vector2i] = [
+		Vector2i(2, 6),
+		Vector2i(5, 6),
+		Vector2i(4, 7),
+	]
+	for p in protected_targets:
+		grid.set_tile(p, Grid.TileType.BUILDING, 2)
 
 	# Wardens are deployed by the player during the Garrison phase (see §3.3).
 	var warden_defs: Array = [bh, gr, mg]
@@ -84,7 +93,21 @@ func _start_slice_battle() -> void:
 		{"round": 3, "pos": rift_a, "def": carrion},
 	]
 
-	engine.start_battle(grid, warden_defs, enemies, deploy_zone, rift_positions, rift_schedule)
+	engine.start_battle(
+		grid,
+		warden_defs,
+		enemies,
+		deploy_zone,
+		rift_positions,
+		rift_schedule,
+		5,
+		protected_targets,
+		[
+			BattleState.REWARD_PERFECT_DEFENSE,
+			BattleState.REWARD_TERMINAL_CLEAR,
+			BattleState.REWARD_PHYSICAL_KILLS_3,
+		],
+	)
 	grid_view.bind(engine.state.grid)
 	_rebuild_unit_views()
 	_on_state_changed()
@@ -205,6 +228,8 @@ func _play_events(events: Array) -> void:
 			BattleEvent.Type.UNIT_DIED, BattleEvent.Type.UNIT_FELL:
 				await _anim_unit_died(e)
 			BattleEvent.Type.UNIT_REMOVED: _anim_unit_removed(e)
+			BattleEvent.Type.TILE_DAMAGED, BattleEvent.Type.TILE_DESTROYED:
+				_anim_tile_changed(e)
 			BattleEvent.Type.BUMP_WALL, BattleEvent.Type.BUMP_UNIT:
 				await _anim_bump(e)
 			# Phase / round / battle-end events are state changes; no animation.
@@ -283,6 +308,9 @@ func _anim_bump(e: BattleEvent) -> void:
 		shake.tween_property(view, "position", orig, 0.06)
 	await get_tree().create_timer(0.08).timeout
 
+func _anim_tile_changed(_e: BattleEvent) -> void:
+	grid_view.queue_redraw()
+
 func _refresh_selection_highlights() -> void:
 	# Garrison phase: show deploy zone as the "move range" highlight.
 	if engine.state.phase == BattleState.Phase.GARRISON:
@@ -358,10 +386,23 @@ func _refresh_info_panel() -> void:
 		else:
 			preview.set_focused_enemy(-1)
 		return
-	# Priority 2: a tile feature (pillar / rift).
+	# Priority 2: a tile feature.
 	var tile: int = engine.state.grid.get_tile(_hover_cell)
 	if tile == Grid.TileType.PILLAR:
 		hud.show_info_panel("石柱", "  · 阻挡寻路 / 阻挡推动\n  · 可被攻击或撞击\n  · HP: 2 (后续阶段实装)")
+		preview.set_focused_enemy(-1)
+		return
+	if tile == Grid.TileType.BUILDING:
+		var hp: int = engine.state.grid.tile_hp.get(_hover_cell, Grid.DEFAULT_BUILDING_HP)
+		var protected := "是" if engine.state.is_protected_target(_hover_cell) else "否"
+		hud.show_info_panel(
+			"建筑",
+			"  · 保护目标: %s\n  · HP: %d\n  · 所有保护目标被毁则失败" % [protected, hp],
+		)
+		preview.set_focused_enemy(-1)
+		return
+	if tile == Grid.TileType.RUIN:
+		hud.show_info_panel("废墟", "  · 建筑被毁后的残骸\n  · 可通行，不再提供保护")
 		preview.set_focused_enemy(-1)
 		return
 	if tile == Grid.TileType.RIFT:

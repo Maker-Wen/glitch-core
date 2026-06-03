@@ -3,6 +3,7 @@ class_name Grid extends RefCounted
 ## deterministic N->E->S->W tie-break (see docs/design/ui_decision_rules.md §1.1).
 
 const SIZE := 8
+const DEFAULT_BUILDING_HP := 2
 
 enum TileType { EMPTY, PILLAR, BUILDING, RIFT, RUIN }
 
@@ -38,10 +39,40 @@ func get_tile(p: Vector2i) -> int:
 		return TileType.EMPTY
 	return tiles[_idx(p)]
 
-func set_tile(p: Vector2i, t: int) -> void:
+func set_tile(p: Vector2i, t: int, hp: int = -1) -> void:
 	if not in_bounds(p):
 		return
 	tiles[_idx(p)] = t
+	if t == TileType.BUILDING:
+		tile_hp[p] = hp if hp > 0 else DEFAULT_BUILDING_HP
+	elif t != TileType.PILLAR:
+		tile_hp.erase(p)
+
+func cells_of_type(t: int) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for y in range(SIZE):
+		for x in range(SIZE):
+			var p := Vector2i(x, y)
+			if get_tile(p) == t:
+				cells.append(p)
+	return cells
+
+func damage_tile(p: Vector2i, amount: int) -> Dictionary:
+	if amount <= 0 or not in_bounds(p) or not tile_hp.has(p):
+		return {"damaged": 0, "destroyed": false, "tile": get_tile(p)}
+	var tile := get_tile(p)
+	var old_hp: int = tile_hp[p]
+	var new_hp := old_hp - amount
+	var damaged := mini(amount, old_hp)
+	if new_hp > 0:
+		tile_hp[p] = new_hp
+		return {"damaged": damaged, "destroyed": false, "tile": tile}
+	tile_hp.erase(p)
+	if tile == TileType.BUILDING:
+		tiles[_idx(p)] = TileType.RUIN
+	elif tile == TileType.PILLAR:
+		tiles[_idx(p)] = TileType.EMPTY
+	return {"damaged": damaged, "destroyed": true, "tile": tile}
 
 ## True if the tile occupies the cell and blocks unit movement onto it.
 ## PILLAR + BUILDING block. RIFT + RUIN + EMPTY do not.

@@ -3,12 +3,12 @@ class_name AIDecider extends RefCounted
 ##
 ## Behavior by attack_kind:
 ##   MELEE_BUMP / MELEE_PUSH:
-##     - Already adjacent to a warden -> attack, no move.
-##     - Otherwise -> walk toward nearest warden; if landing adjacent, queue attack.
+##     - If protected targets exist, walk toward the nearest protected building.
+##     - Otherwise, walk toward nearest warden; if landing adjacent, queue attack.
 ##   RANGED_PUSH / RANGED_PULL:
 ##     - Cardinal-line scan within attack_range.
-##     - Warden in line -> stand still + attack along that direction.
-##     - Otherwise -> walk to a cell with LOS to warden (or fall back to adjacency).
+##     - Protected building / warden in line -> stand still + attack along that direction.
+##     - Otherwise -> walk to a cell with LOS to the target (or fall back to adjacency).
 ##
 ## See docs/game_design.md §4.5, docs/design/round_flow_and_intent.md, and
 ## docs/design/ui_decision_rules.md §1 for the AI tie-break rules.
@@ -70,9 +70,9 @@ static func replan_attack_only(state: BattleState, enemy: Unit, plan: EnemyPlan)
 	plan.origin_pos = enemy.position
 	plan.move_to = enemy.position
 	if _is_ranged(enemy.def):
-		plan.attack_pos = scan_line_for_warden(state, enemy.position, enemy.def.attack_range, enemy.id)
+		plan.attack_pos = scan_line_for_attack_target(state, enemy.position, enemy.def.attack_range, enemy.id)
 	else:
-		plan.attack_pos = _find_adjacent_warden_cell(state, enemy.position)
+		plan.attack_pos = _find_adjacent_attack_target_cell(state, enemy.position)
 
 
 ## 4-direction line scan for the first WARDEN in cardinal range of `from`.
@@ -96,24 +96,42 @@ static func scan_line_for_warden(state: BattleState, from: Vector2i, range_steps
 			break  # non-warden blocks the line
 	return Vector2i(-1, -1)
 
+static func scan_line_for_attack_target(state: BattleState, from: Vector2i, range_steps: int, self_id: int) -> Vector2i:
+	for d in Grid.DIRS:
+		for step in range(1, range_steps + 1):
+			var p: Vector2i = from + d * step
+			if not state.grid.in_bounds(p) or state.grid.blocks_movement(p):
+				if state.grid.in_bounds(p) \
+					and state.grid.get_tile(p) == Grid.TileType.BUILDING \
+					and state.is_protected_target(p):
+					return p
+				break
+			var u := state.get_alive_unit_at(p)
+			if u == null or u.id == self_id:
+				continue
+			if u.is_warden():
+				return p
+			break  # non-warden blocks the line
+	return Vector2i(-1, -1)
+
 
 # ---------- melee planner ----------
 
 static func _plan_melee(state: BattleState, enemy: Unit, claimed: Dictionary) -> EnemyPlan:
 	var plan := _new_plan(enemy)
-	var target := _find_nearest_warden(state, enemy)
-	if target == null:
+	var target_pos := _find_nearest_attack_target_pos(state, enemy)
+	if target_pos == Vector2i(-1, -1):
 		return plan
-	if Grid.manhattan(enemy.position, target.position) == 1:
-		plan.attack_pos = target.position
+	if Grid.manhattan(enemy.position, target_pos) == 1:
+		plan.attack_pos = target_pos
 		return plan
-	# Move toward the cell adjacent to the warden.
-	var goal := _shortest_adjacent_cell(state, enemy, target, _blocked_minus_self(claimed, enemy))
+	# Move toward the cell adjacent to the target.
+	var goal := _shortest_adjacent_cell_to_pos(state, enemy, target_pos, _blocked_minus_self(claimed, enemy))
 	if goal == Vector2i(-1, -1):
 		return plan
 	plan.move_to = _walk_toward(state, enemy, goal, _blocked_minus_self(claimed, enemy))
-	if Grid.manhattan(plan.move_to, target.position) == 1:
-		plan.attack_pos = target.position
+	if Grid.manhattan(plan.move_to, target_pos) == 1:
+		plan.attack_pos = target_pos
 	return plan
 
 
@@ -125,14 +143,14 @@ static func _plan_ranged(state: BattleState, enemy: Unit, claimed: Dictionary, s
 	plan.attack_pos = _scan_with_shadow(state, enemy.position, enemy.def.attack_range, enemy.id, shadow)
 	if plan.has_attack():
 		return plan
-	# No target -> walk toward warden, prefer cells with line-of-sight.
-	var target := _find_nearest_warden(state, enemy)
-	if target == null:
+	# No target -> walk toward a protected target / warden, prefer cells with line-of-sight.
+	var target_pos := _find_nearest_attack_target_pos(state, enemy)
+	if target_pos == Vector2i(-1, -1):
 		return plan
 	var blocked := _blocked_minus_self(claimed, enemy)
-	var goal := _shortest_line_of_sight_cell(state, enemy, target, blocked)
+	var goal := _shortest_line_of_sight_cell_to_pos(state, enemy, target_pos, blocked)
 	if goal == Vector2i(-1, -1):
-		goal = _shortest_adjacent_cell(state, enemy, target, blocked)
+		goal = _shortest_adjacent_cell_to_pos(state, enemy, target_pos, blocked)
 	if goal == Vector2i(-1, -1):
 		return plan
 	plan.move_to = _walk_toward(state, enemy, goal, blocked)
@@ -155,6 +173,10 @@ static func _scan_with_shadow(state: BattleState, from: Vector2i, range_steps: i
 		for step in range(1, range_steps + 1):
 			var p: Vector2i = from + d * step
 			if not state.grid.in_bounds(p) or state.grid.blocks_movement(p):
+				if state.grid.in_bounds(p) \
+					and state.grid.get_tile(p) == Grid.TileType.BUILDING \
+					and state.is_protected_target(p):
+					return p
 				break
 			if not pos_to_id.has(p):
 				continue
@@ -177,12 +199,12 @@ static func _walk_toward(state: BattleState, enemy: Unit, goal: Vector2i, blocke
 	var steps := mini(enemy.def.move, path.size())
 	return path[steps - 1]
 
-static func _shortest_adjacent_cell(state: BattleState, enemy: Unit, target: Unit, blocked: Dictionary) -> Vector2i:
-	## Pick the cell adjacent to `target` with the shortest path from enemy.
+static func _shortest_adjacent_cell_to_pos(state: BattleState, enemy: Unit, target_pos: Vector2i, blocked: Dictionary) -> Vector2i:
+	## Pick the cell adjacent to `target_pos` with the shortest path from enemy.
 	## N->E->S->W tie-break (Grid.DIRS order).
-	return _shortest_neighbor_at_step(state, enemy, target, 1, blocked)
+	return _shortest_neighbor_at_step(state, enemy, target_pos, 1, blocked)
 
-static func _shortest_line_of_sight_cell(state: BattleState, enemy: Unit, target: Unit, blocked: Dictionary) -> Vector2i:
+static func _shortest_line_of_sight_cell_to_pos(state: BattleState, enemy: Unit, target_pos: Vector2i, blocked: Dictionary) -> Vector2i:
 	## Pick the cell where enemy can shoot target along a cardinal line.
 	## Searches up to enemy.def.attack_range cells away from target.
 	## N->E->S->W tie-break for direction; nearest distance for step.
@@ -190,13 +212,13 @@ static func _shortest_line_of_sight_cell(state: BattleState, enemy: Unit, target
 	var best_len: int = 1 << 30
 	for d in Grid.DIRS:
 		for step in range(1, enemy.def.attack_range + 1):
-			var cand: Vector2i = target.position + d * step
+			var cand: Vector2i = target_pos + d * step
 			if not state.grid.in_bounds(cand) or state.grid.blocks_movement(cand):
 				break
 			if cand != enemy.position and blocked.has(cand):
 				continue
 			# Line from cand back to target must be clear of pillars.
-			if not _line_terrain_clear(state, target.position, d, step):
+			if not _line_terrain_clear(state, target_pos, d, step):
 				continue
 			var path_len := _path_length(state, enemy, cand, blocked)
 			if path_len == -1:
@@ -206,11 +228,11 @@ static func _shortest_line_of_sight_cell(state: BattleState, enemy: Unit, target
 				best = cand
 	return best
 
-static func _shortest_neighbor_at_step(state: BattleState, enemy: Unit, target: Unit, step: int, blocked: Dictionary) -> Vector2i:
+static func _shortest_neighbor_at_step(state: BattleState, enemy: Unit, target_pos: Vector2i, step: int, blocked: Dictionary) -> Vector2i:
 	var best := Vector2i(-1, -1)
 	var best_len: int = 1 << 30
 	for d in Grid.DIRS:
-		var cand: Vector2i = target.position + d * step
+		var cand: Vector2i = target_pos + d * step
 		if not state.grid.in_bounds(cand) or state.grid.blocks_movement(cand):
 			continue
 		if cand != enemy.position and blocked.has(cand):
@@ -252,8 +274,35 @@ static func _find_nearest_warden(state: BattleState, enemy: Unit) -> Unit:
 			best_dist = d
 	return best
 
-static func _find_adjacent_warden_cell(state: BattleState, from: Vector2i) -> Vector2i:
-	## Returns the cell of an adjacent warden (lowest id), or (-1,-1).
+static func _find_nearest_attack_target_pos(state: BattleState, enemy: Unit) -> Vector2i:
+	var buildings := state.alive_protected_targets()
+	if not buildings.is_empty():
+		var best := Vector2i(-1, -1)
+		var best_dist: int = 1 << 30
+		var best_hp: int = 1 << 30
+		for p in buildings:
+			var d := Grid.manhattan(enemy.position, p)
+			var hp: int = state.grid.tile_hp.get(p, Grid.DEFAULT_BUILDING_HP)
+			if d < best_dist \
+				or (d == best_dist and hp < best_hp) \
+				or (d == best_dist and hp == best_hp and _cell_id(p) < _cell_id(best)):
+				best = p
+				best_dist = d
+				best_hp = hp
+		return best
+	var warden := _find_nearest_warden(state, enemy)
+	return warden.position if warden != null else Vector2i(-1, -1)
+
+static func _find_adjacent_attack_target_cell(state: BattleState, from: Vector2i) -> Vector2i:
+	## Returns an adjacent protected building first, then adjacent warden.
+	var best_building := Vector2i(-1, -1)
+	for d in Grid.DIRS:
+		var p := from + d
+		if state.grid.get_tile(p) == Grid.TileType.BUILDING and state.is_protected_target(p):
+			if best_building == Vector2i(-1, -1) or _cell_id(p) < _cell_id(best_building):
+				best_building = p
+	if best_building != Vector2i(-1, -1):
+		return best_building
 	var best: Unit = null
 	for d in Grid.DIRS:
 		var t := state.get_alive_unit_at(from + d)
@@ -295,3 +344,6 @@ static func _new_plan(enemy: Unit) -> EnemyPlan:
 static func _is_ranged(def: UnitDef) -> bool:
 	return def.attack_kind == UnitDef.AttackKind.RANGED_PUSH \
 		or def.attack_kind == UnitDef.AttackKind.RANGED_PULL
+
+static func _cell_id(p: Vector2i) -> int:
+	return p.y * Grid.SIZE + p.x

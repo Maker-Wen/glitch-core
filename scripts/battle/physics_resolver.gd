@@ -29,7 +29,7 @@ static func resolve_attack(
 
 	# T1: damage snapshot. (Slice: no Cracksbane, so damage is unmodified.)
 	# T2: apply damage
-	_apply_damage(target, damage, events)
+	_apply_damage(state, target, damage, events, &"direct")
 
 	# T3+: advance push chain
 	if force > 0 and target.alive == false:
@@ -61,7 +61,13 @@ static func resolve_move(
 
 # ------------- internal -------------
 
-static func _apply_damage(u: Unit, dmg: int, events: Array[BattleEvent]) -> void:
+static func _apply_damage(
+	state: BattleState,
+	u: Unit,
+	dmg: int,
+	events: Array[BattleEvent],
+	cause: StringName = &"direct",
+) -> void:
 	if dmg <= 0 or not u.alive:
 		return
 	u.hp -= dmg
@@ -72,6 +78,8 @@ static func _apply_damage(u: Unit, dmg: int, events: Array[BattleEvent]) -> void
 	events.append(ed)
 	if u.hp <= 0:
 		u.alive = false
+		if u.is_enemy():
+			state.record_enemy_kill(cause)
 		var ek := BattleEvent.make(BattleEvent.Type.UNIT_DIED)
 		ek.unit_id = u.id
 		ek.to_pos = u.position
@@ -95,7 +103,10 @@ static func _advance_push(
 		var to: Vector2i = from + direction
 		# 1) Out of bounds -> fell into pit
 		if not state.grid.in_bounds(to):
+			var was_alive := subject.alive
 			subject.alive = false
+			if was_alive and subject.is_enemy():
+				state.record_enemy_kill(&"fall")
 			var ef := BattleEvent.make(BattleEvent.Type.UNIT_FELL)
 			ef.unit_id = subject.id
 			ef.from_pos = from
@@ -109,13 +120,14 @@ static func _advance_push(
 		var tile := state.grid.get_tile(to)
 		if tile == Grid.TileType.PILLAR or tile == Grid.TileType.BUILDING:
 			# Wall damage 1, push force voided
-			_apply_damage(subject, 1, events)
+			_apply_damage(state, subject, 1, events, &"wall")
+			if tile == Grid.TileType.BUILDING:
+				_damage_tile(state, to, 1, events)
 			var ew := BattleEvent.make(BattleEvent.Type.BUMP_WALL)
 			ew.unit_id = subject.id
 			ew.from_pos = from
 			ew.to_pos = to
 			events.append(ew)
-			# (Pillar/building HP not tracked in slice; tile_damage event reserved)
 			return
 		# 3) Another unit U -> relay (truth table §2.1 / §3.5)
 		var other := state.get_unit_at(to)
@@ -152,7 +164,7 @@ static func _advance_push(
 			if attacker != null and attacker.def != null and other.def != null:
 				if attacker.def.faction == other.def.faction:
 					bump_damage = 0
-			_apply_damage(other, bump_damage, events)
+			_apply_damage(state, other, bump_damage, events, &"bump")
 			var transferred := remaining - 1
 			# Subject's chain ends here regardless of relay outcome.
 			# Move subject into U's prior cell (whether U moved or died-in-place).
@@ -189,3 +201,25 @@ static func _finalize(state: BattleState, events: Array[BattleEvent]) -> void:
 		var er := BattleEvent.make(BattleEvent.Type.UNIT_REMOVED)
 		er.unit_id = uid
 		events.append(er)
+
+static func _damage_tile(
+	state: BattleState,
+	pos: Vector2i,
+	amount: int,
+	events: Array[BattleEvent],
+) -> void:
+	var result := state.grid.damage_tile(pos, amount)
+	var damaged: int = result.get("damaged", 0)
+	if damaged <= 0:
+		return
+	var ed := BattleEvent.make(BattleEvent.Type.TILE_DAMAGED)
+	ed.to_pos = pos
+	ed.amount = damaged
+	events.append(ed)
+	var destroyed: bool = result.get("destroyed", false)
+	state.record_protected_tile_damage(pos, damaged, destroyed)
+	if destroyed:
+		var ex := BattleEvent.make(BattleEvent.Type.TILE_DESTROYED)
+		ex.to_pos = pos
+		ex.amount = result.get("tile", Grid.TileType.EMPTY)
+		events.append(ex)

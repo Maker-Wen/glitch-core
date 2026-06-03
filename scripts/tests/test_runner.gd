@@ -38,6 +38,7 @@ func _run_all() -> void:
 		"res://scripts/tests/test_plague_archer.gd",
 		"res://scripts/tests/test_archer_round1.gd",
 		"res://scripts/tests/test_round1_archer_moves.gd",
+		"res://scripts/tests/test_defense_objectives.gd",
 	]
 	for path in test_scripts:
 		if not ResourceLoader.exists(path):

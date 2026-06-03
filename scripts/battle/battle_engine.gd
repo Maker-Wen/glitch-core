@@ -30,9 +30,13 @@ func start_battle(
 	deploy_zone: Array[Vector2i],
 	rift_positions: Array[Vector2i] = [],
 	rift_schedule: Array = [],
+	max_rounds: int = 5,
+	protected_targets: Array[Vector2i] = [],
+	reward_tasks: Array = [],
 ) -> Array[BattleEvent]:
 	state = BattleState.new()
 	state.grid = grid
+	state.max_rounds = max_rounds
 	for entry in enemies:
 		_spawn_unit(entry["def"], entry["pos"])
 	state.pending_warden_defs.clear()
@@ -47,6 +51,14 @@ func start_battle(
 		state.grid.set_tile(r, Grid.TileType.RIFT)
 	state.rift_schedule = rift_schedule.duplicate(true)
 	state.pending_rift_spawns.clear()
+	if protected_targets.is_empty():
+		state.protected_targets = state.grid.cells_of_type(Grid.TileType.BUILDING)
+	else:
+		state.protected_targets = protected_targets.duplicate()
+	for p in state.protected_targets:
+		if state.grid.get_tile(p) == Grid.TileType.BUILDING and not state.grid.tile_hp.has(p):
+			state.grid.tile_hp[p] = Grid.DEFAULT_BUILDING_HP
+	state.set_reward_tasks(reward_tasks)
 	state.phase = BattleState.Phase.GARRISON
 	_history.clear()
 	events_produced.emit([])
@@ -334,12 +346,13 @@ func _execute_enemy_attacks(s: BattleState) -> Array[BattleEvent]:
 		if plan == null or not plan.has_attack() or _is_enemy_displaced(s, enemy, plan):
 			continue
 		var target := s.get_alive_unit_at(plan.attack_pos)
-		if target == null:
-			continue
 		var dir := Direction.from_cells(enemy.position, plan.attack_pos)
 		if dir == Vector2i.ZERO:
 			continue  # safety -- displacement check should have caught this
-		events.append_array(_resolve_enemy_attack(s, enemy, target, dir))
+		if target != null:
+			events.append_array(_resolve_enemy_attack(s, enemy, target, dir))
+		elif _is_attackable_building(s, plan.attack_pos):
+			events.append_array(_resolve_enemy_building_attack(s, enemy, plan.attack_pos))
 	return events
 
 func _resolve_enemy_attack(s: BattleState, enemy: Unit, target: Unit, dir: Vector2i) -> Array[BattleEvent]:
@@ -348,6 +361,25 @@ func _resolve_enemy_attack(s: BattleState, enemy: Unit, target: Unit, dir: Vecto
 			return PhysicsResolver.resolve_attack(s, enemy, target, dir, 0, enemy.def.attack_damage)
 		_:
 			return PhysicsResolver.resolve_attack(s, enemy, target, dir, enemy.def.attack_force, enemy.def.attack_damage)
+
+func _resolve_enemy_building_attack(s: BattleState, enemy: Unit, target_pos: Vector2i) -> Array[BattleEvent]:
+	var events: Array[BattleEvent] = []
+	var result := s.grid.damage_tile(target_pos, enemy.def.attack_damage)
+	var damaged: int = result.get("damaged", 0)
+	if damaged <= 0:
+		return events
+	var ed := BattleEvent.make(BattleEvent.Type.TILE_DAMAGED)
+	ed.to_pos = target_pos
+	ed.amount = damaged
+	events.append(ed)
+	var destroyed: bool = result.get("destroyed", false)
+	s.record_protected_tile_damage(target_pos, damaged, destroyed)
+	if destroyed:
+		var ex := BattleEvent.make(BattleEvent.Type.TILE_DESTROYED)
+		ex.to_pos = target_pos
+		ex.amount = result.get("tile", Grid.TileType.EMPTY)
+		events.append(ex)
+	return events
 
 func _replan_attacks_post_move(s: BattleState) -> void:
 	## After all enemy moves execute, ranged enemies' planned targets may have
@@ -401,13 +433,18 @@ func _is_enemy_displaced(s: BattleState, enemy: Unit, plan) -> bool:
 	var expected: Vector2i = plan.move_to if plan.move_to != Vector2i(-1, -1) else plan.origin_pos
 	if expected != Vector2i(-1, -1) and enemy.position != expected:
 		return true
-	if s.get_alive_unit_at(plan.attack_pos) == null:
+	if s.get_alive_unit_at(plan.attack_pos) == null and not _is_attackable_building(s, plan.attack_pos):
 		return true
 	if enemy.def == null:
 		return false
 	if _is_ranged(enemy.def):
 		return not Direction.has_clear_line(s, enemy.position, plan.attack_pos, enemy.def.attack_range)
 	return Grid.manhattan(enemy.position, plan.attack_pos) != 1
+
+func _is_attackable_building(s: BattleState, p: Vector2i) -> bool:
+	return s.grid.get_tile(p) == Grid.TileType.BUILDING \
+		and s.is_protected_target(p) \
+		and int(s.grid.tile_hp.get(p, 0)) > 0
 
 
 # ---------- victory / defeat ----------
@@ -418,23 +455,19 @@ func _check_battle_end(s: BattleState, events: Array[BattleEvent]) -> void:
 	if s.wardens().is_empty():
 		_set_outcome(s, events, BattleState.Outcome.DEFEAT)
 		return
-	if not s.enemies().is_empty():
-		return
-	if not s.pending_rift_spawns.is_empty():
-		return  # more spawns next round
-	for entry in s.rift_schedule:
-		if entry.round >= s.current_round:
-			return  # more spawns scheduled
-	if s.current_round >= 2:
-		_set_outcome(s, events, BattleState.Outcome.VICTORY)
+	if s.has_protected_targets() and s.alive_protected_targets().is_empty():
+		_set_outcome(s, events, BattleState.Outcome.DEFEAT)
 
 func _settle_max_round_outcome(s: BattleState, events: Array[BattleEvent]) -> void:
-	# Slice victory rule: survived max_rounds with any warden alive = victory.
-	var outcome := BattleState.Outcome.VICTORY if not s.wardens().is_empty() else BattleState.Outcome.DEFEAT
+	var protected_ok := not s.has_protected_targets() or not s.alive_protected_targets().is_empty()
+	var outcome := BattleState.Outcome.VICTORY \
+		if not s.wardens().is_empty() and protected_ok \
+		else BattleState.Outcome.DEFEAT
 	_set_outcome(s, events, outcome)
 
 func _set_outcome(s: BattleState, events: Array[BattleEvent], outcome: int) -> void:
 	s.outcome = outcome
+	s.finalize_reward_tasks()
 	var e := BattleEvent.make(BattleEvent.Type.BATTLE_ENDED)
 	e.amount = outcome
 	events.append(e)
