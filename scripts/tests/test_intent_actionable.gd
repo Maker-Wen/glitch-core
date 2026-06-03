@@ -1,6 +1,6 @@
 extends RefCounted
-## Regression: enemy intent (warning) must be marked non-actionable after the
-## player pushes / kills the enemy so the UI threat overlay disappears.
+## Regression: enemy intent (warning) is direction-locked. Pushing an enemy
+## moves its attack line; only killing/removing the enemy clears the slot.
 
 static func _make_bh() -> UnitDef:
 	var d := UnitDef.new()
@@ -33,13 +33,13 @@ static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	return u
 
 static func run(tr) -> void:
-	_test_pushed_enemy_intent_falls_flat(tr)
+	_test_pushed_enemy_intent_keeps_firing_direction(tr)
 	_test_killed_enemy_intent_falls_flat(tr)
 	_test_enemy_adjacent_intent_actionable(tr)
 
-static func _test_pushed_enemy_intent_falls_flat(tr) -> void:
+static func _test_pushed_enemy_intent_keeps_firing_direction(tr) -> void:
 	# Carrion adjacent to BH plans to attack BH. After BH pushes Carrion away,
-	# the plan must no longer be actionable.
+	# the attack slot remains actionable and slides along the locked direction.
 	# Use a second decoy warden so the turn doesn't auto-advance after BH acts.
 	var engine := BattleEngine.new()
 	engine.state = BattleState.new()
@@ -61,7 +61,8 @@ static func _test_pushed_enemy_intent_falls_flat(tr) -> void:
 	engine.apply_action(BattleAction.attack(bh.id, Vector2i(3, 4)))
 	tr.assert_eq("carrion pushed north", carrion.position, Vector2i(3, 3))
 	tr.assert_eq("round still 1", engine.state.current_round, 1)
-	tr.assert_true("plan no longer actionable after push", not engine.is_plan_actionable(carrion.id))
+	tr.assert_true("plan still actionable after push", engine.is_plan_actionable(carrion.id))
+	tr.assert_eq("pushed attack line slides north", engine.current_enemy_attack_pos(carrion.id), Vector2i(3, 4))
 
 static func _test_killed_enemy_intent_falls_flat(tr) -> void:
 	# Carrion with HP=1 dies in one hit. Its plan must not be actionable.

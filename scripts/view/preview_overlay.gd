@@ -56,6 +56,9 @@ func clear_preview() -> void:
 func clear_all_ranges() -> void:
 	move_cells.clear()
 	attack_cells.clear()
+	enemy_intents.clear()
+	enemy_intents_preview_mode = false
+	focused_enemy_id = -1
 	preview_markers.clear()
 	preview_paths.clear()
 	queue_redraw()
@@ -82,6 +85,7 @@ func _draw() -> void:
 	# Focus (hovering over an enemy) only adjusts brightness -- all attack
 	# arrows stay visible regardless of focus state. Hiding non-focused
 	# arrows would create the "ghost threat" bug the user reported.
+	var damage_badges: Dictionary = {}
 	for intent in enemy_intents:
 		var eid: int = intent.get("enemy_id", -1)
 		var is_focused: bool = (focused_enemy_id == eid)
@@ -92,6 +96,8 @@ func _draw() -> void:
 		if attack_pos == Vector2i(-1, -1):
 			continue
 		var is_miss := status == BattleEngine.INTENT_STATUS_MISS
+		var attack_fires: bool = intent.get("attack_fires", not is_miss)
+		var show_as_live_attack := attack_fires or not is_miss
 		# Target cell: warning fill. When this enemy is focused (or no
 		# enemy is focused), it's brighter; when a different enemy is focused,
 		# this one's threat dims slightly but stays visible.
@@ -99,42 +105,53 @@ func _draw() -> void:
 		var fill_a: float
 		var border_a: float
 		if is_focused:
-			fill_a = 0.42 if is_miss else 0.50
+			fill_a = 0.50 if show_as_live_attack else 0.42
 			border_a = 1.0
 		elif dimmed:
-			fill_a = 0.12 if is_miss else 0.18
-			border_a = 0.42 if is_miss else 0.55
+			fill_a = 0.18 if show_as_live_attack else 0.12
+			border_a = 0.55 if show_as_live_attack else 0.42
 		else:
-			fill_a = 0.22 if is_miss else 0.30
-			border_a = 0.62 if is_miss else 0.80
+			fill_a = 0.30 if show_as_live_attack else 0.22
+			border_a = 0.80 if show_as_live_attack else 0.62
 		if enemy_intents_preview_mode:
 			fill_a *= 0.86
 			border_a *= 0.92
-		var base_fill := COLOR_ENEMY_INTENT_MISS if is_miss else COLOR_ENEMY_INTENT
-		var base_border := COLOR_ENEMY_INTENT_MISS_BORDER if is_miss else COLOR_ENEMY_INTENT_BORDER
+		var base_fill := COLOR_ENEMY_INTENT if show_as_live_attack else COLOR_ENEMY_INTENT_MISS
+		var base_border := COLOR_ENEMY_INTENT_BORDER if show_as_live_attack else COLOR_ENEMY_INTENT_MISS_BORDER
 		var fill: Color = Color(base_fill.r, base_fill.g, base_fill.b, fill_a)
 		var border: Color = Color(base_border.r, base_border.g, base_border.b, border_a)
 		_fill_cell(attack_pos, fill, border)
+		if not is_miss:
+			_add_damage_badge(damage_badges, attack_pos, int(intent.get("target_damage", 0)), is_focused, dimmed)
 		# Strike arrow from enemy -> target (always visible).
 		var enemy_pos: Vector2i = intent.get("enemy_pos", Vector2i(-1, -1))
 		if enemy_pos != Vector2i(-1, -1) and enemy_pos != attack_pos:
 			var arrow_alpha: float
 			if is_focused:
-				arrow_alpha = 0.88 if is_miss else 1.0
+				arrow_alpha = 1.0 if show_as_live_attack else 0.88
 			elif dimmed:
-				arrow_alpha = 0.36 if is_miss else 0.55
+				arrow_alpha = 0.55 if show_as_live_attack else 0.36
 			else:
-				arrow_alpha = 0.58 if is_miss else 0.85
+				arrow_alpha = 0.85 if show_as_live_attack else 0.58
 			if enemy_intents_preview_mode:
 				arrow_alpha *= 0.9
-			var arrow_width: float = 3.0 if is_miss else 4.0 if is_focused else (2.0 if dimmed else 3.0)
-			var arrow_col := Color(0.66, 0.74, 0.84, arrow_alpha) if is_miss else Color(1.0, 0.35, 0.45, arrow_alpha)
+			var arrow_width: float = (4.0 if is_focused else (2.0 if dimmed else 3.0)) if show_as_live_attack else 3.0
+			var arrow_col := Color(1.0, 0.35, 0.45, arrow_alpha) if show_as_live_attack else Color(0.66, 0.74, 0.84, arrow_alpha)
 			_draw_arrow(
 				GridView.cell_to_pixel(enemy_pos),
 				GridView.cell_to_pixel(attack_pos),
 				arrow_col,
 				arrow_width
 			)
+	for cell in damage_badges.keys():
+		var badge: Dictionary = damage_badges[cell]
+		_draw_damage_badge(
+			cell,
+			int(badge.get("amount", 0)),
+			bool(badge.get("focused", false)),
+			bool(badge.get("dimmed", false)),
+			enemy_intents_preview_mode,
+		)
 
 	# Predicted rift spawns: bright golden cell + pulsing border + large arrow.
 	# This is the player's warning "an enemy will spawn here next round".
@@ -230,6 +247,48 @@ func _draw_arrow(from_px: Vector2, to_px: Vector2, col: Color, w: float) -> void
 	var left := end_pt - dir * head_size + dir.rotated(PI * 0.5) * (head_size * 0.6)
 	var right := end_pt - dir * head_size - dir.rotated(PI * 0.5) * (head_size * 0.6)
 	draw_colored_polygon([end_pt, left, right], col)
+
+func _add_damage_badge(badges: Dictionary, cell: Vector2i, amount: int, focused: bool, dimmed: bool) -> void:
+	if amount <= 0:
+		return
+	var badge: Dictionary = badges.get(cell, {
+		"amount": 0,
+		"focused": false,
+		"dimmed": true,
+	})
+	badge["amount"] = int(badge.get("amount", 0)) + amount
+	badge["focused"] = bool(badge.get("focused", false)) or focused
+	badge["dimmed"] = bool(badge.get("dimmed", true)) and dimmed
+	badges[cell] = badge
+
+func _draw_damage_badge(cell: Vector2i, amount: int, focused: bool, dimmed: bool, preview_mode: bool) -> void:
+	if amount <= 0:
+		return
+	var font: Font = ThemeDB.get_project_theme().default_font if ThemeDB.get_project_theme() != null else ThemeDB.fallback_font
+	if font == null:
+		return
+	var rect := Rect2(Vector2(cell) * GridView.CELL_SIZE, Vector2.ONE * GridView.CELL_SIZE)
+	var center := rect.position + Vector2(rect.size.x * 0.5, rect.size.y * 0.22)
+	var alpha := 1.0
+	if dimmed:
+		alpha = 0.46
+	elif preview_mode:
+		alpha = 0.78
+	var radius := 15.0 if focused else 13.0
+	draw_circle(center, radius, Color(0.12, 0.03, 0.04, 0.88 * alpha))
+	draw_arc(center, radius, 0, TAU, 20, Color(1.0, 0.36, 0.32, 0.95 * alpha), 2.0)
+	var text := "-%d" % amount
+	var fsize := 15 if focused else 13
+	var size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)
+	draw_string(
+		font,
+		center - size * 0.5 + Vector2(0, fsize * 0.36),
+		text,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		-1,
+		fsize,
+		Color(1.0, 0.92, 0.86, alpha),
+	)
 
 func _fill_cell(p: Vector2i, fill: Color, border: Color) -> void:
 	var rect := Rect2(Vector2(p) * GridView.CELL_SIZE, Vector2.ONE * GridView.CELL_SIZE)

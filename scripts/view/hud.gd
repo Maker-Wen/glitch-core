@@ -174,7 +174,7 @@ func _rebuild_enemy_stack_rows() -> void:
 		var enemy_id: int = row.get("enemy_id", -1)
 		var panel := ColorRect.new()
 		panel.name = "EnemyIntent_%d" % enemy_id
-		panel.custom_minimum_size = Vector2(250, 54)
+		panel.custom_minimum_size = Vector2(250, 38)
 		panel.color = Color(0.11, 0.09, 0.13, 0.90)
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		panel.mouse_entered.connect(func(): enemy_stack_hovered.emit(enemy_id))
@@ -193,9 +193,9 @@ func _rebuild_enemy_stack_rows() -> void:
 
 		var order_label := Label.new()
 		order_label.offset_left = 8.0
-		order_label.offset_top = 7.0
+		order_label.offset_top = 5.0
 		order_label.offset_right = 36.0
-		order_label.offset_bottom = 34.0
+		order_label.offset_bottom = 33.0
 		order_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		order_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		order_label.add_theme_font_size_override("font_size", 18)
@@ -204,46 +204,31 @@ func _rebuild_enemy_stack_rows() -> void:
 
 		var name_label := Label.new()
 		name_label.offset_left = 42.0
-		name_label.offset_top = 6.0
-		name_label.offset_right = 170.0
-		name_label.offset_bottom = 27.0
-		name_label.add_theme_font_size_override("font_size", 14)
+		name_label.offset_top = 8.0
+		name_label.offset_right = 200.0
+		name_label.offset_bottom = 30.0
+		name_label.add_theme_font_size_override("font_size", 15)
 		name_label.clip_text = true
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(name_label)
 
-		var status_label := Label.new()
-		status_label.offset_left = 172.0
-		status_label.offset_top = 6.0
-		status_label.offset_right = 242.0
-		status_label.offset_bottom = 27.0
-		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		status_label.add_theme_font_size_override("font_size", 14)
-		status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(status_label)
-
-		var summary_label := Label.new()
-		summary_label.offset_left = 42.0
-		summary_label.offset_top = 29.0
-		summary_label.offset_right = 242.0
-		summary_label.offset_bottom = 50.0
-		summary_label.add_theme_font_size_override("font_size", 12)
-		summary_label.modulate = Color(0.78, 0.78, 0.86, 1)
-		summary_label.clip_text = true
-		summary_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(summary_label)
+		var status_mark := Panel.new()
+		status_mark.name = "StatusMark"
+		status_mark.offset_left = 220.0
+		status_mark.offset_top = 11.0
+		status_mark.offset_right = 238.0
+		status_mark.offset_bottom = 27.0
+		status_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(status_mark)
 
 		order_label.text = str(row.get("order", "?"))
 		name_label.text = row.get("enemy_name", "敌人")
-		status_label.text = _enemy_status_text(row.get("status", BattleEngine.INTENT_STATUS_NO_ATTACK))
-		summary_label.text = _enemy_intent_summary(row)
 		_enemy_row_controls[enemy_id] = {
 			"panel": panel,
 			"border": border,
 			"order": order_label,
 			"name": name_label,
-			"status": status_label,
-			"summary": summary_label,
+			"status": status_mark,
 		}
 
 func _update_enemy_stack_styles() -> void:
@@ -256,8 +241,7 @@ func _update_enemy_stack_styles() -> void:
 		var border: ReferenceRect = controls.border
 		var order_label: Label = controls.order
 		var name_label: Label = controls.name
-		var status_label: Label = controls.status
-		var summary_label: Label = controls.summary
+		var status_mark: Panel = controls.status
 		var status: String = row.get("status", BattleEngine.INTENT_STATUS_NO_ATTACK)
 		var is_focused := _focused_enemy_id == enemy_id
 		var is_dimmed := _focused_enemy_id != -1 and not is_focused
@@ -281,8 +265,7 @@ func _update_enemy_stack_styles() -> void:
 		border.border_color = border_color
 		order_label.modulate = Color(1.0, 0.90, 0.56, 1.0 if not is_dimmed else 0.60)
 		name_label.modulate = Color(0.95, 0.92, 0.88, 1.0 if not is_dimmed else 0.58)
-		status_label.modulate = status_color if not is_dimmed else Color(status_color.r, status_color.g, status_color.b, 0.58)
-		summary_label.modulate = Color(0.78, 0.78, 0.86, 1.0 if not is_dimmed else 0.50)
+		_apply_enemy_status_mark(status_mark, status, status_color, is_dimmed)
 
 func _enemy_stack_signature_for(rows: Array, preview_mode: bool) -> String:
 	var parts: Array[String] = [str(preview_mode)]
@@ -298,31 +281,53 @@ func _enemy_stack_signature_for(rows: Array, preview_mode: bool) -> String:
 		])
 	return "|".join(parts)
 
-func _enemy_intent_summary(row: Dictionary) -> String:
-	var status: String = row.get("status", BattleEngine.INTENT_STATUS_NO_ATTACK)
-	if status == BattleEngine.INTENT_STATUS_REMOVED:
-		return "已被击杀 / 推出，不再攻击"
-	if status == BattleEngine.INTENT_STATUS_NO_ATTACK:
-		return "本轮只移动，不攻击"
-	var damage: int = row.get("target_damage", 0)
-	var target_kind: String = row.get("target_kind", BattleEngine.TARGET_KIND_NONE)
-	var target_name: String = row.get("target_name", "")
-	if target_kind == BattleEngine.TARGET_KIND_BUILDING:
-		return "攻击建筑，预计 %d 伤" % damage
-	if target_kind == BattleEngine.TARGET_KIND_UNIT:
-		return "攻击 %s，预计 %d 伤" % [target_name, damage]
-	return "攻击原锁定格，当前会落空"
-
-func _enemy_status_text(status: String) -> String:
+func _apply_enemy_status_mark(mark: Panel, status: String, base_color: Color, dimmed: bool) -> void:
+	var alpha_scale := 0.58 if dimmed else 1.0
+	var fill := Color(base_color.r, base_color.g, base_color.b, base_color.a * alpha_scale)
+	var border := Color(base_color.r, base_color.g, base_color.b, 0.72 * alpha_scale)
+	var style := StyleBoxFlat.new()
+	style.corner_radius_top_left = 3
+	style.corner_radius_top_right = 3
+	style.corner_radius_bottom_left = 3
+	style.corner_radius_bottom_right = 3
 	match status:
 		BattleEngine.INTENT_STATUS_HIT:
-			return "命中"
+			mark.offset_left = 220.0
+			mark.offset_top = 11.0
+			mark.offset_right = 238.0
+			mark.offset_bottom = 27.0
+			style.bg_color = fill
+			style.border_color = border.lightened(0.25)
+			style.border_width_left = 1
+			style.border_width_top = 1
+			style.border_width_right = 1
+			style.border_width_bottom = 1
 		BattleEngine.INTENT_STATUS_MISS:
-			return "落空"
+			mark.offset_left = 219.0
+			mark.offset_top = 12.0
+			mark.offset_right = 239.0
+			mark.offset_bottom = 26.0
+			style.bg_color = Color(fill.r, fill.g, fill.b, 0.16 * alpha_scale)
+			style.border_color = border
+			style.border_width_left = 2
+			style.border_width_top = 2
+			style.border_width_right = 2
+			style.border_width_bottom = 2
 		BattleEngine.INTENT_STATUS_REMOVED:
-			return "已移除"
+			mark.offset_left = 220.0
+			mark.offset_top = 16.0
+			mark.offset_right = 238.0
+			mark.offset_bottom = 22.0
+			style.bg_color = Color(fill.r, fill.g, fill.b, 0.64 * alpha_scale)
+			style.border_color = Color(border.r, border.g, border.b, 0.34 * alpha_scale)
 		_:
-			return "无攻击"
+			mark.offset_left = 223.0
+			mark.offset_top = 17.0
+			mark.offset_right = 235.0
+			mark.offset_bottom = 21.0
+			style.bg_color = Color(fill.r, fill.g, fill.b, 0.54 * alpha_scale)
+			style.border_color = Color(border.r, border.g, border.b, 0.28 * alpha_scale)
+	mark.add_theme_stylebox_override("panel", style)
 
 func _enemy_stack_palette(status: String) -> Dictionary:
 	match status:

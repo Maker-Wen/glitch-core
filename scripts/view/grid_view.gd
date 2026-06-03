@@ -15,6 +15,14 @@ const COLOR_RUIN := Color(0.18, 0.16, 0.15)
 ## bright red+gold "↑" indicator when a rift is about to spawn.
 const COLOR_RIFT_INACTIVE := Color(0.22, 0.18, 0.20, 0.85)
 const COLOR_GRID_LINE := Color(0.05, 0.04, 0.06, 0.6)
+const TILE_DRAW_SIZE := Vector2(94, 94)
+const FEATURE_DRAW_SIZE := Vector2(104, 104)
+
+const TEX_EMPTY := preload("res://art/tiles/board_empty_tile.png")
+const TEX_PILLAR := preload("res://art/tiles/board_pillar_tile.png")
+const TEX_BUILDING := preload("res://art/tiles/board_building_tile.png")
+const TEX_RUIN := preload("res://art/tiles/board_ruin_tile.png")
+const TEX_RIFT := preload("res://art/tiles/board_rift_tile.png")
 
 var _grid: Grid
 
@@ -30,16 +38,13 @@ func _draw() -> void:
 			var rect := Rect2(Vector2(x, y) * CELL_SIZE, Vector2.ONE * CELL_SIZE)
 			var c := COLOR_TILE_A if (x + y) % 2 == 0 else COLOR_TILE_B
 			draw_rect(rect, c)
+			_draw_tile_texture(TEX_EMPTY, rect, TILE_DRAW_SIZE)
 			var tile: int = _grid.get_tile(Vector2i(x, y))
 			match tile:
 				Grid.TileType.PILLAR:
-					var inset := Rect2(rect.position + Vector2(8, 8), rect.size - Vector2(16, 16))
-					draw_rect(inset, COLOR_PILLAR)
-					draw_rect(inset, COLOR_PILLAR_EDGE, false, 2.0)
+					_draw_tile_texture(TEX_PILLAR, rect, FEATURE_DRAW_SIZE)
 				Grid.TileType.BUILDING:
-					var inset := Rect2(rect.position + Vector2(7, 7), rect.size - Vector2(14, 14))
-					draw_rect(inset, COLOR_BUILDING)
-					draw_rect(inset, COLOR_BUILDING_EDGE, false, 2.0)
+					_draw_tile_texture(TEX_BUILDING, rect, FEATURE_DRAW_SIZE)
 					var hp: int = _grid.tile_hp.get(Vector2i(x, y), Grid.DEFAULT_BUILDING_HP)
 					draw_string(
 						ThemeDB.fallback_font,
@@ -51,34 +56,13 @@ func _draw() -> void:
 						Color(1.0, 0.9, 0.65),
 					)
 				Grid.TileType.RUIN:
-					var inset := Rect2(rect.position + Vector2(10, 10), rect.size - Vector2(20, 20))
-					draw_rect(inset, COLOR_RUIN)
-					draw_line(inset.position, inset.position + inset.size, Color(0.45, 0.38, 0.34), 2.0)
-					draw_line(
-						inset.position + Vector2(inset.size.x, 0),
-						inset.position + Vector2(0, inset.size.y),
-						Color(0.45, 0.38, 0.34),
-						2.0,
-					)
+					_draw_tile_texture(TEX_RUIN, rect, FEATURE_DRAW_SIZE)
 				Grid.TileType.RIFT:
 					# Subtle dark crack -- visible enough that the player knows
 					# this is a rift cell, but quiet enough that round 1 looks
 					# clean. When the rift is about to spawn an enemy, the
 					# PreviewOverlay adds the bright "↑" indicator on top.
-					var center := rect.position + rect.size * 0.5
-					var crack_w := CELL_SIZE * 0.30
-					draw_line(
-						center - Vector2(crack_w * 0.5, crack_w * 0.18),
-						center + Vector2(crack_w * 0.5, crack_w * 0.18),
-						COLOR_RIFT_INACTIVE,
-						2.0,
-					)
-					draw_line(
-						center + Vector2(-crack_w * 0.25, -crack_w * 0.4),
-						center + Vector2(crack_w * 0.25, crack_w * 0.4),
-						COLOR_RIFT_INACTIVE,
-						2.0,
-					)
+					_draw_tile_texture(TEX_RIFT, rect, TILE_DRAW_SIZE)
 	# Grid lines
 	for i in range(Grid.SIZE + 1):
 		var x_px: int = i * CELL_SIZE
@@ -86,6 +70,11 @@ func _draw() -> void:
 		var max_px: int = Grid.SIZE * CELL_SIZE
 		draw_line(Vector2(x_px, 0), Vector2(x_px, max_px), COLOR_GRID_LINE)
 		draw_line(Vector2(0, y_px), Vector2(max_px, y_px), COLOR_GRID_LINE)
+
+func _draw_tile_texture(texture: Texture2D, cell_rect: Rect2, size: Vector2) -> void:
+	var center := cell_rect.position + cell_rect.size * 0.5
+	var draw_rect := Rect2(center - size * 0.5, size)
+	draw_texture_rect(texture, draw_rect, false)
 
 ## Convert grid cell to local pixel center.
 static func cell_to_pixel(p: Vector2i) -> Vector2:

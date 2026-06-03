@@ -216,7 +216,10 @@ func _on_events(events: Array) -> void:
 	_executing_enemy_id = -1
 	preview.clear_preview()
 	preview.clear_all_ranges()
-	_suppress_enemy_intents_until_events_done = _events_include_enemy_move(events)
+	_suppress_enemy_intents_until_events_done = _events_include_enemy_displacement(events)
+	if _suppress_enemy_intents_until_events_done:
+		hud.set_enemy_action_stack([])
+		_set_focused_enemy(-1)
 	await _play_events(events)
 	_animating = false
 	_suppress_enemy_intents_until_events_done = false
@@ -242,7 +245,12 @@ func _play_events(events: Array) -> void:
 					hud.set_enemy_action_stack([])
 					_set_focused_enemy(-1)
 				await _anim_unit_moved(e)
-			BattleEvent.Type.UNIT_PUSHED:  await _anim_unit_pushed(e)
+			BattleEvent.Type.UNIT_PUSHED:
+				if _suppress_enemy_intents_until_events_done and _event_unit_is_enemy(e):
+					preview.set_enemy_intents([])
+					hud.set_enemy_action_stack([])
+					_set_focused_enemy(-1)
+				await _anim_unit_pushed(e)
 			BattleEvent.Type.UNIT_DAMAGED: await _anim_unit_damaged(e)
 			BattleEvent.Type.UNIT_DIED, BattleEvent.Type.UNIT_FELL:
 				await _anim_unit_died(e)
@@ -346,6 +354,7 @@ func _anim_tile_changed(_e: BattleEvent) -> void:
 	grid_view.queue_redraw()
 
 func _refresh_selection_highlights() -> void:
+	_sync_unit_view_action_states()
 	# Garrison phase: show deploy zone as the "move range" highlight.
 	if engine.state.phase == BattleState.Phase.GARRISON:
 		preview.set_move_range(engine.get_deploy_zone())
@@ -369,7 +378,8 @@ func _refresh_selection_highlights() -> void:
 		_:
 			preview.set_move_range(engine.get_legal_moves(selected_warden_id))
 			preview.set_attack_targets(engine.get_legal_attack_targets(selected_warden_id))
-	# Sync the "acted" visual for all wardens
+
+func _sync_unit_view_action_states() -> void:
 	for u in engine.state.units:
 		var v: UnitView = unit_views.get(u.id, null)
 		if v != null:
@@ -387,7 +397,7 @@ func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool
 			attack_rows.append(row)
 	preview.set_enemy_intents(attack_rows, preview_mode)
 	hud.set_enemy_action_stack(
-		attack_rows,
+		rows,
 		preview_mode,
 		_focused_enemy_id,
 		_executing_enemy_id,
@@ -483,10 +493,11 @@ func _append_debug_info(unit: Unit, lines: Array[String]) -> void:
 			var actionable: bool = engine.is_plan_actionable(unit.id)
 			if not actionable:
 				lines.append("[本回合行动落空]")
-				lines.append("（已被推开 / 失去目标）")
+				lines.append("（失去攻击方向 / 目标）")
 			elif plan.has_attack():
-				lines.append("攻击格: (%d, %d)" % [plan.attack_pos.x, plan.attack_pos.y])
-				var target := engine.state.get_alive_unit_at(plan.attack_pos)
+				var attack_pos := engine.current_enemy_attack_pos(unit.id)
+				lines.append("攻击格: (%d, %d)" % [attack_pos.x, attack_pos.y])
+				var target := engine.state.get_alive_unit_at(attack_pos)
 				if target != null:
 					lines.append("目标: %s (HP %d → %d)" % [
 						target.def.display_name,
@@ -704,10 +715,14 @@ func _set_executing_enemy(enemy_id: int) -> void:
 	hud.set_enemy_stack_executing(enemy_id)
 	_set_focused_enemy(enemy_id)
 
-func _events_include_enemy_move(events: Array) -> bool:
+func _events_include_enemy_displacement(events: Array) -> bool:
 	for raw in events:
 		var e: BattleEvent = raw
-		if e.type == BattleEvent.Type.UNIT_MOVED and _event_unit_is_enemy(e):
+		if (
+			e.type == BattleEvent.Type.UNIT_MOVED
+			or e.type == BattleEvent.Type.UNIT_PUSHED
+			or e.type == BattleEvent.Type.UNIT_FELL
+		) and _event_unit_is_enemy(e):
 			return true
 	return false
 
