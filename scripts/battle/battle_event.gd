@@ -19,6 +19,8 @@ enum Type {
 	ROUND_STARTED,
 	ROUND_ENDED,
 	BATTLE_ENDED,
+	ENEMY_ATTACK_STARTED,  # UI timing: highlight the acting enemy slot.
+	ENEMY_ATTACK_MISSED,   # UI timing: locked attack slot resolved with no hit.
 }
 
 var type: int

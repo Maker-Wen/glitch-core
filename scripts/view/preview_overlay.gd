@@ -8,6 +8,8 @@ const COLOR_ATTACK := Color(0.9, 0.3, 0.35, 0.30)
 const COLOR_ATTACK_BORDER := Color(1.0, 0.4, 0.45, 0.85)
 const COLOR_ENEMY_INTENT := Color(0.9, 0.25, 0.5, 0.22)
 const COLOR_ENEMY_INTENT_BORDER := Color(0.95, 0.4, 0.6, 0.6)
+const COLOR_ENEMY_INTENT_MISS := Color(0.48, 0.60, 0.72, 0.18)
+const COLOR_ENEMY_INTENT_MISS_BORDER := Color(0.64, 0.72, 0.82, 0.55)
 const COLOR_PREVIEW_GHOST := Color(1, 1, 1, 0.55)
 const COLOR_RIFT_PREDICTED := Color(1.0, 0.85, 0.3, 0.95)
 
@@ -15,6 +17,7 @@ var move_cells: Array[Vector2i] = []
 var attack_cells: Array[Vector2i] = []
 ## Each intent: {enemy_id, order, enemy_pos, post_move, move_to, attack_pos}
 var enemy_intents: Array = []
+var enemy_intents_preview_mode: bool = false
 var focused_enemy_id: int = -1  ## When set, only this enemy's intent is shown prominently
 var preview_markers: Array = []  # [{pos: Vector2i, kind: String}]
 var preview_paths: Array = []   # [{from: Vector2i, to: Vector2i, enemy: bool}]
@@ -29,8 +32,9 @@ func set_attack_targets(cells: Array[Vector2i]) -> void:
 	attack_cells = cells
 	queue_redraw()
 
-func set_enemy_intents(intents: Array) -> void:
+func set_enemy_intents(intents: Array, preview_mode: bool = false) -> void:
 	enemy_intents = intents
+	enemy_intents_preview_mode = preview_mode
 	queue_redraw()
 
 func set_focused_enemy(enemy_id: int) -> void:
@@ -71,10 +75,9 @@ func _draw() -> void:
 		_fill_cell(cell, COLOR_MOVE, COLOR_MOVE_BORDER)
 	for cell in attack_cells:
 		_fill_cell(cell, COLOR_ATTACK, COLOR_ATTACK_BORDER)
-	# Enemy intents: ALWAYS show the strike arrow from enemy -> target plus a
-	# red warning fill on the target cell. The arrow originates from the
-	# enemy's current position (where it will attack from), so the player can
-	# trace "this enemy is threatening this cell" at a glance.
+	# Enemy intents: show strike arrows from enemy -> target. Hit slots are
+	# red; miss slots stay visible in grey-blue so resolved threats do not
+	# disappear without explanation.
 	#
 	# Focus (hovering over an enemy) only adjusts brightness -- all attack
 	# arrows stay visible regardless of focus state. Hiding non-focused
@@ -83,35 +86,53 @@ func _draw() -> void:
 		var eid: int = intent.get("enemy_id", -1)
 		var is_focused: bool = (focused_enemy_id == eid)
 		var attack_pos: Vector2i = intent.get("attack_pos", Vector2i(-1, -1))
+		var status: String = intent.get("status", BattleEngine.INTENT_STATUS_HIT)
+		if status == BattleEngine.INTENT_STATUS_REMOVED or status == BattleEngine.INTENT_STATUS_NO_ATTACK:
+			continue
 		if attack_pos == Vector2i(-1, -1):
 			continue
-		# Target cell: red warning fill. When this enemy is focused (or no
+		var is_miss := status == BattleEngine.INTENT_STATUS_MISS
+		# Target cell: warning fill. When this enemy is focused (or no
 		# enemy is focused), it's brighter; when a different enemy is focused,
 		# this one's threat dims slightly but stays visible.
 		var dimmed: bool = focused_enemy_id != -1 and not is_focused
 		var fill_a: float
 		var border_a: float
 		if is_focused:
-			fill_a = 0.50
+			fill_a = 0.42 if is_miss else 0.50
 			border_a = 1.0
 		elif dimmed:
-			fill_a = 0.18
-			border_a = 0.55
+			fill_a = 0.12 if is_miss else 0.18
+			border_a = 0.42 if is_miss else 0.55
 		else:
-			fill_a = 0.30
-			border_a = 0.80
-		var fill: Color = Color(COLOR_ENEMY_INTENT.r, COLOR_ENEMY_INTENT.g, COLOR_ENEMY_INTENT.b, fill_a)
-		var border: Color = Color(COLOR_ENEMY_INTENT_BORDER.r, COLOR_ENEMY_INTENT_BORDER.g, COLOR_ENEMY_INTENT_BORDER.b, border_a)
+			fill_a = 0.22 if is_miss else 0.30
+			border_a = 0.62 if is_miss else 0.80
+		if enemy_intents_preview_mode:
+			fill_a *= 0.86
+			border_a *= 0.92
+		var base_fill := COLOR_ENEMY_INTENT_MISS if is_miss else COLOR_ENEMY_INTENT
+		var base_border := COLOR_ENEMY_INTENT_MISS_BORDER if is_miss else COLOR_ENEMY_INTENT_BORDER
+		var fill: Color = Color(base_fill.r, base_fill.g, base_fill.b, fill_a)
+		var border: Color = Color(base_border.r, base_border.g, base_border.b, border_a)
 		_fill_cell(attack_pos, fill, border)
 		# Strike arrow from enemy -> target (always visible).
 		var enemy_pos: Vector2i = intent.get("enemy_pos", Vector2i(-1, -1))
 		if enemy_pos != Vector2i(-1, -1) and enemy_pos != attack_pos:
-			var arrow_alpha: float = 1.0 if is_focused else (0.55 if dimmed else 0.85)
-			var arrow_width: float = 4.0 if is_focused else (2.0 if dimmed else 3.0)
+			var arrow_alpha: float
+			if is_focused:
+				arrow_alpha = 0.88 if is_miss else 1.0
+			elif dimmed:
+				arrow_alpha = 0.36 if is_miss else 0.55
+			else:
+				arrow_alpha = 0.58 if is_miss else 0.85
+			if enemy_intents_preview_mode:
+				arrow_alpha *= 0.9
+			var arrow_width: float = 3.0 if is_miss else 4.0 if is_focused else (2.0 if dimmed else 3.0)
+			var arrow_col := Color(0.66, 0.74, 0.84, arrow_alpha) if is_miss else Color(1.0, 0.35, 0.45, arrow_alpha)
 			_draw_arrow(
 				GridView.cell_to_pixel(enemy_pos),
 				GridView.cell_to_pixel(attack_pos),
-				Color(1.0, 0.35, 0.45, arrow_alpha),
+				arrow_col,
 				arrow_width
 			)
 

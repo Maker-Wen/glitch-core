@@ -18,6 +18,10 @@ var selected_warden_id: int = -1
 var _armed_ability_id: String = ""
 var _hover_cell: Vector2i = Vector2i(-1, -1)
 var _animating: bool = false
+var _focused_enemy_id: int = -1
+var _executing_enemy_id: int = -1
+var _defer_enemy_intent_refresh_until_events: bool = false
+var _suppress_enemy_intents_until_events_done: bool = false
 ## Debug mode: when ON, info panel shows planned actions, execution order,
 ## displacement state, etc. Toggle with F1. OFF by default so the panel
 ## stays clean (just HP / move / attack range).
@@ -35,6 +39,7 @@ func _ready() -> void:
 	hud.undo_pressed.connect(func(): _on_action_requested(BattleAction.undo()))
 	hud.confirm_deploy_pressed.connect(func(): _on_action_requested(BattleAction.confirm_deploy()))
 	hud.ability_selected.connect(_on_ability_selected)
+	hud.enemy_stack_hovered.connect(_on_enemy_stack_hovered)
 	hud.set_help("操作：点击守卫者后，点绿格移动 / 红格攻击   ·   空格 = 结束回合   ·   Cmd/Ctrl+Z = 撤回   ·   右键 = 取消   ·   F1 = 调试详情")
 	_start_slice_battle()
 
@@ -161,11 +166,11 @@ func _on_action_requested(action: BattleAction) -> void:
 	if _animating and action.kind != BattleAction.Kind.UNDO:
 		return
 	if action.kind == BattleAction.Kind.UNDO:
-		var prev_state := engine.state
 		engine.apply_action(action)
 		# After undo, do a full rebuild
 		_full_rebuild()
 		return
+	_defer_enemy_intent_refresh_until_events = true
 	var events := engine.apply_action(action)
 	# Any move / attack clears the armed ability so the ability bar refreshes
 	# to reflect the warden's new available actions.
@@ -179,8 +184,9 @@ func _on_hover_changed(cell: Vector2i, inside: bool) -> void:
 	if not inside:
 		_hover_cell = Vector2i(-1, -1)
 		preview.clear_preview()
-		preview.set_focused_enemy(-1)
+		_set_focused_enemy(-1)
 		hud.hide_info_panel()
+		_refresh_enemy_intent_overlay()
 		return
 	_hover_cell = cell
 	_refresh_hover_preview()
@@ -192,11 +198,14 @@ func _on_state_changed() -> void:
 	hud.update_status(engine.state)
 	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
 		hud.show_outcome(engine.state.outcome)
+	if _defer_enemy_intent_refresh_until_events:
+		return
 	_refresh_enemy_intent_overlay()
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
 
 func _on_events(events: Array) -> void:
+	_defer_enemy_intent_refresh_until_events = false
 	if events.is_empty():
 		# Nothing to play; just refresh overlays.
 		_refresh_enemy_intent_overlay()
@@ -204,10 +213,15 @@ func _on_events(events: Array) -> void:
 		_refresh_info_panel()
 		return
 	_animating = true
+	_executing_enemy_id = -1
 	preview.clear_preview()
 	preview.clear_all_ranges()
+	_suppress_enemy_intents_until_events_done = _events_include_enemy_move(events)
 	await _play_events(events)
 	_animating = false
+	_suppress_enemy_intents_until_events_done = false
+	_executing_enemy_id = -1
+	hud.set_enemy_stack_executing(-1)
 	_refresh_enemy_intent_overlay()
 	_refresh_selection_highlights()
 	# After state changes (push, kill, etc.), re-render the info panel for the
@@ -222,7 +236,12 @@ func _play_events(events: Array) -> void:
 		var e: BattleEvent = raw
 		match e.type:
 			BattleEvent.Type.UNIT_SPAWNED: await _anim_unit_spawned(e)
-			BattleEvent.Type.UNIT_MOVED:   await _anim_unit_moved(e)
+			BattleEvent.Type.UNIT_MOVED:
+				if _suppress_enemy_intents_until_events_done and _event_unit_is_enemy(e):
+					preview.set_enemy_intents([])
+					hud.set_enemy_action_stack([])
+					_set_focused_enemy(-1)
+				await _anim_unit_moved(e)
 			BattleEvent.Type.UNIT_PUSHED:  await _anim_unit_pushed(e)
 			BattleEvent.Type.UNIT_DAMAGED: await _anim_unit_damaged(e)
 			BattleEvent.Type.UNIT_DIED, BattleEvent.Type.UNIT_FELL:
@@ -232,6 +251,16 @@ func _play_events(events: Array) -> void:
 				_anim_tile_changed(e)
 			BattleEvent.Type.BUMP_WALL, BattleEvent.Type.BUMP_UNIT:
 				await _anim_bump(e)
+			BattleEvent.Type.ENEMY_ATTACK_STARTED:
+				_set_executing_enemy(e.unit_id)
+				await get_tree().create_timer(0.10).timeout
+			BattleEvent.Type.ENEMY_ATTACK_MISSED:
+				await _anim_enemy_attack_missed(e)
+			BattleEvent.Type.ROUND_STARTED:
+				if _suppress_enemy_intents_until_events_done:
+					preview.set_enemy_intents([])
+					hud.set_enemy_action_stack([])
+					_set_focused_enemy(-1)
 			# Phase / round / battle-end events are state changes; no animation.
 			_:
 				pass
@@ -308,6 +337,11 @@ func _anim_bump(e: BattleEvent) -> void:
 		shake.tween_property(view, "position", orig, 0.06)
 	await get_tree().create_timer(0.08).timeout
 
+func _anim_enemy_attack_missed(e: BattleEvent) -> void:
+	## Keep a visible beat for a locked attack slot that the player neutralized.
+	_set_executing_enemy(e.unit_id)
+	await get_tree().create_timer(0.16).timeout
+
 func _anim_tile_changed(_e: BattleEvent) -> void:
 	grid_view.queue_redraw()
 
@@ -341,56 +375,50 @@ func _refresh_selection_highlights() -> void:
 		if v != null:
 			v.set_acted(u.has_acted, u.has_moved)
 
-func _refresh_enemy_intent_overlay() -> void:
-	# Filter to enemies whose plan is still actionable given current state.
-	# Pushed-away or killed enemies disappear from the threat overlay.
-	var intents: Array = []
-	var order: Array[int] = engine.enemy_execution_order()
-	for idx in range(order.size()):
-		var eid: int = order[idx]
-		if not engine.is_plan_actionable(eid):
-			continue
-		var plan = engine.state.enemy_warnings.get(eid, null)
-		if plan == null:
-			continue
-		var enemy := engine.state.find_unit(eid)
-		var post_move: Vector2i = engine.project_enemy_post_move(eid)
-		intents.append({
-			"enemy_id": eid,
-			"order": idx + 1,   # 1-indexed for display
-			"enemy_pos": enemy.position if enemy != null else Vector2i(-1, -1),
-			"post_move": post_move,
-			"move_to": plan.move_to,
-			"attack_pos": plan.attack_pos,
-		})
-	preview.set_enemy_intents(intents)
+func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool = false) -> void:
+	if _suppress_enemy_intents_until_events_done and rows_override.is_empty():
+		preview.set_enemy_intents([])
+		hud.set_enemy_action_stack([])
+		return
+	var rows: Array = rows_override if not rows_override.is_empty() else engine.get_enemy_intent_ui_state()
+	var attack_rows: Array = []
+	for row in rows:
+		if row.get("has_attack", false) or row.get("status", BattleEngine.INTENT_STATUS_NO_ATTACK) == BattleEngine.INTENT_STATUS_REMOVED:
+			attack_rows.append(row)
+	preview.set_enemy_intents(attack_rows, preview_mode)
+	hud.set_enemy_action_stack(
+		attack_rows,
+		preview_mode,
+		_focused_enemy_id,
+		_executing_enemy_id,
+	)
 	# Predicted rift spawns (1 round ahead).
 	var predicted: Array[Vector2i] = []
 	for entry in engine.state.pending_rift_spawns:
 		predicted.append(entry.pos)
 	preview.set_predicted_rifts(predicted)
 	# Refresh execution-order labels on each enemy view.
-	_refresh_enemy_order_labels(order)
+	_refresh_enemy_order_labels(engine.enemy_execution_order())
 
 func _refresh_info_panel() -> void:
 	if _hover_cell == Vector2i(-1, -1):
 		hud.hide_info_panel()
-		preview.set_focused_enemy(-1)
+		_set_focused_enemy(-1)
 		return
 	# Priority 1: a unit at the hovered cell.
 	var unit := engine.state.get_alive_unit_at(_hover_cell)
 	if unit != null:
 		_show_unit_info(unit)
 		if unit.is_enemy():
-			preview.set_focused_enemy(unit.id)
+			_set_focused_enemy(unit.id)
 		else:
-			preview.set_focused_enemy(-1)
+			_set_focused_enemy(-1)
 		return
 	# Priority 2: a tile feature.
 	var tile: int = engine.state.grid.get_tile(_hover_cell)
 	if tile == Grid.TileType.PILLAR:
 		hud.show_info_panel("石柱", "  · 阻挡寻路 / 阻挡推动\n  · 可被攻击或撞击\n  · HP: 2 (后续阶段实装)")
-		preview.set_focused_enemy(-1)
+		_set_focused_enemy(-1)
 		return
 	if tile == Grid.TileType.BUILDING:
 		var hp: int = engine.state.grid.tile_hp.get(_hover_cell, Grid.DEFAULT_BUILDING_HP)
@@ -399,11 +427,11 @@ func _refresh_info_panel() -> void:
 			"建筑",
 			"  · 保护目标: %s\n  · HP: %d\n  · 所有保护目标被毁则失败" % [protected, hp],
 		)
-		preview.set_focused_enemy(-1)
+		_set_focused_enemy(-1)
 		return
 	if tile == Grid.TileType.RUIN:
 		hud.show_info_panel("废墟", "  · 建筑被毁后的残骸\n  · 可通行，不再提供保护")
-		preview.set_focused_enemy(-1)
+		_set_focused_enemy(-1)
 		return
 	if tile == Grid.TileType.RIFT:
 		var about_to_spawn: bool = false
@@ -415,11 +443,11 @@ func _refresh_info_panel() -> void:
 		if about_to_spawn:
 			body = "  · ⚠ 下回合将冒出敌人\n" + body
 		hud.show_info_panel("地裂", body)
-		preview.set_focused_enemy(-1)
+		_set_focused_enemy(-1)
 		return
 	# Otherwise: empty cell. Hide the panel.
 	hud.hide_info_panel()
-	preview.set_focused_enemy(-1)
+	_set_focused_enemy(-1)
 
 func _show_unit_info(unit: Unit) -> void:
 	## Default info panel: only HP / 移动 / 攻击范围.
@@ -556,8 +584,10 @@ func _refresh_enemy_order_labels(order_ids: Array[int]) -> void:
 func _refresh_hover_preview() -> void:
 	preview.clear_preview()
 	if selected_warden_id == -1 or _hover_cell == Vector2i(-1, -1):
+		_refresh_enemy_intent_overlay()
 		return
 	if engine.state.phase != BattleState.Phase.PLAYER_ACTION:
+		_refresh_enemy_intent_overlay()
 		return
 	var attack_targets: Array[Vector2i] = engine.get_legal_attack_targets(selected_warden_id)
 	var move_cells: Array[Vector2i] = engine.get_legal_moves(selected_warden_id)
@@ -567,8 +597,11 @@ func _refresh_hover_preview() -> void:
 	elif _hover_cell in move_cells:
 		action = BattleAction.move(selected_warden_id, _hover_cell)
 	if action == null:
+		_refresh_enemy_intent_overlay()
 		return
 	var events := engine.preview_action(action)
+	var preview_rows := engine.preview_enemy_intent_ui_state(action)
+	_refresh_enemy_intent_overlay(preview_rows, true)
 	# Build per-unit projection:
 	#   start_pos = position when the chain began
 	#   end_pos   = final landing cell (or original if never moved)
@@ -645,9 +678,39 @@ func deselect() -> void:
 	_refresh_selection_highlights()
 	preview.clear_preview()
 	hud.hide_ability_bar()
+	if not _defer_enemy_intent_refresh_until_events and not _animating:
+		_refresh_enemy_intent_overlay()
 
 func _full_rebuild() -> void:
 	grid_view.bind(engine.state.grid)
 	_rebuild_unit_views()
 	deselect()
 	_on_state_changed()
+
+func _on_enemy_stack_hovered(enemy_id: int) -> void:
+	_set_focused_enemy(enemy_id)
+
+func _set_focused_enemy(enemy_id: int) -> void:
+	if _focused_enemy_id == enemy_id:
+		return
+	_focused_enemy_id = enemy_id
+	preview.set_focused_enemy(enemy_id)
+	hud.set_enemy_stack_focus(enemy_id)
+
+func _set_executing_enemy(enemy_id: int) -> void:
+	if _executing_enemy_id == enemy_id:
+		return
+	_executing_enemy_id = enemy_id
+	hud.set_enemy_stack_executing(enemy_id)
+	_set_focused_enemy(enemy_id)
+
+func _events_include_enemy_move(events: Array) -> bool:
+	for raw in events:
+		var e: BattleEvent = raw
+		if e.type == BattleEvent.Type.UNIT_MOVED and _event_unit_is_enemy(e):
+			return true
+	return false
+
+func _event_unit_is_enemy(e: BattleEvent) -> bool:
+	var u := engine.state.find_unit(e.unit_id)
+	return u != null and u.is_enemy()

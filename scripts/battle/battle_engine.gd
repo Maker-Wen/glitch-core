@@ -14,6 +14,13 @@ signal events_produced(events: Array)
 signal state_changed()
 
 const MAX_UNDO := 50
+const INTENT_STATUS_NO_ATTACK := "no_attack"
+const INTENT_STATUS_HIT := "hit"
+const INTENT_STATUS_MISS := "miss"
+const INTENT_STATUS_REMOVED := "removed"
+const TARGET_KIND_NONE := "none"
+const TARGET_KIND_UNIT := "unit"
+const TARGET_KIND_BUILDING := "building"
 
 var state: BattleState
 var _history: Array[BattleState] = []
@@ -87,6 +94,23 @@ func apply_action(action: BattleAction) -> Array[BattleEvent]:
 func preview_action(action: BattleAction) -> Array[BattleEvent]:
 	return _dispatch_action(state.clone(), action)
 
+## Returns the enemy intent rows consumed by board overlays and the HUD stack.
+## Rows include non-hitting slots so UI can explain "this enemy still resolves,
+## but the player has already made it miss."
+func get_enemy_intent_ui_state() -> Array[Dictionary]:
+	return _enemy_intent_ui_state_for_state(state)
+
+## Preview a player action and return the resulting enemy intent rows without
+## mutating the real battle state.
+func preview_enemy_intent_ui_state(action: BattleAction) -> Array[Dictionary]:
+	var clone := state.clone()
+	var events := _dispatch_action(clone, action)
+	return _merge_preview_intent_rows(
+		_enemy_intent_ui_state_for_state(clone),
+		_removed_enemy_ids_from_events(events),
+		state,
+	)
+
 ## Undo to the most recent history snapshot. View should hard-rebuild from
 ## `state` (no event animation).
 func undo() -> Array[BattleEvent]:
@@ -149,18 +173,28 @@ func project_enemy_post_move(enemy_id: int) -> Vector2i:
 	var plan = state.enemy_warnings.get(enemy_id, null)
 	if plan == null:
 		return enemy.position
+	return _project_enemy_post_move_for_state(state, enemy, plan)
+
+func _project_enemy_post_move_for_state(s: BattleState, enemy: Unit, plan) -> Vector2i:
 	# After moves resolve, plan.move_to == enemy.position. This helper still
 	# returns the planned cell for cases where the move hasn't run yet
 	# (theoretical; in current flow they're always equal post-move).
 	if plan.move_to == Vector2i(-1, -1) or plan.move_to == enemy.position:
 		return enemy.position
-	if state.get_unit_at(plan.move_to) == null and not state.grid.blocks_movement(plan.move_to):
+	if s.get_unit_at(plan.move_to) == null and not s.grid.blocks_movement(plan.move_to):
 		return plan.move_to
 	return enemy.position
 
 func enemy_execution_order() -> Array[int]:
 	var ids: Array[int] = []
 	for u in state.enemies():
+		ids.append(u.id)
+	ids.sort()
+	return ids
+
+func _enemy_execution_order_for_state(s: BattleState) -> Array[int]:
+	var ids: Array[int] = []
+	for u in s.enemies():
 		ids.append(u.id)
 	ids.sort()
 	return ids
@@ -335,21 +369,32 @@ func _execute_enemy_moves(s: BattleState) -> Array[BattleEvent]:
 	return events
 
 func _execute_enemy_attacks(s: BattleState) -> Array[BattleEvent]:
-	## Round-end ATTACK phase. Each enemy fires its planned attack IF its
-	## attack is still actionable (not displaced).
+	## Round-end ATTACK phase. Each enemy resolves its locked attack slot in
+	## deterministic order. Missing/blocked/displaced attacks emit a miss event
+	## so UI can explain the slot instead of silently skipping it.
 	var events: Array[BattleEvent] = []
 	for eid in _enemy_ids_sorted(s):
 		var enemy := s.find_unit(eid)
 		if enemy == null or not enemy.alive:
 			continue
 		var plan = s.enemy_warnings.get(eid, null)
-		if plan == null or not plan.has_attack() or _is_enemy_displaced(s, enemy, plan):
+		if plan == null or not plan.has_attack():
 			continue
-		var target := s.get_alive_unit_at(plan.attack_pos)
+		var start := BattleEvent.make(BattleEvent.Type.ENEMY_ATTACK_STARTED)
+		start.unit_id = enemy.id
+		start.from_pos = enemy.position
+		start.to_pos = plan.attack_pos
+		events.append(start)
+		if not _plan_will_hit(s, enemy, plan):
+			var miss := BattleEvent.make(BattleEvent.Type.ENEMY_ATTACK_MISSED)
+			miss.unit_id = enemy.id
+			miss.from_pos = enemy.position
+			miss.to_pos = plan.attack_pos
+			events.append(miss)
+			continue
 		var dir := Direction.from_cells(enemy.position, plan.attack_pos)
-		if dir == Vector2i.ZERO:
-			continue  # safety -- displacement check should have caught this
-		if target != null:
+		var target := s.get_alive_unit_at(plan.attack_pos)
+		if target != null and target.is_warden():
 			events.append_array(_resolve_enemy_attack(s, enemy, target, dir))
 		elif _is_attackable_building(s, plan.attack_pos):
 			events.append_array(_resolve_enemy_building_attack(s, enemy, plan.attack_pos))
@@ -433,7 +478,7 @@ func _is_enemy_displaced(s: BattleState, enemy: Unit, plan) -> bool:
 	var expected: Vector2i = plan.move_to if plan.move_to != Vector2i(-1, -1) else plan.origin_pos
 	if expected != Vector2i(-1, -1) and enemy.position != expected:
 		return true
-	if s.get_alive_unit_at(plan.attack_pos) == null and not _is_attackable_building(s, plan.attack_pos):
+	if not _plan_has_damageable_target(s, plan):
 		return true
 	if enemy.def == null:
 		return false
@@ -445,6 +490,146 @@ func _is_attackable_building(s: BattleState, p: Vector2i) -> bool:
 	return s.grid.get_tile(p) == Grid.TileType.BUILDING \
 		and s.is_protected_target(p) \
 		and int(s.grid.tile_hp.get(p, 0)) > 0
+
+func _enemy_intent_ui_state_for_state(s: BattleState) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var order := _enemy_execution_order_for_state(s)
+	for idx in range(order.size()):
+		var eid: int = order[idx]
+		var enemy := s.find_unit(eid)
+		if enemy == null:
+			continue
+		var plan = s.enemy_warnings.get(eid, null)
+		var post_move := enemy.position
+		var attack_pos := Vector2i(-1, -1)
+		var target_info := {
+			"kind": TARGET_KIND_NONE,
+			"id": -1,
+			"name": "",
+			"hp": 0,
+			"damage": 0,
+			"pos": Vector2i(-1, -1),
+		}
+		var status := INTENT_STATUS_NO_ATTACK
+		if plan != null:
+			post_move = _project_enemy_post_move_for_state(s, enemy, plan)
+			attack_pos = plan.attack_pos
+			target_info = _target_info_for_plan(s, enemy, plan)
+			if plan.has_attack():
+				status = INTENT_STATUS_HIT if _plan_will_hit(s, enemy, plan) else INTENT_STATUS_MISS
+		rows.append({
+			"enemy_id": eid,
+			"enemy_name": enemy.def.display_name if enemy.def != null else "敌人",
+			"order": idx + 1,
+			"enemy_pos": enemy.position,
+			"post_move": post_move,
+			"move_to": plan.move_to if plan != null else Vector2i(-1, -1),
+			"attack_pos": attack_pos,
+			"status": status,
+			"target_kind": target_info.get("kind", TARGET_KIND_NONE),
+			"target_id": target_info.get("id", -1),
+			"target_name": target_info.get("name", ""),
+			"target_hp": target_info.get("hp", 0),
+			"target_damage": target_info.get("damage", 0),
+			"target_pos": target_info.get("pos", Vector2i(-1, -1)),
+			"has_attack": plan != null and plan.has_attack(),
+		})
+	return rows
+
+func _target_info_for_plan(s: BattleState, enemy: Unit, plan) -> Dictionary:
+	var info := {
+		"kind": TARGET_KIND_NONE,
+		"id": -1,
+		"name": "",
+		"hp": 0,
+		"damage": enemy.def.attack_damage if enemy != null and enemy.def != null else 0,
+		"pos": Vector2i(-1, -1),
+	}
+	if plan == null or not plan.has_attack():
+		return info
+	var target := s.get_alive_unit_at(plan.attack_pos)
+	if target != null and target.is_warden():
+		info["kind"] = TARGET_KIND_UNIT
+		info["id"] = target.id
+		info["name"] = target.def.display_name if target.def != null else "守卫者"
+		info["hp"] = target.hp
+		info["pos"] = target.position
+		return info
+	if s.grid.get_tile(plan.attack_pos) == Grid.TileType.BUILDING and s.is_protected_target(plan.attack_pos):
+		info["kind"] = TARGET_KIND_BUILDING
+		info["name"] = "建筑"
+		info["hp"] = int(s.grid.tile_hp.get(plan.attack_pos, 0))
+		info["pos"] = plan.attack_pos
+	return info
+
+func _merge_preview_intent_rows(preview_rows: Array[Dictionary], removed_ids: Dictionary, base_state: BattleState) -> Array[Dictionary]:
+	if removed_ids.is_empty():
+		return preview_rows
+	var by_id: Dictionary = {}
+	for row in preview_rows:
+		by_id[row.get("enemy_id", -1)] = row
+	var order := enemy_execution_order()
+	for idx in range(order.size()):
+		var eid: int = order[idx]
+		if not removed_ids.has(eid) or by_id.has(eid):
+			continue
+		var original := base_state.find_unit(eid)
+		var plan = base_state.enemy_warnings.get(eid, null)
+		preview_rows.append({
+			"enemy_id": eid,
+			"enemy_name": original.def.display_name if original != null and original.def != null else "敌人",
+			"order": idx + 1,
+			"enemy_pos": original.position if original != null else Vector2i(-1, -1),
+			"post_move": original.position if original != null else Vector2i(-1, -1),
+			"move_to": plan.move_to if plan != null else Vector2i(-1, -1),
+			"attack_pos": plan.attack_pos if plan != null else Vector2i(-1, -1),
+			"status": INTENT_STATUS_REMOVED,
+			"target_kind": TARGET_KIND_NONE,
+			"target_id": -1,
+			"target_name": "",
+			"target_hp": 0,
+			"target_damage": 0,
+			"target_pos": plan.attack_pos if plan != null else Vector2i(-1, -1),
+			"has_attack": plan != null and plan.has_attack(),
+		})
+	preview_rows.sort_custom(func(a, b): return int(a.get("order", 0)) < int(b.get("order", 0)))
+	return preview_rows
+
+func _removed_enemy_ids_from_events(events: Array) -> Dictionary:
+	var removed: Dictionary = {}
+	for raw in events:
+		var e: BattleEvent = raw
+		if e.type != BattleEvent.Type.UNIT_REMOVED and e.type != BattleEvent.Type.UNIT_FELL:
+			continue
+		var original := state.find_unit(e.unit_id)
+		if original != null and original.is_enemy():
+			removed[e.unit_id] = true
+	return removed
+
+func _plan_will_hit(s: BattleState, enemy: Unit, plan) -> bool:
+	if enemy == null or not enemy.alive or plan == null or not plan.has_attack():
+		return false
+	if not _plan_target_exists(s, plan):
+		return false
+	if not _plan_has_damageable_target(s, plan):
+		return false
+	var expected: Vector2i = plan.move_to if plan.move_to != Vector2i(-1, -1) else plan.origin_pos
+	if expected != Vector2i(-1, -1) and enemy.position != expected:
+		return false
+	if enemy.def == null:
+		return false
+	if _is_ranged(enemy.def):
+		return Direction.has_clear_line(s, enemy.position, plan.attack_pos, enemy.def.attack_range)
+	return Grid.manhattan(enemy.position, plan.attack_pos) == 1
+
+func _plan_target_exists(s: BattleState, plan) -> bool:
+	return plan != null and plan.has_attack() and s.grid.in_bounds(plan.attack_pos)
+
+func _plan_has_damageable_target(s: BattleState, plan) -> bool:
+	if plan == null or not plan.has_attack():
+		return false
+	var target := s.get_alive_unit_at(plan.attack_pos)
+	return (target != null and target.is_warden()) or _is_attackable_building(s, plan.attack_pos)
 
 
 # ---------- victory / defeat ----------

@@ -33,6 +33,7 @@ func _run_all() -> void:
 		"res://scripts/tests/test_intent_actionable.gd",
 		"res://scripts/tests/test_attack_adjacency.gd",
 		"res://scripts/tests/test_spawn_move_events.gd",
+		"res://scripts/tests/test_battle_flow_ui.gd",
 		"res://scripts/tests/test_full_battle_trace.gd",
 		"res://scripts/tests/test_friendly_fire.gd",
 		"res://scripts/tests/test_plague_archer.gd",

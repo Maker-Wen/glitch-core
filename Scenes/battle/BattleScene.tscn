@@ -154,6 +154,51 @@ text = ""
 autowrap_mode = 2
 vertical_alignment = 0
 
+[node name="EnemyStackBg" type="ColorRect" parent="HUD/Root"]
+visible = false
+offset_left = 956.0
+offset_top = 132.0
+offset_right = 1264.0
+offset_bottom = 594.0
+color = Color(0.07, 0.06, 0.09, 0.90)
+mouse_filter = 0
+
+[node name="EnemyStackBorder" type="ReferenceRect" parent="HUD/Root/EnemyStackBg"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 0.0
+offset_bottom = 0.0
+border_color = Color(0.42, 0.34, 0.48, 0.85)
+border_width = 2.0
+editor_only = false
+
+[node name="EnemyStackTitle" type="Label" parent="HUD/Root/EnemyStackBg"]
+offset_left = 12.0
+offset_top = 9.0
+offset_right = 180.0
+offset_bottom = 32.0
+theme_override_font_sizes/font_size = 17
+modulate = Color(1, 0.86, 0.62, 1)
+text = "敌方行动顺序"
+
+[node name="EnemyStackMode" type="Label" parent="HUD/Root/EnemyStackBg"]
+offset_left = 198.0
+offset_top = 10.0
+offset_right = 292.0
+offset_bottom = 32.0
+theme_override_font_sizes/font_size = 13
+modulate = Color(0.72, 0.82, 1, 1)
+horizontal_alignment = 2
+text = "锁定"
+
+[node name="EnemyStackRow" type="VBoxContainer" parent="HUD/Root/EnemyStackBg"]
+offset_left = 12.0
+offset_top = 42.0
+offset_right = 296.0
+offset_bottom = 450.0
+theme_override_constants/separation = 8
+mouse_filter = 2
+
 [node name="Banner" type="Label" parent="HUD/Root"]
 anchor_left = 0.5
 anchor_top = 0.4
