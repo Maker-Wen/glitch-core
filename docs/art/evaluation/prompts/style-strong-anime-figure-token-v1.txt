@@ -1,0 +1,14 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG style reference for an 8x8 tactical board game unit token.
+Primary request: Create one player-side bounty hunter guardian token with a stronger anime figure style. It should clearly feel anime-inspired, with expressive silhouette and cel shading, but remain a physical board-game token with a base.
+
+Scene/backdrop: perfectly flat solid chroma key background #00FF00 only, for later background removal. No floor plane, no gradient, no vignette, no shadow on the background, no scenery, no UI, no text.
+Subject: one compact hooded bounty hunter guardian standing on a very low thin round player base. Chibi-adjacent but not babyish: slightly oversized hood, stylized sharp eyes glowing faint cold cyan in shadow, compact heroic stance, one short blade close to the body, one small chain mace close to the body with only 3 to 5 readable chain links.
+Style/medium: dark anime cel-shaded collectible figure token, crisp ink outlines, clean two-tone shadows, sharp graphic highlights, stylish small character appeal, physical resin game piece with anime surface treatment. More anime than previous versions, but not a 2D illustration.
+Composition/framing: 45-degree isometric board-game camera, 3/4 front view facing lower right / southeast. Entire token centered. Visible subject should occupy 74% to 80% of image height. Base bottom near y=860, base center near x=512. Base is thin and low.
+Lighting/mood: cel-shaded upper-left lighting, strong silhouette, dramatic but simple.
+Color palette: black, charcoal, dark blue-grey, muted cold cyan eyes/base rim/edge highlights. No red base, no bright saturated anime palette, no large glow.
+Materials/textures: smooth resin token, crisp inked edges, simplified cloak shapes, flat shadow regions, minimal tiny detail.
+Text: none.
+Constraints: one complete token only; background must be one uniform #00FF00; do not use #00FF00 anywhere on the subject; readable at 88x88 px; base, hood, short blade, and small chain mace must remain clear; no extra variants in one canvas.
+Avoid: 2D anime illustration, tall anime hero, portrait, no-base character, floor, gradient background, black background, thick display pedestal, huge weapon, long flying chain, excessive belts, tiny accessories, large magic effects, halos, particles, UI rings, HP dots, numbers, logo, animal mascot, bird mask, plague doctor elements, bow, staff, red enemy base.

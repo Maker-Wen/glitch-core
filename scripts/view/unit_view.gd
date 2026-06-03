@@ -1,9 +1,12 @@
 class_name UnitView extends Node2D
-## Visual placeholder for a single unit. Uses a colored disc + HP pips since
-## no art assets are available in the slice.
+## Visual for a single unit. Uses optional static token art, with a colored
+## disc fallback for units whose art is not ready yet.
 
 const RADIUS := 28.0
 const RING_RADIUS := 32.0
+const TOKEN_DRAW_SIZE := Vector2(96, 96)
+const TOKEN_DRAW_OFFSET := Vector2(0, -14)
+const TOKEN_BASE_CENTER := Vector2(0, 14)
 const COLOR_FACTION_OUTLINE := {
 	0: Color(0.7, 0.9, 1.0),   # WARDEN -- pale cyan
 	1: Color(0.85, 0.25, 0.3), # ENEMY -- crimson
@@ -17,6 +20,7 @@ var _max_hp: int = 1
 var _label: String = ""
 var _has_acted: bool = false
 var _has_moved: bool = false
+var _token_texture: Texture2D = null
 ## Execution order badge for enemies: 1, 2, 3... When 0, no badge drawn.
 var _order_badge: int = 0
 var _tween: Tween
@@ -30,6 +34,7 @@ func configure(unit: Unit) -> void:
 	_label = unit.def.display_name.substr(0, 1) if unit.def.display_name.length() >= 1 else "?"
 	_has_acted = unit.has_acted
 	_has_moved = unit.has_moved
+	_token_texture = unit.def.token_texture
 	queue_redraw()
 
 func set_acted(acted: bool, moved: bool = false) -> void:
@@ -70,6 +75,34 @@ func snap_to_cell(p: Vector2i) -> void:
 
 func _draw() -> void:
 	var outline: Color = COLOR_FACTION_OUTLINE.get(_faction, Color.WHITE)
+	if _token_texture != null:
+		_draw_token_art(outline)
+	else:
+		_draw_placeholder_disc(outline)
+		_draw_hp_pips()
+	_draw_order_badge()
+
+func _draw_token_art(outline: Color) -> void:
+	_draw_filled_ellipse(TOKEN_BASE_CENTER + Vector2(0, 3), Vector2(28, 8), Color(0.0, 0.0, 0.0, 0.32))
+	var rect := Rect2(-TOKEN_DRAW_SIZE * 0.5 + TOKEN_DRAW_OFFSET, TOKEN_DRAW_SIZE)
+	var tint := Color.WHITE
+	if _has_acted:
+		tint = Color(0.45, 0.45, 0.45, 0.9)
+	elif _has_moved:
+		tint = Color(0.72, 0.72, 0.72, 0.95)
+	var shadow_rect := rect.grow(2.0)
+	draw_texture_rect(_token_texture, shadow_rect, false, Color(0.0, 0.0, 0.0, 0.45))
+	draw_texture_rect(_token_texture, Rect2(rect.position + Vector2(0, -1), rect.size), false, outline.darkened(0.18))
+	draw_texture_rect(_token_texture, rect, false, tint)
+
+func _draw_filled_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
+	var points := PackedVector2Array()
+	for i in 32:
+		var a := TAU * float(i) / 32.0
+		points.append(center + Vector2(cos(a) * radii.x, sin(a) * radii.y))
+	draw_colored_polygon(points, color)
+
+func _draw_placeholder_disc(outline: Color) -> void:
 	# Outer ring shows faction
 	draw_circle(Vector2.ZERO, RING_RADIUS, outline)
 	# Inner fill shows unit identity. Dim when moved (attack remaining) or
@@ -87,6 +120,8 @@ func _draw() -> void:
 	var fsize := 22
 	var size: Vector2 = font.get_string_size(_label, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)
 	draw_string(font, -size * 0.5 + Vector2(0, fsize * 0.35), _label, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize, Color.BLACK)
+
+func _draw_hp_pips() -> void:
 	# HP pips at the bottom
 	var pip_r := 5.0
 	var spacing := 14.0
@@ -96,6 +131,8 @@ func _draw() -> void:
 		var cy: float = RADIUS - 4.0
 		var c: Color = Color(1, 1, 1) if i < _hp else Color(0.25, 0.05, 0.05)
 		draw_circle(Vector2(cx, cy), pip_r, c)
+
+func _draw_order_badge() -> void:
 	# Order badge for enemies: small numbered circle at top-right.
 	if _order_badge > 0:
 		var badge_center := Vector2(RING_RADIUS - 4, -RING_RADIUS + 4)
