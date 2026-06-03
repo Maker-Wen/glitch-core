@@ -1,0 +1,69 @@
+# 防守战术肉鸽核心设计 Spec
+
+> 日期：2026-06-03
+> 状态：已批准方向，进入实现计划前的设计基线
+> 范围：稳定防守胜利条件、奖励任务、守卫者、敌人、地图、Run、遗物、经济
+
+## 1. 设计结论
+
+《长夜余烬》的玩法方向固定为 **暗黑小队战术肉鸽** ：3 名守卫者在 8x8 小棋盘上保护建筑和关键目标，通过公开意图、推拉位移、撞击、挡线、地裂控制和 Run 构筑撑过战斗。
+
+标准战斗不再使用多种主胜利条件。所有标准战斗统一为：
+
+1. 撑到最大回合结束。
+2. 至少 1 名守卫者存活。
+3. 保护目标未全部被毁。
+
+清空敌人、封印裂隙、全建筑存活、击破 Boss 部件都不触发提前胜利，只作为奖励任务、减压目标或 Boss 压制目标。
+
+## 2. 文档拆分
+
+本 Spec 的可执行设计已拆到以下文档：
+
+| 文档 | 内容 |
+|---|---|
+| [../../design/defense_roguelite_core_design.md](../../design/defense_roguelite_core_design.md) | 新版主纲、不可违反规则、数值基准、旧方向修正 |
+| [../../design/battle_objectives_and_rewards.md](../../design/battle_objectives_and_rewards.md) | 主胜负规则、保护目标、守护值、奖励任务、HUD 和结算 |
+| [../../design/warden_roster_and_upgrades.md](../../design/warden_roster_and_upgrades.md) | 守卫者定位、基础技能、候选角色、升级结构、伤势 |
+| [../../design/enemy_map_encounter_design.md](../../design/enemy_map_encounter_design.md) | 敌人职责、地形池、地图题型、出怪预算、硬威胁规则 |
+| [../../design/run_relic_economy_design.md](../../design/run_relic_economy_design.md) | Run 节点、资源、经济、遗物池、事件和 Demo 范围 |
+
+## 3. 旧文档优先级
+
+以下旧文档仍保留历史背景，但如果与本 Spec 冲突，以本 Spec 和 `docs/design/defense_roguelite_core_design.md` 为准：
+
+- [../../game_design.md](../../game_design.md)
+- [2026-06-02-dark-squad-tactical-roguelite-design.md](2026-06-02-dark-squad-tactical-roguelite-design.md)
+
+尤其废弃以下旧方向：
+
+| 旧方向 | 新裁定 |
+|---|---|
+| 歼灭战清空敌人即胜利 | 改为终局清场奖励任务 |
+| 封印战完成封印即胜利 | 改为裂隙压制奖励任务和减压机制 |
+| Boss 击杀或部件击破即胜利 | 改为 Boss 压制目标，胜利仍看终局防守 |
+| 无建筑战斗作为常规节点 | 降级为教程、事件或特殊挑战 |
+
+## 4. 首轮实现目标
+
+第一轮实现应验证：
+
+1. 战斗不会因为清空敌人提前胜利。
+2. 保护目标 HP、全毁失败、终局胜利可正常结算。
+3. HUD 能同时显示稳定主目标和奖励任务进度。
+4. 至少 3 个奖励任务可记录、失败、完成并结算。
+5. 至少 4 类敌人和 3 类地图题型能制造不同空间压力。
+6. 至少 6-8 个遗物能改变解法，而不是只改数值。
+
+## 5. 实现边界
+
+首轮不要求：
+
+- 完整 3 章 Run。
+- 完整商店和营地 UI。
+- 大规模守卫者技能树。
+- 卡牌系统。
+- 随机章节大地图。
+- 大量剧情事件文本。
+
+推荐先完成 1 章 6 节点短 Run：普通战、事件、普通战、精英战、营地、Boss。

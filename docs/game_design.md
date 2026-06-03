@@ -1,5 +1,8 @@
 # 《长夜余烬》策划案 (Embers of the Long Night)
 
+> **新版优先级提示（2026-06-03）**：
+> 当前战斗定位已更新为“暗黑小队战术肉鸽 + 稳定防守胜利条件”。若本文与 [design/defense_roguelite_core_design.md](design/defense_roguelite_core_design.md) 冲突，以新版主纲为准。尤其是：清空敌人、封印裂隙、击破 Boss 部件不再触发提前胜利，只作为奖励任务或减压目标。
+
 > **MVP 阶段两大参考定位**（每个参考各司其职）：
 > - **Into the Breach**：完美信息棋盘战斗 / 推撞物理 / 保护建筑 / 3 单位编制 / 单图小棋盘
 > - **暗黑地牢 (Darkest Dungeon)**：美术风格 / 哥特腐败主题 / 立绘叙事 / 阴森氛围
