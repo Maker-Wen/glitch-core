@@ -146,6 +146,7 @@ func _on_warden_selected(unit_id: int) -> void:
 	if selected_warden_id != unit_id:
 		_armed_ability_id = ""  # switching wardens cancels any armed ability
 	selected_warden_id = unit_id
+	_refresh_persistent_hud()
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
 
@@ -154,6 +155,9 @@ func _on_ability_selected(ability_id: String) -> void:
 	## the next click on a valid board cell will execute this ability.
 	## Clicking the same ability again disarms it.
 	if _animating or selected_warden_id == -1:
+		return
+	if ability_id == "wait":
+		_on_action_requested(BattleAction.end_turn())
 		return
 	if _armed_ability_id == ability_id:
 		_armed_ability_id = ""  # toggle off
@@ -195,7 +199,9 @@ func _on_hover_changed(cell: Vector2i, inside: bool) -> void:
 # ---------- presentation ----------
 
 func _on_state_changed() -> void:
+	hud.set_sanctuary(7, 7)
 	hud.update_status(engine.state)
+	_refresh_persistent_hud()
 	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
 		hud.show_outcome(engine.state.outcome)
 	if _defer_enemy_intent_refresh_until_events:
@@ -229,6 +235,7 @@ func _on_events(events: Array) -> void:
 	_refresh_selection_highlights()
 	# After state changes (push, kill, etc.), re-render the info panel for the
 	# cell currently under the cursor.
+	_refresh_persistent_hud()
 	_refresh_info_panel()
 	_refresh_hover_preview()
 
@@ -384,6 +391,13 @@ func _sync_unit_view_action_states() -> void:
 		var v: UnitView = unit_views.get(u.id, null)
 		if v != null:
 			v.set_acted(u.has_acted, u.has_moved)
+	_refresh_persistent_hud()
+
+func _refresh_persistent_hud() -> void:
+	if hud == null or engine == null or engine.state == null:
+		return
+	hud.set_squad_status(engine.state.wardens(), selected_warden_id)
+	hud.set_reward_tasks(engine.state)
 
 func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool = false) -> void:
 	if _suppress_enemy_intents_until_events_done and rows_override.is_empty():
@@ -552,11 +566,19 @@ func _refresh_ability_bar() -> void:
 		subtitle = " ▸ 选择目标"
 	elif _armed_ability_id == "move":
 		subtitle = " ▸ 选择移动落点"
-	var title: String = "%s — 选择行动%s" % [warden.def.display_name, subtitle]
+	var warden_data := {
+		"name": "%s%s" % [warden.def.display_name, subtitle],
+		"hp": warden.hp,
+		"max_hp": warden.def.max_hp,
+		"move": warden.def.move,
+		"attack": _attack_kind_text(warden.def),
+		"token": warden.def.token_texture,
+	}
 	var abilities: Array = []
 	abilities.append({
 		"id": "attack",
-		"name": "默认攻击",
+		"name": "攻击",
+		"icon": "⚔",
 		"desc": _attack_kind_text(warden.def),
 		"active": not warden.has_acted,
 		"is_default": true,
@@ -565,6 +587,7 @@ func _refresh_ability_bar() -> void:
 	abilities.append({
 		"id": "move",
 		"name": "移动",
+		"icon": "✣",
 		"desc": "%d 格" % warden.def.move,
 		"active": not warden.has_moved and not warden.has_acted,
 		"is_default": false,
@@ -572,13 +595,23 @@ func _refresh_ability_bar() -> void:
 	})
 	abilities.append({
 		"id": "relic",
-		"name": "遗物技能",
-		"desc": "（暂未拥有遗物）",
+		"name": "遗物",
+		"icon": "✦",
+		"desc": "未装备",
 		"active": false,
 		"is_default": false,
 		"is_armed": false,
 	})
-	hud.show_ability_bar(title, abilities)
+	abilities.append({
+		"id": "wait",
+		"name": "待命",
+		"icon": "⌛",
+		"desc": "结束",
+		"active": true,
+		"is_default": false,
+		"is_armed": false,
+	})
+	hud.show_ability_bar(warden_data, abilities)
 
 func _refresh_enemy_order_labels(order_ids: Array[int]) -> void:
 	# Clear badges first.
@@ -686,6 +719,7 @@ func toggle_debug_mode() -> void:
 func deselect() -> void:
 	selected_warden_id = -1
 	_armed_ability_id = ""
+	_refresh_persistent_hud()
 	_refresh_selection_highlights()
 	preview.clear_preview()
 	hud.hide_ability_bar()

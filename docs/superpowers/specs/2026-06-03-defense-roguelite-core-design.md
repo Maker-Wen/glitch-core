@@ -12,7 +12,8 @@
 
 1. 撑到最大回合结束。
 2. 至少 1 名守卫者存活。
-3. 保护目标未全部被毁。
+
+保护目标全毁会触发本场防线溃败并扣守护值；守护值归 0 才导致 Run 失败。所有守卫者死亡时，队伍覆灭，Run 立即失败。
 
 清空敌人、封印裂隙、全建筑存活、击破 Boss 部件都不触发提前胜利，只作为奖励任务、减压目标或 Boss 压制目标。
 
@@ -23,10 +24,16 @@
 | 文档 | 内容 |
 |---|---|
 | [../../design/defense_roguelite_core_design.md](../../design/defense_roguelite_core_design.md) | 新版主纲、不可违反规则、数值基准、旧方向修正 |
+| [../../design/full_system_design_baseline.md](../../design/full_system_design_baseline.md) | 主菜单、Run 开始、路线、奖励、商店、营地、事件、UI 页面和 MVP 边界 |
+| [../../design/ui_screen_flow_design.md](../../design/ui_screen_flow_design.md) | 主菜单、Run 准备、路线、节点、战斗、结算、奖励和结局的页面流 |
 | [../../design/battle_objectives_and_rewards.md](../../design/battle_objectives_and_rewards.md) | 主胜负规则、保护目标、守护值、奖励任务、HUD 和结算 |
-| [../../design/warden_roster_and_upgrades.md](../../design/warden_roster_and_upgrades.md) | 守卫者定位、基础技能、候选角色、升级结构、伤势 |
+| [../../design/reward_selection_design.md](../../design/reward_selection_design.md) | 战后结算、奖励选择、`pending_reward`、选项权重、重抽和写回 |
+| [../../design/warden_roster_and_upgrades.md](../../design/warden_roster_and_upgrades.md) | 守卫者定位、基础技能、候选角色、升级结构、HP、濒死、死亡 |
 | [../../design/enemy_map_encounter_design.md](../../design/enemy_map_encounter_design.md) | 敌人职责、地形池、地图题型、出怪预算、硬威胁规则 |
+| [../../design/run_structure_design.md](../../design/run_structure_design.md) | Run 长度、章节推进、路线生成、节点预览、存档点和 Demo 固定路线 |
 | [../../design/run_relic_economy_design.md](../../design/run_relic_economy_design.md) | Run 节点、资源、经济、遗物池、事件和 Demo 范围 |
+| [../../design/relic_pool_design.md](../../design/relic_pool_design.md) | 遗物池、稀有度、获得权重、互斥限制和流派协同 |
+| [../../design/run_design_gap_checklist.md](../../design/run_design_gap_checklist.md) | Run 完成度、Demo 开工条件、完整第一版缺口和优先级 |
 
 ## 3. 旧文档优先级
 
@@ -43,17 +50,20 @@
 | 封印战完成封印即胜利 | 改为裂隙压制奖励任务和减压机制 |
 | Boss 击杀或部件击破即胜利 | 改为 Boss 压制目标，胜利仍看终局防守 |
 | 无建筑战斗作为常规节点 | 降级为教程、事件或特殊挑战 |
+| 保护目标全毁直接等于 Run 失败 | 改为防线溃败，扣守护值后判断 Run 是否继续 |
+| 守卫者 0 HP 战后归队 | 改为 1 HP 濒死、0 HP 死亡；全队死亡时 Run 失败 |
 
 ## 4. 首轮实现目标
 
 第一轮实现应验证：
 
 1. 战斗不会因为清空敌人提前胜利。
-2. 保护目标 HP、全毁失败、终局胜利可正常结算。
+2. 保护目标 HP、全毁溃败、守护值扣减、终局胜利可正常结算。
 3. HUD 能同时显示稳定主目标和奖励任务进度。
-4. 至少 3 个奖励任务可记录、失败、完成并结算。
-5. 至少 4 类敌人和 3 类地图题型能制造不同空间压力。
-6. 至少 6-8 个遗物能改变解法，而不是只改数值。
+4. 守卫者 HP、濒死、死亡和队伍覆灭可正常结算。
+5. 至少 3 个奖励任务可记录、失败、完成并结算。
+6. 至少 4 类敌人和 3 类地图题型能制造不同空间压力。
+7. 至少 6-8 个遗物能改变解法，而不是只改数值。
 
 ## 5. 实现边界
 

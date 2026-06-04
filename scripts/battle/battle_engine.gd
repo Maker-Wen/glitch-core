@@ -518,6 +518,7 @@ func _enemy_intent_ui_state_for_state(s: BattleState) -> Array[Dictionary]:
 		rows.append({
 			"enemy_id": eid,
 			"enemy_name": enemy.def.display_name if enemy.def != null else "敌人",
+			"enemy_def": enemy.def,
 			"order": idx + 1,
 			"enemy_pos": enemy.position,
 			"post_move": post_move,
@@ -580,6 +581,7 @@ func _merge_preview_intent_rows(preview_rows: Array[Dictionary], removed_ids: Di
 		preview_rows.append({
 			"enemy_id": eid,
 			"enemy_name": original.def.display_name if original != null and original.def != null else "敌人",
+			"enemy_def": original.def if original != null else null,
 			"order": idx + 1,
 			"enemy_pos": original.position if original != null else Vector2i(-1, -1),
 			"post_move": original.position if original != null else Vector2i(-1, -1),

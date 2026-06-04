@@ -12,3 +12,6 @@ obj/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local brainstorming / visual companion artifacts
+.superpowers/

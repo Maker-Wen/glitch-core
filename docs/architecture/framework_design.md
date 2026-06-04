@@ -472,7 +472,7 @@ BattleScene 整体重建视图（不播动画，瞬间恢复）
 ### 阶段 4：敌人 AI（1-2 天）
 15. `AIDecider.plan_enemy_turn` — 朝最近守卫者移动 + 相邻则攻击
 16. `ENEMY_WARNING` 阶段：所有敌人显示意图（移动落点 + 攻击格）
-17. `ENEMY_EXECUTE`：按预警执行（被推走 = 落空）
+17. `ENEMY_EXECUTE`：按预警执行（攻击方向锁定；被推走后从新位置沿原方向投射）
 18. 写测试：`test_ai_carrion_picks_nearest`
 
 **验证**：1 守卫者 vs 3 腐食兽，敌人朝守卫者推进，玩家能用推/拉/接力反制。

@@ -15,10 +15,10 @@ const COLOR_RUIN := Color(0.18, 0.16, 0.15)
 ## bright red+gold "↑" indicator when a rift is about to spawn.
 const COLOR_RIFT_INACTIVE := Color(0.22, 0.18, 0.20, 0.85)
 const COLOR_GRID_LINE := Color(0.05, 0.04, 0.06, 0.6)
-const TILE_DRAW_SIZE := Vector2(94, 94)
+const COLOR_TILE_EDGE := Color(0.06, 0.055, 0.075, 0.62)
+const COLOR_TILE_CRACK := Color(0.035, 0.032, 0.042, 0.26)
 const FEATURE_DRAW_SIZE := Vector2(104, 104)
 
-const TEX_EMPTY := preload("res://art/tiles/board_empty_tile.png")
 const TEX_PILLAR := preload("res://art/tiles/board_pillar_tile.png")
 const TEX_BUILDING := preload("res://art/tiles/board_building_tile.png")
 const TEX_RUIN := preload("res://art/tiles/board_ruin_tile.png")
@@ -37,8 +37,7 @@ func _draw() -> void:
 		for x in Grid.SIZE:
 			var rect := Rect2(Vector2(x, y) * CELL_SIZE, Vector2.ONE * CELL_SIZE)
 			var c := COLOR_TILE_A if (x + y) % 2 == 0 else COLOR_TILE_B
-			draw_rect(rect, c)
-			_draw_tile_texture(TEX_EMPTY, rect, TILE_DRAW_SIZE)
+			_draw_floor_tile(rect, c, Vector2i(x, y))
 			var tile: int = _grid.get_tile(Vector2i(x, y))
 			match tile:
 				Grid.TileType.PILLAR:
@@ -62,7 +61,7 @@ func _draw() -> void:
 					# this is a rift cell, but quiet enough that round 1 looks
 					# clean. When the rift is about to spawn an enemy, the
 					# PreviewOverlay adds the bright "↑" indicator on top.
-					_draw_tile_texture(TEX_RIFT, rect, TILE_DRAW_SIZE)
+					_draw_tile_texture(TEX_RIFT, rect, rect.size)
 	# Grid lines
 	for i in range(Grid.SIZE + 1):
 		var x_px: int = i * CELL_SIZE
@@ -70,6 +69,29 @@ func _draw() -> void:
 		var max_px: int = Grid.SIZE * CELL_SIZE
 		draw_line(Vector2(x_px, 0), Vector2(x_px, max_px), COLOR_GRID_LINE)
 		draw_line(Vector2(0, y_px), Vector2(max_px, y_px), COLOR_GRID_LINE)
+
+func _draw_floor_tile(rect: Rect2, color: Color, cell: Vector2i) -> void:
+	var shade_seed := int(cell.x * 29 + cell.y * 43)
+	var tile_color := color.lightened(0.035) if shade_seed % 4 == 0 else color.darkened(0.035) if shade_seed % 4 == 1 else color
+	draw_rect(rect, tile_color)
+	draw_line(rect.position + Vector2(1, 1), rect.position + Vector2(rect.size.x - 2, 1), tile_color.lightened(0.1), 1.0)
+	draw_line(rect.position + Vector2(1, rect.size.y - 2), rect.position + rect.size - Vector2(2, 2), tile_color.darkened(0.16), 1.0)
+	draw_rect(rect.grow(-3.0), tile_color.lightened(0.045), false, 1.0)
+	draw_rect(rect, COLOR_TILE_EDGE, false, 1.0)
+	var crack_seed := int(cell.x * 17 + cell.y * 31)
+	match crack_seed % 6:
+		0:
+			var a := rect.position + Vector2(19, 22)
+			var b := rect.position + Vector2(30, 28)
+			var c := rect.position + Vector2(37, 39)
+			draw_polyline(PackedVector2Array([a, b, c]), COLOR_TILE_CRACK, 1.0)
+		2:
+			var a := rect.position + Vector2(46, 18)
+			var b := rect.position + Vector2(41, 31)
+			var c := rect.position + Vector2(47, 43)
+			draw_polyline(PackedVector2Array([a, b, c]), COLOR_TILE_CRACK, 1.0)
+		4:
+			draw_line(rect.position + Vector2(18, 50), rect.position + Vector2(34, 55), COLOR_TILE_CRACK, 1.0)
 
 func _draw_tile_texture(texture: Texture2D, cell_rect: Rect2, size: Vector2) -> void:
 	var center := cell_rect.position + cell_rect.size * 0.5
