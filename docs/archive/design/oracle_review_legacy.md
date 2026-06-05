@@ -1,5 +1,7 @@
 # Oracle 最终设计审查报告（开发前最后一次）
 
+> **归档警告（2026-06-04）**：本文是旧审查报告，只保留历史背景，不作为当前规则。已吸收的结论以 [../../design/combat_resolution_truth_table.md](../../design/combat_resolution_truth_table.md)、[../../design/ui_decision_rules.md](../../design/ui_decision_rules.md) 和 [../../design/boss_node_design.md](../../design/boss_node_design.md) 为准。
+>
 > 审查日期：开发启动前
 > 审查范围：完整 game_design.md（1384 行）
 > 审查模式：硬核 + 找问题，不夸奖

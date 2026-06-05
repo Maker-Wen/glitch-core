@@ -1,5 +1,7 @@
 # 暗黑小队战术肉鸽转型设计
 
+> **归档警告（2026-06-04）**：本文是旧转型 Spec，只保留历史背景，不作为当前设计依据。当前规则请从 [../../../AI_README.md](../../../AI_README.md) 开始读取，并以 [../../../design/defense_roguelite_core_design.md](../../../design/defense_roguelite_core_design.md) 为准。
+>
 > 日期：2026-06-02
 > 状态：已确认方向，待实现计划拆分
 > 范围：策划案定位、关卡类型、当前 Demo 第一轮改造

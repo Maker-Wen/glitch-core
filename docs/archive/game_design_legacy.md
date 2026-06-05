@@ -1,5 +1,7 @@
 # 《长夜余烬》策划案 (Embers of the Long Night)
 
+> **归档警告（2026-06-04）**：本文是旧主策划案，只保留历史背景，不作为当前设计依据。当前规则请从 [../AI_README.md](../AI_README.md) 开始读取，并以 [../design/defense_roguelite_core_design.md](../design/defense_roguelite_core_design.md) 为最高玩法裁定。本文中的旧链接和旧胜利条件不再维护。
+>
 > **新版优先级提示（2026-06-03）**：
 > 当前战斗定位已更新为“暗黑小队战术肉鸽 + 稳定防守胜利条件”。若本文与 [design/defense_roguelite_core_design.md](design/defense_roguelite_core_design.md) 冲突，以新版主纲为准。尤其是：清空敌人、封印裂隙、击破 Boss 部件不再触发提前胜利，只作为奖励任务或减压目标。生命资源以新版“三层生命资源”为准：守护值承接建筑损失，守卫者 HP 跨战斗保留，1 HP 濒死，0 HP 死亡。
 

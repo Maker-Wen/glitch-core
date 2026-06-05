@@ -1,5 +1,7 @@
 # Boss 设计：裂心钟主 (Knell Lord)
 
+> **归档警告（2026-06-04）**：本文是旧 Boss 击杀胜利模型，只保留历史背景，不作为当前 Boss 节点实现依据。当前 Boss 设计以 [../../design/boss_node_design.md](../../design/boss_node_design.md) 为准；胜负规则以 [../../design/battle_objectives_and_rewards.md](../../design/battle_objectives_and_rewards.md) 为准。
+>
 > **本文档拆分自主策划案 §8.7**。主策划案：[../game_design.md](../game_design.md)
 >
 > 本文档是 MVP 唯一 Boss 的完整脚本设计。实现 Boss 战时查阅。

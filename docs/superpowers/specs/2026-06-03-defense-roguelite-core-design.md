@@ -30,6 +30,7 @@
 | [../../design/reward_selection_design.md](../../design/reward_selection_design.md) | 战后结算、奖励选择、`pending_reward`、选项权重、重抽和写回 |
 | [../../design/warden_roster_and_upgrades.md](../../design/warden_roster_and_upgrades.md) | 守卫者定位、基础技能、候选角色、升级结构、HP、濒死、死亡 |
 | [../../design/enemy_map_encounter_design.md](../../design/enemy_map_encounter_design.md) | 敌人职责、地形池、地图题型、出怪预算、硬威胁规则 |
+| [../../design/boss_node_design.md](../../design/boss_node_design.md) | Boss 节点、毁灭计数、锚石、心脏钟和 Boss 奖励任务 |
 | [../../design/run_structure_design.md](../../design/run_structure_design.md) | Run 长度、章节推进、路线生成、节点预览、存档点和 Demo 固定路线 |
 | [../../design/run_relic_economy_design.md](../../design/run_relic_economy_design.md) | Run 节点、资源、经济、遗物池、事件和 Demo 范围 |
 | [../../design/relic_pool_design.md](../../design/relic_pool_design.md) | 遗物池、稀有度、获得权重、互斥限制和流派协同 |
@@ -37,10 +38,10 @@
 
 ## 3. 旧文档优先级
 
-以下旧文档仍保留历史背景，但如果与本 Spec 冲突，以本 Spec 和 `docs/design/defense_roguelite_core_design.md` 为准：
+以下旧文档已移动到 archive，只保留历史背景。如果与本 Spec 冲突，以本 Spec 和 `docs/design/defense_roguelite_core_design.md` 为准：
 
-- [../../game_design.md](../../game_design.md)
-- [2026-06-02-dark-squad-tactical-roguelite-design.md](2026-06-02-dark-squad-tactical-roguelite-design.md)
+- [../../archive/game_design_legacy.md](../../archive/game_design_legacy.md)
+- [../../archive/superpowers/specs/2026-06-02-dark-squad-tactical-roguelite-design_legacy.md](../../archive/superpowers/specs/2026-06-02-dark-squad-tactical-roguelite-design_legacy.md)
 
 尤其废弃以下旧方向：
 

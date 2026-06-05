@@ -3,6 +3,7 @@
 > 日期：2026-06-03
 > 状态：新版主纲
 > 适用范围：战斗目标、守卫者、敌人、地图、奖励任务、Run 结构、遗物与经济
+> AI 入口：[../AI_README.md](../AI_README.md)
 
 ## 1. 定位结论
 
@@ -201,7 +202,7 @@ Run 的随机性只出现在路线、节点、奖励、事件、遗物和敌群�
 
 ## 8. 文档拆分
 
-本主纲下拆分 10 份执行文档：
+本主纲下拆分 11 份执行文档：
 
 | 文档 | 内容 |
 |---|---|
@@ -211,6 +212,7 @@ Run 的随机性只出现在路线、节点、奖励、事件、遗物和敌群�
 | [reward_selection_design.md](reward_selection_design.md) | 战后结算、奖励选择、`pending_reward`、选项权重、重抽和写回 |
 | [warden_roster_and_upgrades.md](warden_roster_and_upgrades.md) | 守卫者、技能、升级路线、队伍构筑 |
 | [enemy_map_encounter_design.md](enemy_map_encounter_design.md) | 敌人职责、地图题型、地形、出怪预算 |
+| [boss_node_design.md](boss_node_design.md) | Boss 节点、毁灭计数、锚石、心脏钟和 Boss 奖励任务 |
 | [run_structure_design.md](run_structure_design.md) | Run 长度、章节、路线生成、节点预览、存档点、Demo 固定路线 |
 | [run_relic_economy_design.md](run_relic_economy_design.md) | Run 路线、资源、遗物池、经济与损耗 |
 | [relic_pool_design.md](relic_pool_design.md) | 遗物池、稀有度、获得权重、互斥限制和流派协同 |
