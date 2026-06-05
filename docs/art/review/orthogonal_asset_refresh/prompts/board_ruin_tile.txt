@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot ruined-building overlay on a 72x72 orthogonal square grid. Generate on a chroma background for alpha removal.
+Primary request: Create one ruined protected-building terrain piece for a straight orthogonal square board. It must be a front-facing orthogonal sprite overlay, not a tabletop miniature, not an isometric object, and not a diamond tile.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: collapsed front-facing remains of the protected gothic building: broken low walls, rubble, cracked roof fragments, shattered boarded window pieces, and a tiny extinguished ember lantern. It must clearly be the destroyed version of the protected building. No characters.
+Style/medium: dark anime cel-shaded 2D terrain sprite, crisp black ink outline, clean two-tone shadows, subtle painterly stone texture, low saturation gothic palette, readable at 104x104 and 72x72.
+Composition/framing: strict orthogonal front-view sprite. Show a low rubble silhouette from the front only; do not show a top face, diagonal side face, perspective floor, or tabletop base. Bottom edge is a mostly horizontal rubble line centered near x=512, y=820. No floor tile underneath. The ruin fits in one square cell when scaled down and must not become a diagonal pile.
+Lighting/mood: subdued, broken, readable as a destroyed objective.
+Color palette: dark stone grey, dusty charcoal, bone-white edge highlights, tiny muted dry blood red cracks.
+Materials/textures: cel-shaded rubble, broken roof fragments, crisp cracks, dark outline.
+Constraints: one complete terrain overlay only; transparent-cutout-ready subject on chroma background; no square floor slab, no circular base, no pedestal, no rhombus base, no diamond tile, no isometric floor, no cast shadow, no contact shadow.
+Avoid: 45-degree isometric board camera, diagonal tile, top-down diamond perspective, visible top face, side-face perspective, tabletop miniature base, intact building, full scene, character, text labels, UI, giant pile covering whole canvas.

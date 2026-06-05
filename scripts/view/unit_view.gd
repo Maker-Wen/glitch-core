@@ -4,8 +4,8 @@ class_name UnitView extends Node2D
 
 const RADIUS := 28.0
 const RING_RADIUS := 32.0
-const TOKEN_DRAW_SIZE := Vector2(96, 96)
-const TOKEN_DRAW_OFFSET := Vector2(0, -14)
+const TOKEN_DRAW_SIZE := Vector2(84, 84)
+const TOKEN_DRAW_OFFSET := Vector2(0, -12)
 const TOKEN_BASE_CENTER := Vector2(0, 14)
 const COLOR_FACTION_OUTLINE := {
 	0: Color(0.7, 0.9, 1.0),   # WARDEN -- pale cyan
@@ -83,7 +83,6 @@ func _draw() -> void:
 	_draw_order_badge()
 
 func _draw_token_art(outline: Color) -> void:
-	_draw_filled_ellipse(TOKEN_BASE_CENTER + Vector2(0, 3), Vector2(28, 8), Color(0.0, 0.0, 0.0, 0.32))
 	var rect := Rect2(-TOKEN_DRAW_SIZE * 0.5 + TOKEN_DRAW_OFFSET, TOKEN_DRAW_SIZE)
 	var tint := Color.WHITE
 	if _has_acted:
@@ -91,8 +90,10 @@ func _draw_token_art(outline: Color) -> void:
 	elif _has_moved:
 		tint = Color(0.72, 0.72, 0.72, 0.95)
 	var shadow_rect := rect.grow(2.0)
-	draw_texture_rect(_token_texture, shadow_rect, false, Color(0.0, 0.0, 0.0, 0.45))
-	draw_texture_rect(_token_texture, Rect2(rect.position + Vector2(0, -1), rect.size), false, outline.darkened(0.18))
+	var outline_tint := outline.darkened(0.08)
+	outline_tint.a = 0.72
+	draw_texture_rect(_token_texture, Rect2(shadow_rect.position + Vector2(0, 1), shadow_rect.size), false, Color(0.0, 0.0, 0.0, 0.38))
+	draw_texture_rect(_token_texture, Rect2(rect.position + Vector2(0, -1), rect.size), false, outline_tint)
 	draw_texture_rect(_token_texture, rect, false, tint)
 
 func _draw_filled_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:

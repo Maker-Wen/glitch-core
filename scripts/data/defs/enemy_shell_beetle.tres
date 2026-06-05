@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UnitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+def_id = &"enemy_shell_beetle"
+display_name = "护壳虫"
+faction = 1
+max_hp = 4
+move = 1
+attack_kind = 3
+attack_range = 1
+attack_damage = 1
+attack_force = 0
+color = Color(0.35, 0.55, 0.42, 1)

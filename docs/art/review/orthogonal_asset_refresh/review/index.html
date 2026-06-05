@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>正交棋盘资产纠偏评审</title>
+<style>
+:root { color-scheme: dark; --bg:#101016; --panel:#191821; --grid-a:#2a2830; --grid-b:#211f27; --line:#08070b; --text:#e8dcc4; --muted:#a9a0a0; --cyan:#6ec7de; --gold:#c4a464; }
+* { box-sizing: border-box; }
+body { margin:0; padding:24px; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+h1 { font-size:22px; margin:0 0 8px; }
+p { margin:0 0 18px; color:var(--muted); line-height:1.5; }
+.section { margin-top:24px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:16px; }
+.card { background:var(--panel); border:1px solid #302c38; padding:12px; min-height:182px; }
+.cell { width:120px; height:120px; margin:0 auto 10px; background:linear-gradient(90deg, transparent 59px, var(--line) 60px, transparent 61px), linear-gradient(0deg, transparent 59px, var(--line) 60px, transparent 61px), var(--grid-a); position:relative; overflow:visible; }
+.cell:after { content:""; position:absolute; left:24px; top:24px; width:72px; height:72px; border:2px solid #0a090d; }
+.cell img { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:96px; height:96px; object-fit:contain; image-rendering:auto; }
+.cell.terrain img { width:104px; height:104px; }
+.cell.rift img { width:72px; height:72px; }
+.name { font-size:14px; font-weight:700; text-align:center; }
+.note { font-size:12px; color:var(--muted); text-align:center; margin-top:4px; }
+.scene { width:min(100%, 1124px); border:1px solid #302c38; background:#111; display:block; }
+</style>
+</head>
+<body>
+<h1>正交棋盘资产纠偏评审</h1>
+<p>目标：保留暗黑日漫棋子风格，但去掉 45 度等角 / 菱形底板 / 圆形底座语言。下面按游戏内 72x72 正交方格中心缩放预览。</p>
+<div class="section">
+  <h1>游戏内截图</h1>
+  <img class="scene" src="battle_scene_orthogonal_assets.png" alt="battle scene orthogonal assets">
+</div>
+<div class="section">
+  <h1>单位棋子</h1>
+  <div class="grid">
+    <div class="card"><div class="cell"><img src="../alpha/warden_bountyhunter_token.png"></div><div class="name">赏金猎人</div><div class="note">无圆底/菱形底</div></div>
+    <div class="card"><div class="cell"><img src="../alpha/warden_graverobber_token.png"></div><div class="name">盗墓人</div><div class="note">正交格心</div></div>
+    <div class="card"><div class="cell"><img src="../alpha/warden_mage_token.png"></div><div class="name">大魔法师</div><div class="note">正交格心</div></div>
+    <div class="card"><div class="cell"><img src="../alpha/enemy_carrion_spawn_token.png"></div><div class="name">腐食兽</div><div class="note">无大底座</div></div>
+    <div class="card"><div class="cell"><img src="../alpha/enemy_plague_archer_token.png"></div><div class="name">瘟疫弓手</div><div class="note">无红色圆底</div></div>
+  </div>
+</div>
+<div class="section">
+  <h1>建筑 / 地形</h1>
+  <div class="grid">
+    <div class="card"><div class="cell terrain"><img src="../alpha/board_building_tile_v2.png"></div><div class="name">保护建筑 v2</div><div class="note">正面贴片，不带菱形底板</div></div>
+    <div class="card"><div class="cell terrain"><img src="../alpha/board_pillar_tile_v2.png"></div><div class="name">石柱 v2</div><div class="note">正面贴片，不带台座</div></div>
+    <div class="card"><div class="cell terrain"><img src="../alpha/board_ruin_tile_v2.png"></div><div class="name">废墟 v2</div><div class="note">横向略宽，但不是菱形</div></div>
+    <div class="card"><div class="cell rift"><img src="../alpha/board_rift_tile.png"></div><div class="name">地裂</div><div class="note">格内标记</div></div>
+  </div>
+</div>
+</body>
+</html>

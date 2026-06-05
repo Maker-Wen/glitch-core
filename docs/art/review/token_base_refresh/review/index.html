@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>薄实体底座棋子评审</title>
+<style>
+:root{color-scheme:dark;--bg:#101016;--panel:#191821;--cell:#2a2830;--line:#09080c;--text:#e8dcc4;--muted:#aaa0a0;--gold:#c4a464}*{box-sizing:border-box}body{margin:0;padding:24px;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 18px;color:var(--muted);line-height:1.55}.hero{width:min(100%,980px);border:1px solid #302c38;background:#111;display:block}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:22px;max-width:980px}.card{background:var(--panel);border:1px solid #302c38;padding:12px}.cell{width:144px;height:144px;margin:0 auto 10px;background:linear-gradient(90deg,transparent 35px,var(--line) 36px,transparent 37px,transparent 107px,var(--line) 108px,transparent 109px),linear-gradient(0deg,transparent 35px,var(--line) 36px,transparent 37px,transparent 107px,var(--line) 108px,transparent 109px),var(--cell);position:relative}.cell:after{content:"";position:absolute;left:36px;top:36px;width:72px;height:72px;border:2px solid #0a090d}.cell img{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:96px;height:96px;object-fit:contain}.name{text-align:center;font-weight:700}.note{text-align:center;color:var(--muted);font-size:12px;margin-top:4px}.path{font-size:11px;color:#777;word-break:break-all;margin-top:8px}.section-title{font-size:16px;margin:26px 0 10px;color:#d4c6a5}</style>
+</head>
+<body>
+<h1>薄实体底座棋子评审</h1>
+<p>目标：恢复实体棋子锚点和伪 3D 感，同时保持正交方格可读。底座应像塑料微缩棋子的薄底台，不像 UI 选中圈或技能圈。</p>
+<div class="section-title">已接入战斗截图</div>
+<img class="hero" src="battle_scene_token_base_refresh.png" alt="runtime battle scene with thin base tokens">
+<div class="section-title">单格与小棋盘预览</div>
+<img class="hero" src="token_base_all_units_contact_sheet.png" alt="all unit thin base contact sheet">
+<div class="section-title">完整单位</div>
+<div class="grid">
+  <div class="card"><div class="cell"><img src="../alpha/warden_bountyhunter_token_base.png"></div><div class="name">赏金猎人</div><div class="note">玩家侧冷青细边底座</div><div class="path">alpha/warden_bountyhunter_token_base.png</div></div>
+  <div class="card"><div class="cell"><img src="../alpha/warden_graverobber_token_base.png"></div><div class="name">盗墓者</div><div class="note">玩家侧冷青细边底座</div><div class="path">alpha/warden_graverobber_token_base.png</div></div>
+  <div class="card"><div class="cell"><img src="../alpha/warden_mage_token_base.png"></div><div class="name">大法师</div><div class="note">玩家侧冷青细边底座</div><div class="path">alpha/warden_mage_token_base.png</div></div>
+  <div class="card"><div class="cell"><img src="../alpha/enemy_carrion_spawn_token_base.png"></div><div class="name">腐食兽</div><div class="note">敌方暗红细边底座</div><div class="path">alpha/enemy_carrion_spawn_token_base.png</div></div>
+  <div class="card"><div class="cell"><img src="../alpha/enemy_plague_archer_token_base.png"></div><div class="name">瘟疫弓手</div><div class="note">长弓 + 薄实体底座</div><div class="path">alpha/enemy_plague_archer_token_base.png</div></div>
+</div>
+</body>
+</html>

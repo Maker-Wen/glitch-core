@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot tactical unit token on a 72x72 orthogonal square grid. Generate on a chroma background for alpha removal.
+Primary request: Create one player-side bounty hunter guardian token with a unified thin physical miniature base. The token must feel like a collectible plastic board-game piece placed on a straight orthogonal square board, with pseudo-3D volume, but without an isometric floor tile.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: one compact hooded bounty hunter guardian, chibi-adjacent but not childish. Slightly oversized hood, sharp cold-cyan eyes in shadow, dark cloak and leather straps, one short blade close to the body, one small chain mace held close with 3 to 5 readable links.
+Base design: include one very thin physical oval miniature base directly under the character's feet. The base is dark charcoal resin, low height, about 58% to 68% of character width and about 10% to 14% of character height. It is part of the physical token, not a UI ring. Add only a subtle cold-cyan rim highlight for player side. No large colored disk, no glowing circle, no selection ring.
+Style/medium: dark anime cel-shaded collectible plastic miniature translated into 2D token art. Crisp black ink outline, clean two-tone shadows, subtle painterly texture, pseudo-3D body volume, low saturation gothic palette, readable at 96x96 and 72x72.
+Composition/framing: orthogonal-board token view, front 3/4 with slight top-down angle, facing toward the bottom of the screen. Center the full figure and base. Base center near x=512, base bottom near y=875. The token should sit in the center of a square cell when scaled down.
+Lighting/mood: restrained upper-left light, strong silhouette, dramatic but simple.
+Color palette: black, charcoal, dark blue-grey, muted cold cyan eyes and tiny base rim, tiny tarnished brass accents.
+Constraints: one complete token only; include the thin physical base; no floor tile underneath; no diamond base; no square slab; no cast shadow separate from the base; no contact shadow on the background.
+Avoid: no-base floating character, huge pedestal, thick plinth, large colored faction disk, glowing UI ring, selection circle, 45-degree isometric board camera, rhombus floor, diagonal display plinth, 2D anime portrait, tall realistic hero, huge weapon, long flying chain, particles, HP dots, numbers, logo.

@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot rift/crack overlay drawn inside a 72x72 orthogonal square grid cell. Generate on a chroma background for alpha removal.
+Primary request: Create one rift terrain mark for a straight orthogonal square board. It must be a flat square-cell overlay mark, not an isometric tile or portal object.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: cracked dark fissure marks and a narrow supernatural rift glow, as if drawn directly on the square floor cell. Muted dry blood red and dim sickly cyan light inside the cracks. No creatures and no physical object.
+Style/medium: dark anime cel-shaded tactical board mark, crisp black crack shapes, subtle painterly edge texture, low saturation gothic palette, readable at 72x72.
+Composition/framing: pure orthogonal top-down square-cell overlay. The crack pattern is centered and fills about 70% of the canvas width with generous transparent padding. It can cross diagonally inside the square cell, but it must not create a diamond tile silhouette. No visible floor slab underneath.
+Lighting/mood: subtle inactive rift, visible but not attention-stealing.
+Color palette: charcoal crack edges, muted dry blood red, dim sickly cyan inner glow, no bright neon.
+Materials/textures: cracked floor-mark texture only, transparent around the fissure marks.
+Constraints: one terrain mark only; transparent-cutout-ready crack overlay on chroma background; no square floor slab, no circular base, no pedestal, no rhombus base, no diamond tile, no isometric floor, no cast shadow, no contact shadow.
+Avoid: 45-degree isometric board camera, diagonal tile, huge portal, floating magic circle, bright neon, creature emerging, text, UI, full board, round base, large object.

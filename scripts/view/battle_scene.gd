@@ -1,6 +1,8 @@
 class_name BattleScene extends Node2D
 ## Root of the battle vertical slice. Wires engine + view together.
 
+signal battle_finished(summary: Dictionary)
+
 @onready var grid_view: GridView = $Board/GridView
 @onready var preview: PreviewOverlay = $Board/PreviewOverlay
 @onready var units_root: Node2D = $Board/Units
@@ -8,6 +10,7 @@ class_name BattleScene extends Node2D
 @onready var input_ctl: InputController = $InputController
 
 const UNIT_VIEW_SCENE := preload("res://Scenes/battle/UnitView.tscn")
+const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
 
 var engine: BattleEngine
 var unit_views: Dictionary = {}  # unit_id: int -> UnitView
@@ -20,8 +23,14 @@ var _hover_cell: Vector2i = Vector2i(-1, -1)
 var _animating: bool = false
 var _focused_enemy_id: int = -1
 var _executing_enemy_id: int = -1
+var _defer_state_refresh_until_events: bool = false
 var _defer_enemy_intent_refresh_until_events: bool = false
 var _suppress_enemy_intents_until_events_done: bool = false
+var _battle_config: Dictionary = {}
+var _run_wardens: Array[Dictionary] = []
+var _sanctuary_integrity: int = 7
+var _sanctuary_integrity_max: int = 7
+var _finish_emitted: bool = false
 ## Debug mode: when ON, info panel shows planned actions, execution order,
 ## displacement state, etc. Toggle with F1. OFF by default so the panel
 ## stays clean (just HP / move / attack range).
@@ -40,10 +49,24 @@ func _ready() -> void:
 	hud.confirm_deploy_pressed.connect(func(): _on_action_requested(BattleAction.confirm_deploy()))
 	hud.ability_selected.connect(_on_ability_selected)
 	hud.enemy_stack_hovered.connect(_on_enemy_stack_hovered)
-	hud.set_help("操作：点击守卫者后，点绿格移动 / 红格攻击   ·   空格 = 结束回合   ·   Cmd/Ctrl+Z = 撤回   ·   右键 = 取消   ·   F1 = 调试详情")
+	hud.set_help("战斗准备中")
 	_start_slice_battle()
 
+func configure_battle(config: Dictionary, run_wardens: Array[Dictionary], sanctuary: int, sanctuary_max: int) -> void:
+	_battle_config = config.duplicate(true)
+	_run_wardens = run_wardens.duplicate(true)
+	_sanctuary_integrity = sanctuary
+	_sanctuary_integrity_max = sanctuary_max
+
 func _start_slice_battle() -> void:
+	var config := _battle_config
+	if config.is_empty():
+		config = {
+			"title": "战斗演示",
+			"node_type": "normal",
+			"battle": {"variant": "pillars", "max_rounds": 5},
+			"pressure_tags": ["基础防守", "远程线压", "裂隙压力"],
+		}
 	var bh: UnitDef = load("res://scripts/data/defs/warden_bountyhunter.tres")
 	var gr: UnitDef = load("res://scripts/data/defs/warden_graverobber.tres")
 	var mg: UnitDef = load("res://scripts/data/defs/warden_mage.tres")
@@ -51,33 +74,36 @@ func _start_slice_battle() -> void:
 	var archer: UnitDef = load("res://scripts/data/defs/enemy_plague_archer.tres")
 
 	var grid := Grid.new()
-	# A couple of pillars for tactical interest.
-	grid.set_tile(Vector2i(3, 3), Grid.TileType.PILLAR)
-	grid.set_tile(Vector2i(4, 4), Grid.TileType.PILLAR)
-	# Protected buildings: the battle now follows the stable defense rule.
-	# Clearing enemies is useful, but victory waits until max_rounds.
-	var protected_targets: Array[Vector2i] = [
-		Vector2i(2, 6),
-		Vector2i(5, 6),
-		Vector2i(4, 7),
-	]
+	var battle_ref: Dictionary = config.get("battle", {})
+	var variant := String(battle_ref.get("variant", "pillars"))
+	var catalog_config := _resolve_catalog_battle_config(config)
+	var protected_targets := _build_grid_for_variant(grid, variant, catalog_config)
 	for p in protected_targets:
-		grid.set_tile(p, Grid.TileType.BUILDING, 2)
+		if grid.get_tile(p) != Grid.TileType.BUILDING:
+			grid.set_tile(p, Grid.TileType.BUILDING, 2)
 
 	# Wardens are deployed by the player during the Garrison phase (see §3.3).
-	var warden_defs: Array = [bh, gr, mg]
-	# Starting wave: 2 carrions + 1 plague archer. Archer's ranged threat
-	# forces the player to engage / push enemies into LOS-breaking positions.
-	var enemies: Array = [
-		{"def": carrion, "pos": Vector2i(1, 0)},
-		{"def": archer, "pos": Vector2i(3, 0)},
-		{"def": carrion, "pos": Vector2i(6, 0)},
-	]
-	# Deploy zone: bottom 2 rows (y >= 6 in 0-indexed 8x8).
-	var deploy_zone: Array[Vector2i] = []
-	for y in [6, 7]:
-		for x in range(Grid.SIZE):
-			deploy_zone.append(Vector2i(x, y))
+	var def_by_id := {
+		"warden_bountyhunter": bh,
+		"warden_graverobber": gr,
+		"warden_mage": mg,
+	}
+	var warden_defs: Array = []
+	var warden_hp: Array[int] = []
+	if _run_wardens.is_empty():
+		warden_defs = [bh, gr, mg]
+		warden_hp = [bh.max_hp, gr.max_hp, mg.max_hp]
+	else:
+		for w in _run_wardens:
+			if not bool(w.get("alive", false)):
+				continue
+			var def: UnitDef = def_by_id.get(String(w.get("warden_id", "")), null)
+			if def == null:
+				continue
+			warden_defs.append(def)
+			warden_hp.append(int(w.get("hp", def.max_hp)))
+	var enemies := _build_enemies_for_variant(variant, carrion, archer, catalog_config)
+	var deploy_zone := BattleConfigCatalogScript.build_deploy_zone()
 
 	# Two rifts on the north half. Schedule (design §3.4): the golden "↑"
 	# marker appears during round N (predicting round N+1 spawns), the
@@ -89,14 +115,15 @@ func _start_slice_battle() -> void:
 	# Round 2 player turn shows: rift_a + rift_b will spawn next round.
 	# Round 3 player turn shows: rift_a will spawn next round.
 	# Round 4+: no more rift activity (let player clean up before round 5).
-	var rift_a := Vector2i(2, 1)
-	var rift_b := Vector2i(5, 1)
-	var rift_positions: Array[Vector2i] = [rift_a, rift_b]
-	var rift_schedule: Array = [
-		{"round": 2, "pos": rift_a, "def": carrion},
-		{"round": 2, "pos": rift_b, "def": carrion},
-		{"round": 3, "pos": rift_a, "def": carrion},
-	]
+	var rift_data := _build_rifts_for_variant(variant, carrion, catalog_config)
+	var rift_positions: Array[Vector2i] = []
+	for p in rift_data.positions:
+		rift_positions.append(p)
+	var rift_schedule: Array = rift_data.schedule
+	var scripted_spawn_schedule := _scripted_spawns_for_variant(catalog_config)
+	var max_rounds := int(catalog_config.get("max_rounds", battle_ref.get("max_rounds", 5)))
+	var reward_tasks := _reward_tasks_for_variant(variant, catalog_config)
+	var boss_config := _boss_config_for_variant(variant, battle_ref, catalog_config)
 
 	engine.start_battle(
 		grid,
@@ -105,17 +132,242 @@ func _start_slice_battle() -> void:
 		deploy_zone,
 		rift_positions,
 		rift_schedule,
-		5,
+		max_rounds,
 		protected_targets,
-		[
-			BattleState.REWARD_PERFECT_DEFENSE,
-			BattleState.REWARD_TERMINAL_CLEAR,
-			BattleState.REWARD_PHYSICAL_KILLS_3,
-		],
+		reward_tasks,
+		warden_hp,
+		boss_config,
+		scripted_spawn_schedule,
 	)
 	grid_view.bind(engine.state.grid)
 	_rebuild_unit_views()
+	hud.set_sanctuary(_sanctuary_integrity, _sanctuary_integrity_max)
+	hud.set_help(_battle_help_text(config, variant))
 	_on_state_changed()
+
+func _resolve_catalog_battle_config(config: Dictionary) -> Dictionary:
+	var battle_ref: Dictionary = config.get("battle", {})
+	var node_id := String(config.get("node_id", ""))
+	return BattleConfigCatalogScript.resolve_battle_config(node_id, battle_ref)
+
+func _build_grid_for_variant(grid: Grid, variant: String, catalog_config: Dictionary = {}) -> Array[Vector2i]:
+	if not catalog_config.is_empty():
+		var grid_data := BattleConfigCatalogScript.build_grid(catalog_config)
+		var built_grid: Grid = grid_data.get("grid", null)
+		if built_grid != null:
+			grid.tiles = built_grid.tiles.duplicate()
+			grid.tile_hp = built_grid.tile_hp.duplicate()
+			return grid_data.get("protected_targets", [])
+	var protected_targets: Array[Vector2i] = []
+	match variant:
+		"intro":
+			protected_targets = [Vector2i(2, 6), Vector2i(5, 6), Vector2i(4, 7)]
+		"archer":
+			grid.set_tile(Vector2i(3, 3), Grid.TileType.PILLAR)
+			protected_targets = [Vector2i(1, 6), Vector2i(4, 6), Vector2i(6, 7)]
+		"elite":
+			grid.set_tile(Vector2i(2, 3), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(5, 3), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(3, 4), Grid.TileType.PILLAR)
+			protected_targets = [Vector2i(1, 6), Vector2i(3, 6), Vector2i(6, 6), Vector2i(4, 7)]
+		"preboss":
+			grid.set_tile(Vector2i(2, 4), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(5, 4), Grid.TileType.PILLAR)
+			protected_targets = [Vector2i(2, 6), Vector2i(5, 6), Vector2i(3, 7), Vector2i(6, 7)]
+		"boss":
+			grid.set_tile(Vector2i(2, 3), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(5, 3), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(3, 4), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(4, 4), Grid.TileType.PILLAR)
+			protected_targets = [Vector2i(1, 6), Vector2i(3, 6), Vector2i(5, 6), Vector2i(4, 7)]
+			grid.set_tile(Vector2i(4, 7), Grid.TileType.BUILDING, 3)
+		_:
+			grid.set_tile(Vector2i(3, 3), Grid.TileType.PILLAR)
+			grid.set_tile(Vector2i(4, 4), Grid.TileType.PILLAR)
+			protected_targets = [Vector2i(2, 6), Vector2i(5, 6), Vector2i(4, 7)]
+	return protected_targets
+
+func _build_enemies_for_variant(variant: String, carrion: UnitDef, archer: UnitDef, catalog_config: Dictionary = {}) -> Array:
+	if not catalog_config.is_empty():
+		return BattleConfigCatalogScript.build_initial_enemies(catalog_config)
+	match variant:
+		"intro":
+			return [
+				{"def": carrion, "pos": Vector2i(2, 0)},
+				{"def": carrion, "pos": Vector2i(5, 0)},
+			]
+		"archer":
+			return [
+				{"def": carrion, "pos": Vector2i(1, 0)},
+				{"def": archer, "pos": Vector2i(3, 0)},
+				{"def": carrion, "pos": Vector2i(6, 0)},
+			]
+		"elite":
+			return [
+				{"def": carrion, "pos": Vector2i(1, 0)},
+				{"def": archer, "pos": Vector2i(3, 0)},
+				{"def": carrion, "pos": Vector2i(5, 0)},
+				{"def": archer, "pos": Vector2i(6, 1)},
+			]
+		"preboss":
+			return [
+				{"def": carrion, "pos": Vector2i(0, 0)},
+				{"def": archer, "pos": Vector2i(2, 0)},
+				{"def": archer, "pos": Vector2i(5, 0)},
+				{"def": carrion, "pos": Vector2i(7, 0)},
+			]
+		"boss":
+			return [
+				{"def": carrion, "pos": Vector2i(0, 0)},
+				{"def": archer, "pos": Vector2i(2, 0)},
+				{"def": carrion, "pos": Vector2i(5, 0)},
+				{"def": archer, "pos": Vector2i(7, 1)},
+			]
+	return [
+		{"def": carrion, "pos": Vector2i(1, 0)},
+		{"def": archer, "pos": Vector2i(3, 0)},
+		{"def": carrion, "pos": Vector2i(6, 0)},
+	]
+
+func _build_rifts_for_variant(variant: String, carrion: UnitDef, catalog_config: Dictionary = {}) -> Dictionary:
+	if not catalog_config.is_empty():
+		return BattleConfigCatalogScript.build_rifts(catalog_config)
+	var rift_a := Vector2i(2, 1)
+	var rift_b := Vector2i(5, 1)
+	var rift_c := Vector2i(4, 2)
+	var positions: Array[Vector2i] = []
+	match variant:
+		"intro":
+			return {"positions": positions, "schedule": []}
+		"elite":
+			positions = [rift_a, rift_b, rift_c]
+			return {
+				"positions": positions,
+				"schedule": [
+					{"round": 1, "pos": rift_a, "def": carrion},
+					{"round": 2, "pos": rift_b, "def": carrion},
+					{"round": 3, "pos": rift_c, "def": carrion},
+				],
+			}
+		"preboss":
+			positions = [rift_a, rift_b]
+			return {
+				"positions": positions,
+				"schedule": [
+					{"round": 1, "pos": rift_a, "def": carrion},
+					{"round": 2, "pos": rift_b, "def": carrion},
+					{"round": 3, "pos": rift_a, "def": carrion},
+				],
+			}
+		"boss":
+			positions = [rift_a, rift_b, rift_c]
+			return {
+				"positions": positions,
+				"schedule": [
+					{"round": 1, "pos": rift_a, "def": carrion},
+					{"round": 2, "pos": rift_b, "def": carrion},
+					{"round": 3, "pos": rift_c, "def": carrion},
+					{"round": 4, "pos": rift_a, "def": carrion},
+				],
+			}
+	positions = [rift_a, rift_b]
+	return {
+		"positions": positions,
+		"schedule": [
+			{"round": 2, "pos": rift_a, "def": carrion},
+			{"round": 2, "pos": rift_b, "def": carrion},
+			{"round": 3, "pos": rift_a, "def": carrion},
+		],
+	}
+
+func _scripted_spawns_for_variant(catalog_config: Dictionary = {}) -> Array:
+	if catalog_config.is_empty():
+		return []
+	return BattleConfigCatalogScript.build_scripted_spawns(catalog_config)
+
+func _boss_config_for_variant(variant: String, battle_ref: Dictionary, catalog_config: Dictionary = {}) -> Dictionary:
+	if variant != "boss" and String(catalog_config.get("boss_config_id", "")).is_empty():
+		return {}
+	var source := catalog_config if not catalog_config.is_empty() else battle_ref
+	var anchor_positions = source.get("anchor_positions", [Vector2i(1, 3), Vector2i(6, 3)])
+	var anchor_hp := int(source.get("anchor_hp", 2))
+	var heart_position = source.get("heart_position", Vector2i(4, 3))
+	if not catalog_config.is_empty():
+		var boss_objects := _boss_objects_to_runtime_config(catalog_config)
+		if not boss_objects.anchor_positions.is_empty():
+			anchor_positions = boss_objects.anchor_positions
+		if int(boss_objects.anchor_hp) > 0:
+			anchor_hp = int(boss_objects.anchor_hp)
+		if boss_objects.heart_position != Vector2i(-1, -1):
+			heart_position = boss_objects.heart_position
+	return {
+		"boss_config_id": String(source.get("boss_config_id", "knell_lord_demo_01")),
+		"boss_script_id": String(source.get("boss_script_id", "knell_lord_demo_six_round")),
+		"doom_count_initial": int(source.get("doom_count_initial", 0)),
+		"doom_count_max": int(source.get("doom_count_max", 3)),
+		"anchor_positions": anchor_positions,
+		"anchor_hp": anchor_hp,
+		"heart_position": heart_position,
+		"heart_hit_cap": int(source.get("heart_hit_cap", 3)),
+	}
+
+func _boss_objects_to_runtime_config(config: Dictionary) -> Dictionary:
+	var anchors: Array[Vector2i] = []
+	var anchor_hp := -1
+	var heart := Vector2i(-1, -1)
+	var grid := Grid.new()
+	for raw in config.get("boss_objects", []):
+		var entry: Dictionary = raw
+		var pos := _config_cell(entry.get("pos", Vector2i(-1, -1)))
+		if not grid.in_bounds(pos):
+			continue
+		match String(entry.get("kind", "")):
+			"anchor":
+				if not (pos in anchors):
+					anchors.append(pos)
+				anchor_hp = maxi(anchor_hp, int(entry.get("hp", -1)))
+			"heart_bell":
+				heart = pos
+	return {
+		"anchor_positions": anchors,
+		"anchor_hp": anchor_hp,
+		"heart_position": heart,
+	}
+
+func _config_cell(value) -> Vector2i:
+	if typeof(value) == TYPE_VECTOR2I:
+		return value
+	if typeof(value) == TYPE_VECTOR2:
+		return Vector2i(int(value.x), int(value.y))
+	if typeof(value) == TYPE_ARRAY and value.size() >= 2:
+		return Vector2i(int(value[0]), int(value[1]))
+	if typeof(value) == TYPE_DICTIONARY:
+		return Vector2i(int(value.get("x", -1)), int(value.get("y", -1)))
+	return Vector2i(-1, -1)
+
+func _reward_tasks_for_variant(variant: String, catalog_config: Dictionary = {}) -> Array:
+	if not catalog_config.is_empty():
+		return BattleConfigCatalogScript.runtime_reward_tasks(catalog_config)
+	match variant:
+		"boss":
+			return [
+				BattleState.REWARD_PERFECT_DEFENSE,
+				BattleState.REWARD_TERMINAL_CLEAR,
+				BattleState.REWARD_PHYSICAL_KILLS_3,
+			]
+		_:
+			return [
+				BattleState.REWARD_PERFECT_DEFENSE,
+				BattleState.REWARD_TERMINAL_CLEAR,
+				BattleState.REWARD_PHYSICAL_KILLS_3,
+			]
+
+func _battle_help_text(config: Dictionary, variant: String) -> String:
+	var title := String(config.get("title", "战斗"))
+	var tags := ", ".join(config.get("pressure_tags", []))
+	if variant == "boss":
+		return "%s · Boss 节点 · 压力：%s" % [title, tags]
+	return "%s · 压力：%s" % [title, tags]
 
 func _rebuild_unit_views() -> void:
 	for child in units_root.get_children():
@@ -149,6 +401,7 @@ func _on_warden_selected(unit_id: int) -> void:
 	_refresh_persistent_hud()
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
+	_refresh_info_panel()
 
 func _on_ability_selected(ability_id: String) -> void:
 	## Player clicked an ability button on the HUD. Enter "armed" sub-mode:
@@ -174,6 +427,7 @@ func _on_action_requested(action: BattleAction) -> void:
 		# After undo, do a full rebuild
 		_full_rebuild()
 		return
+	_defer_state_refresh_until_events = true
 	_defer_enemy_intent_refresh_until_events = true
 	var events := engine.apply_action(action)
 	# Any move / attack clears the armed ability so the ability bar refreshes
@@ -182,14 +436,14 @@ func _on_action_requested(action: BattleAction) -> void:
 		_armed_ability_id = ""
 	# Attacking / ending turn fully deselects the warden.
 	if action.kind == BattleAction.Kind.ATTACK or action.kind == BattleAction.Kind.END_TURN:
-		deselect()
+		deselect(not _animating)
 
 func _on_hover_changed(cell: Vector2i, inside: bool) -> void:
 	if not inside:
 		_hover_cell = Vector2i(-1, -1)
 		preview.clear_preview()
 		_set_focused_enemy(-1)
-		hud.hide_info_panel()
+		_refresh_info_panel()
 		_refresh_enemy_intent_overlay()
 		return
 	_hover_cell = cell
@@ -199,21 +453,26 @@ func _on_hover_changed(cell: Vector2i, inside: bool) -> void:
 # ---------- presentation ----------
 
 func _on_state_changed() -> void:
-	hud.set_sanctuary(7, 7)
-	hud.update_status(engine.state)
-	_refresh_persistent_hud()
-	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
-		hud.show_outcome(engine.state.outcome)
-	if _defer_enemy_intent_refresh_until_events:
+	if _defer_state_refresh_until_events:
 		return
+	_refresh_state_presentation()
 	_refresh_enemy_intent_overlay()
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
 
+func _refresh_state_presentation() -> void:
+	hud.set_sanctuary(_sanctuary_integrity, _sanctuary_integrity_max)
+	hud.update_status(engine.state)
+	_refresh_persistent_hud()
+	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
+		hud.show_outcome(engine.state.outcome, _battle_outcome_reason(engine.state))
+
 func _on_events(events: Array) -> void:
 	_defer_enemy_intent_refresh_until_events = false
+	_defer_state_refresh_until_events = false
 	if events.is_empty():
 		# Nothing to play; just refresh overlays.
+		_refresh_state_presentation()
 		_refresh_enemy_intent_overlay()
 		_refresh_selection_highlights()
 		_refresh_info_panel()
@@ -231,6 +490,7 @@ func _on_events(events: Array) -> void:
 	_suppress_enemy_intents_until_events_done = false
 	_executing_enemy_id = -1
 	hud.set_enemy_stack_executing(-1)
+	_refresh_state_presentation()
 	_refresh_enemy_intent_overlay()
 	_refresh_selection_highlights()
 	# After state changes (push, kill, etc.), re-render the info panel for the
@@ -238,6 +498,58 @@ func _on_events(events: Array) -> void:
 	_refresh_persistent_hud()
 	_refresh_info_panel()
 	_refresh_hover_preview()
+	_emit_finish_if_ready()
+
+func _emit_finish_if_ready() -> void:
+	if _finish_emitted:
+		return
+	if engine == null or engine.state == null:
+		return
+	if engine.state.outcome == BattleState.Outcome.UNDECIDED:
+		return
+	_finish_emitted = true
+	await get_tree().create_timer(0.55).timeout
+	battle_finished.emit(_build_battle_summary())
+
+func _build_battle_summary() -> Dictionary:
+	var state := engine.state
+	var wardens: Array[Dictionary] = []
+	for unit in state.units:
+		if unit.def == null or not unit.is_warden():
+			continue
+		wardens.append({
+			"def_id": String(unit.def.def_id),
+			"name": unit.def.display_name,
+			"hp": maxi(0, unit.hp),
+			"hp_max": unit.def.max_hp,
+			"alive": unit.alive,
+		})
+	var completed := 0
+	for task in state.reward_tasks:
+		if bool(state.reward_completed.get(task, false)):
+			completed += 1
+	return {
+		"outcome": state.outcome,
+		"victory": state.outcome == BattleState.Outcome.VICTORY,
+		"line_breached": state.outcome == BattleState.Outcome.DEFEAT \
+			and (state.boss_breached or (state.has_protected_targets() and state.alive_protected_targets().is_empty())),
+		"boss_config_id": state.boss_config_id,
+		"boss_doom_count": state.doom_count,
+		"boss_doom_count_max": state.doom_count_max,
+		"boss_breached": state.boss_breached,
+		"boss_anchor_destroyed_count": state.boss_destroyed_anchor_count(),
+		"boss_anchor_count": state.boss_anchor_positions.size(),
+		"boss_heart_hits": state.heart_hits,
+		"destroyed_protected_count": state.destroyed_protected_count,
+		"protected_damage_taken": state.protected_damage_taken,
+		"completed_reward_count": completed,
+		"reward_tasks": state.reward_tasks.duplicate(),
+		"reward_completed": state.reward_completed.duplicate(true),
+		"reward_failed": state.reward_failed.duplicate(true),
+		"wardens": wardens,
+		"round": state.current_round,
+		"max_rounds": state.max_rounds,
+	}
 
 func _play_events(events: Array) -> void:
 	## Plays each event from the engine sequentially, awaiting animations.
@@ -398,6 +710,18 @@ func _refresh_persistent_hud() -> void:
 		return
 	hud.set_squad_status(engine.state.wardens(), selected_warden_id)
 	hud.set_reward_tasks(engine.state)
+	hud.set_battle_status_summary(engine.state)
+
+func _battle_outcome_reason(state: BattleState) -> String:
+	if state.outcome == BattleState.Outcome.VICTORY:
+		return "守住第 %d 轮" % state.max_rounds
+	if state.has_boss() and (state.boss_breached or state.is_boss_doom_breached()):
+		return "Boss Doom 满"
+	if state.wardens().is_empty():
+		return "守卫者全灭"
+	if state.has_protected_targets() and state.alive_protected_targets().is_empty():
+		return "防线溃败"
+	return "战斗失败"
 
 func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool = false) -> void:
 	if _suppress_enemy_intents_until_events_done and rows_override.is_empty():
@@ -426,8 +750,8 @@ func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool
 
 func _refresh_info_panel() -> void:
 	if _hover_cell == Vector2i(-1, -1):
-		hud.hide_info_panel()
 		_set_focused_enemy(-1)
+		_show_selected_unit_info_or_hide()
 		return
 	# Priority 1: a unit at the hovered cell.
 	var unit := engine.state.get_alive_unit_at(_hover_cell)
@@ -441,7 +765,27 @@ func _refresh_info_panel() -> void:
 	# Priority 2: a tile feature.
 	var tile: int = engine.state.grid.get_tile(_hover_cell)
 	if tile == Grid.TileType.PILLAR:
+		if engine.state.is_boss_anchor(_hover_cell):
+			hud.show_info_panel(
+				"Boss 锚石",
+				"  · 阻挡寻路 / 阻挡推动\n  · 可被攻击或撞击\n  · HP: %d / %d\n  · 全毁后压制 Doom 增长" % [
+					int(engine.state.boss_anchor_hp.get(_hover_cell, 0)),
+					engine.state.boss_anchor_hp_max,
+				],
+			)
+			_set_focused_enemy(-1)
+			return
 		hud.show_info_panel("石柱", "  · 阻挡寻路 / 阻挡推动\n  · 可被攻击或撞击\n  · HP: 2 (后续阶段实装)")
+		_set_focused_enemy(-1)
+		return
+	if engine.state.is_boss_heart_attackable(_hover_cell):
+		hud.show_info_panel(
+			"心脏钟",
+			"  · 锚石全毁后暴露\n  · 命中: %d / %d\n  · 命中 1 次可压制第 6 回合 Doom" % [
+				engine.state.heart_hits,
+				engine.state.heart_hit_cap,
+			],
+		)
 		_set_focused_enemy(-1)
 		return
 	if tile == Grid.TileType.BUILDING:
@@ -470,8 +814,18 @@ func _refresh_info_panel() -> void:
 		_set_focused_enemy(-1)
 		return
 	# Otherwise: empty cell. Hide the panel.
-	hud.hide_info_panel()
 	_set_focused_enemy(-1)
+	_show_selected_unit_info_or_hide()
+
+func _show_selected_unit_info_or_hide() -> void:
+	if selected_warden_id == -1:
+		hud.hide_info_panel()
+		return
+	var selected := engine.state.find_unit(selected_warden_id)
+	if selected == null or not selected.alive:
+		hud.hide_info_panel()
+		return
+	_show_unit_info(selected)
 
 func _show_unit_info(unit: Unit) -> void:
 	## Default info panel: only HP / 移动 / 攻击范围.
@@ -716,14 +1070,15 @@ func toggle_debug_mode() -> void:
 	# Also flash a brief HUD hint about the mode change.
 	hud.set_help("调试模式：%s   ·   F1 切换" % ("开启" if _debug_mode else "关闭"))
 
-func deselect() -> void:
+func deselect(refresh_now: bool = true) -> void:
 	selected_warden_id = -1
 	_armed_ability_id = ""
-	_refresh_persistent_hud()
-	_refresh_selection_highlights()
+	if refresh_now:
+		_refresh_persistent_hud()
+		_refresh_selection_highlights()
 	preview.clear_preview()
 	hud.hide_ability_bar()
-	if not _defer_enemy_intent_refresh_until_events and not _animating:
+	if refresh_now and not _defer_enemy_intent_refresh_until_events and not _animating:
 		_refresh_enemy_intent_overlay()
 
 func _full_rebuild() -> void:

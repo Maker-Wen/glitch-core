@@ -6,26 +6,61 @@ signal action_requested(action: BattleAction)
 signal hover_changed(cell: Vector2i, has_cell: bool)
 
 var _battle: Node = null  # BattleScene
+var _left_mouse_down: bool = false
+var _right_mouse_down: bool = false
+var _hover_cell: Vector2i = Vector2i(-1, -1)
+var _hover_inside: bool = false
 
 func bind(battle: Node) -> void:
 	_battle = battle
 
-func _unhandled_input(event: InputEvent) -> void:
+func _process(_delta: float) -> void:
 	if _battle == null:
 		return
+	var cell := GridView.pixel_to_cell(_battle.grid_view.get_local_mouse_position())
+	var inside := _cell_in_bounds(cell)
+	if cell != _hover_cell or inside != _hover_inside:
+		_hover_cell = cell
+		_hover_inside = inside
+		hover_changed.emit(cell, inside)
+
+	var left_down := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	if left_down and not _left_mouse_down and inside:
+		_on_cell_clicked(cell)
+	_left_mouse_down = left_down
+
+	var right_down := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	if right_down and not _right_mouse_down:
+		_battle.deselect()
+	_right_mouse_down = right_down
+
+func _input(event: InputEvent) -> void:
+	if _battle == null:
+		return
+	if event is InputEventMouse:
+		return
+	_handle_global_action(event)
+
+func handle_board_input(event: InputEvent, local_pos: Vector2) -> void:
+	if _battle == null:
+		return
+	var cell := GridView.pixel_to_cell(local_pos)
+	var inside := _cell_in_bounds(cell)
 	if event is InputEventMouseMotion:
-		var local: Vector2 = _battle.grid_view.to_local(_battle.grid_view.get_global_mouse_position())
-		var cell := GridView.pixel_to_cell(local)
-		var inside := cell.x >= 0 and cell.x < Grid.SIZE and cell.y >= 0 and cell.y < Grid.SIZE
 		hover_changed.emit(cell, inside)
 		return
-	if event.is_action_pressed("select"):
-		var local: Vector2 = _battle.grid_view.to_local(_battle.grid_view.get_global_mouse_position())
-		var cell := GridView.pixel_to_cell(local)
-		if cell.x < 0 or cell.x >= Grid.SIZE or cell.y < 0 or cell.y >= Grid.SIZE:
-			return
-		_on_cell_clicked(cell)
-	elif event.is_action_pressed("cancel"):
+	if not (event is InputEventMouseButton):
+		return
+	if not event.pressed:
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		if inside:
+			_on_cell_clicked(cell)
+	elif event.button_index == MOUSE_BUTTON_RIGHT:
+		_battle.deselect()
+
+func _handle_global_action(event: InputEvent) -> void:
+	if event.is_action_pressed("cancel"):
 		_battle.deselect()
 	elif event.is_action_pressed("undo"):
 		action_requested.emit(BattleAction.undo())
@@ -39,6 +74,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			action_requested.emit(BattleAction.end_turn())
 	elif event.is_action_pressed("debug_toggle"):
 		_battle.toggle_debug_mode()
+
+func _cell_in_bounds(cell: Vector2i) -> bool:
+	return cell.x >= 0 and cell.x < Grid.SIZE and cell.y >= 0 and cell.y < Grid.SIZE
 
 func _on_cell_clicked(cell: Vector2i) -> void:
 	var state: BattleState = _battle.engine.state

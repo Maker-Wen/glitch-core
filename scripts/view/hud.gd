@@ -7,10 +7,27 @@ signal confirm_deploy_pressed
 signal ability_selected(ability_id: String)
 signal enemy_stack_hovered(enemy_id: int)
 
-const ENEMY_STACK_ROW_SIZE := Vector2(292, 50)
-const ABILITY_SLOT_SIZE := Vector2(68, 82)
-const SQUAD_CARD_SIZE := Vector2(84, 88)
-const ITEM_SLOT_SIZE := Vector2(44, 48)
+const ENEMY_STACK_ROW_SIZE := Vector2(284, 46)
+const ABILITY_SLOT_SIZE := Vector2(58, 76)
+const SQUAD_CARD_SIZE := Vector2(170, 74)
+const ITEM_SLOT_SIZE := Vector2(38, 48)
+const UI_BG := Color(0.025, 0.027, 0.034, 0.96)
+const UI_BG_RAISED := Color(0.045, 0.047, 0.056, 0.96)
+const UI_BG_INSET := Color(0.014, 0.016, 0.020, 0.92)
+const UI_BORDER := Color(0.42, 0.34, 0.24, 0.54)
+const UI_BORDER_SOFT := Color(0.24, 0.29, 0.34, 0.46)
+const UI_AMBER := Color(0.95, 0.64, 0.24, 1.0)
+const UI_GOLD_TEXT := Color(1.0, 0.80, 0.44, 1.0)
+const UI_TEXT := Color(0.90, 0.90, 0.93, 1.0)
+const UI_TEXT_DIM := Color(0.60, 0.65, 0.70, 1.0)
+const UI_DANGER := Color(0.92, 0.24, 0.30, 1.0)
+const UI_SAFE := Color(0.36, 0.82, 0.96, 1.0)
+
+const ICON_ATTACK := preload("res://art/ui/battle_hud/icons/attack_icon_gpt-image-2.png")
+const ICON_MOVE := preload("res://art/ui/battle_hud/icons/move_icon_gpt-image-2.png")
+const ICON_RELIC := preload("res://art/ui/battle_hud/icons/relic_icon_gpt-image-2.png")
+const ICON_WAIT := preload("res://art/ui/battle_hud/icons/wait_icon_gpt-image-2.png")
+const BattleStatusPresenter := preload("res://scripts/view/battle_status_presenter.gd")
 
 @onready var round_label: Label = $Root/TopRow/RoundLabel
 @onready var phase_label: Label = $Root/TopRow/PhaseLabel
@@ -32,7 +49,7 @@ const ITEM_SLOT_SIZE := Vector2(44, 48)
 @onready var ability_row: HBoxContainer = $Root/AbilityBarBg/AbilityRow
 @onready var item_slot_row: HBoxContainer = $Root/AbilityBarBg/ItemSlotRow
 @onready var squad_strip_bg: ColorRect = $Root/SquadStripBg
-@onready var squad_strip_row: VBoxContainer = $Root/SquadStripBg/SquadStripRow
+@onready var squad_strip_row: BoxContainer = $Root/SquadStripBg/SquadStripRow
 @onready var reward_panel_bg: ColorRect = $Root/RewardPanelBg
 @onready var reward_task_row: VBoxContainer = $Root/RewardPanelBg/RewardTaskRow
 @onready var enemy_stack_bg: ColorRect = $Root/EnemyStackBg
@@ -57,6 +74,7 @@ func _ready() -> void:
 	confirm_deploy_button.visible = false
 	if enemy_stack_bg != null:
 		enemy_stack_bg.visible = false
+	_install_static_ui_styles()
 	_build_item_slots()
 
 func update_status(state: BattleState) -> void:
@@ -79,7 +97,7 @@ func update_status(state: BattleState) -> void:
 		BattleState.Phase.BATTLE_END: phase_name = "战斗结束"
 	phase_label.text = phase_name
 	sanctuary_label.text = "守护值 %d/%d" % [sanctuary_integrity, sanctuary_integrity_max]
-	objective_label.text = "目标：撑到第 %d 轮" % state.max_rounds
+	set_battle_status_summary(state)
 	end_turn_button.disabled = state.phase != BattleState.Phase.PLAYER_ACTION
 	end_turn_button.visible = state.phase != BattleState.Phase.GARRISON
 	# Confirm-deploy is visible only in garrison, enabled when all wardens placed.
@@ -87,6 +105,17 @@ func update_status(state: BattleState) -> void:
 	confirm_deploy_button.disabled = not state.pending_warden_defs.is_empty()
 	# Undo is always available unless battle is over.
 	undo_button.disabled = state.phase == BattleState.Phase.BATTLE_END
+
+func set_battle_status_summary(state: BattleState) -> void:
+	if objective_label == null or state == null:
+		return
+	objective_label.text = _battle_status_summary_text(state)
+
+func set_boss_status(state: BattleState) -> void:
+	set_battle_status_summary(state)
+
+func _battle_status_summary_text(state: BattleState) -> String:
+	return BattleStatusPresenter.battle_status_summary_text(state)
 
 func set_help(text: String) -> void:
 	help_label.text = text
@@ -124,58 +153,90 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 	for ab in abilities:
 		var slot := ColorRect.new()
 		slot.custom_minimum_size = ABILITY_SLOT_SIZE
-		slot.color = Color(0.08, 0.065, 0.065, 0.96)
 		ability_row.add_child(slot)
-		var slot_border := ReferenceRect.new()
-		slot_border.anchor_right = 1.0
-		slot_border.anchor_bottom = 1.0
-		slot_border.offset_right = 0.0
-		slot_border.offset_bottom = 0.0
-		slot_border.border_width = 2.0
-		slot_border.editor_only = false
-		slot_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot.add_child(slot_border)
+		var slot_border := _apply_panel_frame(slot, UI_BG_RAISED, UI_BORDER_SOFT, 4, 1)
+		_add_top_sheen(slot, Color(1.0, 0.78, 0.42, 0.08))
 
 		var btn := Button.new()
-		btn.offset_left = 5.0
-		btn.offset_top = 5.0
-		btn.offset_right = ABILITY_SLOT_SIZE.x - 5.0
-		btn.offset_bottom = 48.0
-		btn.text = ab.get("icon", "") + "\n" + ab.get("name", "?")
-		btn.custom_minimum_size = Vector2(ABILITY_SLOT_SIZE.x - 10.0, 43)
+		btn.anchor_right = 1.0
+		btn.anchor_bottom = 1.0
+		btn.offset_left = 0.0
+		btn.offset_top = 0.0
+		btn.offset_right = 0.0
+		btn.offset_bottom = 0.0
+		btn.flat = true
+		btn.text = ""
+		btn.custom_minimum_size = ABILITY_SLOT_SIZE
 		btn.disabled = not ab.get("active", true)
+		slot.add_child(btn)
+
+		var icon := TextureRect.new()
+		icon.offset_left = 0.0
+		icon.offset_top = 5.0
+		icon.offset_right = ABILITY_SLOT_SIZE.x
+		icon.offset_bottom = 29.0
+		icon.texture = _ability_icon_texture(ab.get("id", ""))
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(icon)
+
+		var name := Label.new()
+		name.offset_left = 4.0
+		name.offset_top = 28.0
+		name.offset_right = ABILITY_SLOT_SIZE.x - 4.0
+		name.offset_bottom = 47.0
+		name.text = ab.get("name", "?")
+		name.add_theme_font_size_override("font_size", 15)
+		name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name.clip_text = true
+		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(name)
+
+		var desc := Label.new()
+		desc.offset_left = 4.0
+		desc.offset_top = 52.0
+		desc.offset_right = ABILITY_SLOT_SIZE.x - 4.0
+		desc.offset_bottom = 70.0
+		desc.text = _short_ability_desc(ab.get("desc", ""))
+		desc.add_theme_font_size_override("font_size", 10)
+		desc.modulate = UI_TEXT_DIM
+		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		desc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		desc.clip_text = true
+		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(desc)
 		# Visual states:
 		#  - armed (currently selected for targeting): bright amber
 		#  - default attack (suggestion to click first): soft green
 		#  - other: neutral
 		if ab.get("is_armed", false):
-			btn.modulate = Color(1.0, 0.85, 0.4, 1)
-			slot.color = Color(0.17, 0.12, 0.06, 0.98)
+			icon.modulate = Color(1.0, 0.88, 0.48, 1)
+			name.modulate = Color(1.0, 0.88, 0.48, 1)
+			slot.color = Color(0.11, 0.07, 0.035, 0.98)
 			slot_border.border_color = Color(1.0, 0.75, 0.28, 1.0)
 		elif ab.get("is_default", false):
-			btn.modulate = Color(0.75, 1.0, 0.8, 1)
-			slot_border.border_color = Color(0.46, 0.72, 0.58, 0.78)
+			icon.modulate = Color(0.78, 1.0, 0.86, 1)
+			name.modulate = Color(0.78, 1.0, 0.86, 1)
+			slot.color = Color(0.035, 0.075, 0.060, 0.98)
+			slot_border.border_color = Color(0.36, 0.74, 0.56, 0.82)
 		else:
-			slot_border.border_color = Color(0.52, 0.42, 0.32, 0.74)
+			slot.color = UI_BG_RAISED
+			icon.modulate = Color(0.84, 0.84, 0.88, 1)
+			name.modulate = Color(0.84, 0.84, 0.88, 1)
+			slot_border.border_color = UI_BORDER_SOFT
 		if btn.disabled:
-			slot.color = Color(0.055, 0.052, 0.058, 0.86)
-			slot_border.border_color = Color(0.28, 0.28, 0.30, 0.55)
+			slot.color = Color(0.030, 0.032, 0.038, 0.82)
+			icon.modulate = Color(0.38, 0.38, 0.42, 0.82)
+			name.modulate = Color(0.38, 0.38, 0.42, 0.82)
+			desc.modulate = Color(0.32, 0.34, 0.38, 0.82)
+			slot_border.border_color = Color(0.18, 0.20, 0.23, 0.62)
 		# Capture ability id for the signal.
 		var ab_id: String = ab.get("id", "")
 		if not btn.disabled and ab_id != "":
 			btn.pressed.connect(func(): ability_selected.emit(ab_id))
-		slot.add_child(btn)
-		var desc := Label.new()
-		desc.offset_left = 5.0
-		desc.offset_top = 52.0
-		desc.offset_right = ABILITY_SLOT_SIZE.x - 5.0
-		desc.offset_bottom = 78.0
-		desc.text = ab.get("desc", "")
-		desc.add_theme_font_size_override("font_size", 11)
-		desc.modulate = Color(0.78, 0.78, 0.85, 1)
-		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		slot.add_child(desc)
+		slot_border.move_to_front()
 	_build_item_slots()
 
 func hide_ability_bar() -> void:
@@ -202,46 +263,65 @@ func set_squad_status(wardens: Array, selected_id: int = -1) -> void:
 		var unit: Unit = raw
 		var card := ColorRect.new()
 		card.custom_minimum_size = SQUAD_CARD_SIZE
-		card.color = Color(0.07, 0.06, 0.065, 0.96)
 		squad_strip_row.add_child(card)
-
-		var border := ReferenceRect.new()
-		border.anchor_right = 1.0
-		border.anchor_bottom = 1.0
-		border.offset_right = 0.0
-		border.offset_bottom = 0.0
-		border.border_width = 2.0
-		border.border_color = Color(0.74, 0.54, 0.28, 0.88) if unit.id == selected_id else Color(0.34, 0.42, 0.48, 0.74)
-		border.editor_only = false
-		card.add_child(border)
+		var selected := unit.id == selected_id
+		var border := _apply_panel_frame(
+			card,
+			Color(0.08, 0.058, 0.035, 0.97) if selected else UI_BG_RAISED,
+			Color(1.0, 0.65, 0.24, 0.96) if selected else UI_BORDER_SOFT,
+			4,
+			2 if selected else 1,
+		)
+		_add_top_sheen(card, Color(1.0, 0.74, 0.30, 0.12 if selected else 0.05))
 
 		var portrait := TextureRect.new()
-		portrait.offset_left = 5.0
-		portrait.offset_top = 4.0
-		portrait.offset_right = 79.0
-		portrait.offset_bottom = 58.0
+		portrait.offset_left = 7.0
+		portrait.offset_top = 5.0
+		portrait.offset_right = 61.0
+		portrait.offset_bottom = 61.0
 		portrait.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait.texture = unit.def.token_texture if unit.def != null else null
 		portrait.modulate = Color(0.42, 0.42, 0.42, 0.88) if unit.has_acted else Color.WHITE
 		card.add_child(portrait)
 
+		var name := Label.new()
+		name.offset_left = 68.0
+		name.offset_top = 9.0
+		name.offset_right = SQUAD_CARD_SIZE.x - 10.0
+		name.offset_bottom = 33.0
+		name.add_theme_font_size_override("font_size", 16)
+		name.clip_text = true
+		name.modulate = Color(1.0, 0.82, 0.48, 1.0) if selected else UI_TEXT
+		name.text = unit.def.display_name if unit.def != null else "守卫者"
+		card.add_child(name)
+
+		var state := Label.new()
+		state.offset_left = 68.0
+		state.offset_top = 34.0
+		state.offset_right = SQUAD_CARD_SIZE.x - 10.0
+		state.offset_bottom = 54.0
+		state.add_theme_font_size_override("font_size", 12)
+		state.modulate = UI_TEXT_DIM
+		state.text = "已行动" if unit.has_acted else "已移动" if unit.has_moved else "待命"
+		card.add_child(state)
+
 		var hp := Label.new()
-		hp.offset_left = 5.0
-		hp.offset_top = 60.0
-		hp.offset_right = 79.0
-		hp.offset_bottom = 78.0
+		hp.offset_left = 68.0
+		hp.offset_top = 55.0
+		hp.offset_right = SQUAD_CARD_SIZE.x - 10.0
+		hp.offset_bottom = 72.0
 		hp.add_theme_font_size_override("font_size", 12)
-		hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		hp.modulate = Color(1.0, 0.46, 0.42, 1.0) if unit.hp <= 1 else Color(1.0, 0.72, 0.62, 1.0)
+		hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		hp.modulate = Color(1.0, 0.42, 0.38, 1.0) if unit.hp <= 1 else Color(1.0, 0.72, 0.58, 1.0)
 		hp.text = _hp_pips(unit.hp, unit.def.max_hp if unit.def != null else unit.hp)
 		card.add_child(hp)
 
 		var state_bar := ColorRect.new()
-		state_bar.offset_left = 6.0
-		state_bar.offset_top = 80.0
-		state_bar.offset_right = 78.0
-		state_bar.offset_bottom = 83.0
+		state_bar.offset_left = 8.0
+		state_bar.offset_top = 68.0
+		state_bar.offset_right = SQUAD_CARD_SIZE.x - 8.0
+		state_bar.offset_bottom = 71.0
 		if unit.has_acted:
 			state_bar.color = Color(0.42, 0.42, 0.45, 0.75)
 		elif unit.has_moved:
@@ -249,6 +329,7 @@ func set_squad_status(wardens: Array, selected_id: int = -1) -> void:
 		else:
 			state_bar.color = Color(0.36, 0.82, 1.0, 0.85)
 		card.add_child(state_bar)
+		border.move_to_front()
 
 func set_reward_tasks(state: BattleState) -> void:
 	if reward_panel_bg == null:
@@ -260,9 +341,9 @@ func set_reward_tasks(state: BattleState) -> void:
 	reward_panel_bg.visible = true
 	for task in state.reward_tasks:
 		var row := ColorRect.new()
-		row.custom_minimum_size = Vector2(206, 42)
-		row.color = Color(0.07, 0.06, 0.065, 0.92)
+		row.custom_minimum_size = Vector2(604, 42)
 		reward_task_row.add_child(row)
+		_apply_panel_frame(row, Color(0.036, 0.038, 0.046, 0.90), Color(0.20, 0.24, 0.28, 0.76), 3, 1)
 
 		var mark := Label.new()
 		mark.offset_left = 6.0
@@ -279,7 +360,7 @@ func set_reward_tasks(state: BattleState) -> void:
 		var label := Label.new()
 		label.offset_left = 32.0
 		label.offset_top = 5.0
-		label.offset_right = 198.0
+		label.offset_right = 596.0
 		label.offset_bottom = 35.0
 		label.add_theme_font_size_override("font_size", 12)
 		label.modulate = Color(0.95, 0.88, 0.74, 0.62 if failed else 1.0)
@@ -303,6 +384,29 @@ func _hp_pips(hp: int, max_hp: int) -> String:
 		parts.append("♥" if i < hp else "♡")
 	return "".join(parts)
 
+func _short_ability_desc(desc: String) -> String:
+	if desc.find("远程") != -1:
+		return "远程"
+	if desc.find("近战") != -1:
+		return "近战"
+	if desc.find("未装备") != -1:
+		return "未装备"
+	if desc.find("结束") != -1:
+		return "结束"
+	return desc
+
+func _ability_icon_texture(ability_id: String) -> Texture2D:
+	match ability_id:
+		"attack":
+			return ICON_ATTACK
+		"move":
+			return ICON_MOVE
+		"relic":
+			return ICON_RELIC
+		"wait":
+			return ICON_WAIT
+	return null
+
 func _build_item_slots() -> void:
 	if item_slot_row == null:
 		return
@@ -315,18 +419,14 @@ func _build_item_slots() -> void:
 	for slot_data in slots:
 		var slot := ColorRect.new()
 		slot.custom_minimum_size = ITEM_SLOT_SIZE
-		slot.color = Color(0.08, 0.065, 0.06, 0.96) if slot_data.active else Color(0.04, 0.04, 0.045, 0.82)
 		item_slot_row.add_child(slot)
-
-		var border := ReferenceRect.new()
-		border.anchor_right = 1.0
-		border.anchor_bottom = 1.0
-		border.offset_right = 0.0
-		border.offset_bottom = 0.0
-		border.border_width = 2.0
-		border.border_color = Color(0.72, 0.52, 0.28, 0.82) if slot_data.active else Color(0.25, 0.25, 0.28, 0.58)
-		border.editor_only = false
-		slot.add_child(border)
+		_apply_panel_frame(
+			slot,
+			Color(0.065, 0.052, 0.035, 0.96) if slot_data.active else Color(0.030, 0.032, 0.038, 0.82),
+			Color(0.72, 0.52, 0.28, 0.82) if slot_data.active else Color(0.22, 0.24, 0.28, 0.58),
+			4,
+			1,
+		)
 
 		var icon := Label.new()
 		icon.offset_left = 0.0
@@ -395,11 +495,11 @@ func _rebuild_enemy_stack_rows() -> void:
 		var panel := ColorRect.new()
 		panel.name = "EnemyIntent_%d" % enemy_id
 		panel.custom_minimum_size = ENEMY_STACK_ROW_SIZE
-		panel.color = Color(0.10, 0.08, 0.10, 0.92)
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		panel.mouse_entered.connect(func(): enemy_stack_hovered.emit(enemy_id))
 		panel.mouse_exited.connect(func(): enemy_stack_hovered.emit(-1))
 		enemy_stack_row.add_child(panel)
+		var row_art := _add_top_sheen(panel, Color(1.0, 0.78, 0.44, 0.06))
 
 		var wash := ColorRect.new()
 		wash.name = "PreviewWash"
@@ -433,29 +533,29 @@ func _rebuild_enemy_stack_rows() -> void:
 
 		var order_badge := Panel.new()
 		order_badge.name = "OrderBadge"
-		order_badge.offset_left = 12.0
-		order_badge.offset_top = 9.0
-		order_badge.offset_right = 42.0
-		order_badge.offset_bottom = 39.0
+		order_badge.offset_left = 13.0
+		order_badge.offset_top = 10.0
+		order_badge.offset_right = 39.0
+		order_badge.offset_bottom = 36.0
 		order_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(order_badge)
 
 		var order_label := Label.new()
-		order_label.offset_left = 12.0
-		order_label.offset_top = 9.0
-		order_label.offset_right = 42.0
-		order_label.offset_bottom = 39.0
+		order_label.offset_left = 13.0
+		order_label.offset_top = 10.0
+		order_label.offset_right = 39.0
+		order_label.offset_bottom = 36.0
 		order_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		order_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		order_label.add_theme_font_size_override("font_size", 18)
+		order_label.add_theme_font_size_override("font_size", 16)
 		order_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(order_label)
 
 		var name_label := Label.new()
-		name_label.offset_left = 86.0
-		name_label.offset_top = 8.0
-		name_label.offset_right = 222.0
-		name_label.offset_bottom = 32.0
+		name_label.offset_left = 84.0
+		name_label.offset_top = 7.0
+		name_label.offset_right = 224.0
+		name_label.offset_bottom = 29.0
 		name_label.add_theme_font_size_override("font_size", 16)
 		name_label.clip_text = true
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -463,7 +563,7 @@ func _rebuild_enemy_stack_rows() -> void:
 
 		var icon_frame := Panel.new()
 		icon_frame.name = "EnemyIconFrame"
-		icon_frame.offset_left = 52.0
+		icon_frame.offset_left = 50.0
 		icon_frame.offset_top = 8.0
 		icon_frame.offset_right = 78.0
 		icon_frame.offset_bottom = 34.0
@@ -472,10 +572,10 @@ func _rebuild_enemy_stack_rows() -> void:
 
 		var enemy_icon := TextureRect.new()
 		enemy_icon.name = "EnemyIcon"
-		enemy_icon.offset_left = 53.0
-		enemy_icon.offset_top = 5.0
-		enemy_icon.offset_right = 79.0
-		enemy_icon.offset_bottom = 37.0
+		enemy_icon.offset_left = 49.0
+		enemy_icon.offset_top = 3.0
+		enemy_icon.offset_right = 81.0
+		enemy_icon.offset_bottom = 39.0
 		enemy_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 		enemy_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		enemy_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -483,10 +583,10 @@ func _rebuild_enemy_stack_rows() -> void:
 
 		var intent_line := ColorRect.new()
 		intent_line.name = "IntentLine"
-		intent_line.offset_left = 86.0
-		intent_line.offset_top = 37.0
-		intent_line.offset_right = 222.0
-		intent_line.offset_bottom = 40.0
+		intent_line.offset_left = 84.0
+		intent_line.offset_top = 34.0
+		intent_line.offset_right = 224.0
+		intent_line.offset_bottom = 37.0
 		intent_line.color = Color(0.50, 0.38, 0.46, 0.62)
 		intent_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(intent_line)
@@ -495,17 +595,17 @@ func _rebuild_enemy_stack_rows() -> void:
 		status_back.name = "StatusBack"
 		status_back.offset_left = 238.0
 		status_back.offset_top = 10.0
-		status_back.offset_right = 276.0
-		status_back.offset_bottom = 40.0
+		status_back.offset_right = 272.0
+		status_back.offset_bottom = 36.0
 		status_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(status_back)
 
 		var status_mark := Panel.new()
 		status_mark.name = "StatusMark"
-		status_mark.offset_left = 246.0
-		status_mark.offset_top = 16.0
-		status_mark.offset_right = 268.0
-		status_mark.offset_bottom = 34.0
+		status_mark.offset_left = 244.0
+		status_mark.offset_top = 14.0
+		status_mark.offset_right = 266.0
+		status_mark.offset_bottom = 32.0
 		status_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(status_mark)
 
@@ -514,6 +614,7 @@ func _rebuild_enemy_stack_rows() -> void:
 		enemy_icon.texture = _enemy_row_texture(row)
 		_enemy_row_controls[enemy_id] = {
 			"panel": panel,
+			"row_art": row_art,
 			"wash": wash,
 			"rail": rail,
 			"border": border,
@@ -534,6 +635,7 @@ func _update_enemy_stack_styles() -> void:
 		if controls.is_empty():
 			continue
 		var panel: ColorRect = controls.panel
+		var row_art: ColorRect = controls.row_art
 		var wash: ColorRect = controls.wash
 		var rail: ColorRect = controls.rail
 		var border: ReferenceRect = controls.border
@@ -573,6 +675,11 @@ func _update_enemy_stack_styles() -> void:
 			border_color = border_color.lightened(0.10)
 			base_panel = base_panel.lightened(0.04)
 		panel.color = base_panel
+		row_art.color = Color(1.0, 0.78, 0.44, 0.07 if not is_dimmed else 0.03)
+		if is_executing:
+			row_art.color = Color(1.0, 0.68, 0.20, 0.15)
+		elif _enemy_stack_preview_mode:
+			row_art.color = Color(1.0, 0.84, 0.36, 0.12 if not is_dimmed else 0.05)
 		wash.color = Color(1.0, 0.70, 0.24, 0.10 if _enemy_stack_preview_mode else 0.0)
 		rail.color = rail_color
 		border.border_color = border_color
@@ -610,6 +717,91 @@ func _clear_children(parent: Node) -> void:
 	for child in parent.get_children():
 		parent.remove_child(child)
 		child.free()
+
+func _install_static_ui_styles() -> void:
+	var root := get_node_or_null("Root")
+	if root == null:
+		return
+	var top_bar := root.get_node_or_null("TopBarBg")
+	if top_bar is ColorRect:
+		_apply_panel_frame(top_bar, Color(0.022, 0.023, 0.029, 0.95), Color(0.24, 0.20, 0.16, 0.42), 0, 0)
+		_add_bottom_rule(top_bar, Color(0.72, 0.48, 0.22, 0.45), 2.0)
+	if ability_bar_bg != null:
+		_apply_panel_frame(ability_bar_bg, UI_BG, Color(0.68, 0.43, 0.18, 0.62), 0, 2)
+		_add_top_sheen(ability_bar_bg, Color(1.0, 0.70, 0.28, 0.08))
+	if enemy_stack_bg != null:
+		_apply_panel_frame(enemy_stack_bg, Color(0.026, 0.027, 0.033, 0.92), Color(0.68, 0.43, 0.18, 0.54), 0, 1)
+		_add_top_sheen(enemy_stack_bg, Color(1.0, 0.70, 0.26, 0.05))
+	if squad_strip_bg != null:
+		_apply_panel_frame(squad_strip_bg, Color(0.030, 0.031, 0.038, 0.90), Color(0.62, 0.42, 0.22, 0.46), 0, 1)
+	if reward_panel_bg != null:
+		_apply_panel_frame(reward_panel_bg, Color(0.030, 0.031, 0.038, 0.90), Color(0.62, 0.42, 0.22, 0.46), 0, 1)
+		_add_top_sheen(reward_panel_bg, Color(1.0, 0.70, 0.26, 0.05))
+	if info_panel_bg != null:
+		_apply_panel_frame(info_panel_bg, Color(0.030, 0.031, 0.038, 0.90), Color(0.44, 0.34, 0.48, 0.50), 0, 1)
+
+func _apply_panel_frame(parent: Control, bg: Color, border: Color, radius: int = 0, width: int = 1) -> ReferenceRect:
+	if parent is ColorRect:
+		parent.color = bg
+	for child in parent.get_children():
+		if child is ReferenceRect:
+			var existing := child as ReferenceRect
+			existing.border_color = Color(existing.border_color.r, existing.border_color.g, existing.border_color.b, existing.border_color.a * 0.55)
+			existing.border_width = max(1.0, existing.border_width * 0.5)
+	var frame := ReferenceRect.new()
+	frame.name = "HUDFrame"
+	frame.anchor_right = 1.0
+	frame.anchor_bottom = 1.0
+	frame.offset_right = 0.0
+	frame.offset_bottom = 0.0
+	frame.border_width = width
+	frame.border_color = border
+	frame.editor_only = false
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(frame)
+	if radius > 0:
+		var inset := ColorRect.new()
+		inset.name = "HUDInnerTone"
+		inset.anchor_right = 1.0
+		inset.anchor_bottom = 1.0
+		inset.offset_left = 1.0
+		inset.offset_top = 1.0
+		inset.offset_right = -1.0
+		inset.offset_bottom = -1.0
+		inset.color = Color(bg.r, bg.g, bg.b, bg.a * 0.52)
+		inset.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(inset)
+		parent.move_child(inset, 0)
+	return frame
+
+func _add_top_sheen(parent: Control, color: Color) -> ColorRect:
+	var sheen := ColorRect.new()
+	sheen.name = "HUDTopSheen"
+	sheen.anchor_right = 1.0
+	sheen.offset_left = 1.0
+	sheen.offset_top = 1.0
+	sheen.offset_right = -1.0
+	sheen.offset_bottom = 3.0
+	sheen.color = color
+	sheen.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(sheen)
+	parent.move_child(sheen, 0)
+	return sheen
+
+func _add_bottom_rule(parent: Control, color: Color, height: float = 1.0) -> ColorRect:
+	var rule := ColorRect.new()
+	rule.name = "HUDBottomRule"
+	rule.anchor_top = 1.0
+	rule.anchor_right = 1.0
+	rule.anchor_bottom = 1.0
+	rule.offset_left = 0.0
+	rule.offset_top = -height
+	rule.offset_right = 0.0
+	rule.offset_bottom = 0.0
+	rule.color = color
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(rule)
+	return rule
 
 func _apply_enemy_icon_frame(frame: Panel, base_color: Color, dimmed: bool) -> void:
 	var alpha_scale := 0.50 if dimmed else 1.0
@@ -671,10 +863,10 @@ func _apply_enemy_status_mark(mark: Panel, status: String, base_color: Color, di
 	style.corner_radius_bottom_right = 3
 	match status:
 		BattleEngine.INTENT_STATUS_HIT:
-			mark.offset_left = 246.0
-			mark.offset_top = 16.0
-			mark.offset_right = 268.0
-			mark.offset_bottom = 34.0
+			mark.offset_left = 244.0
+			mark.offset_top = 14.0
+			mark.offset_right = 266.0
+			mark.offset_bottom = 32.0
 			style.bg_color = fill
 			style.border_color = border.lightened(0.25)
 			style.border_width_left = 1
@@ -682,10 +874,10 @@ func _apply_enemy_status_mark(mark: Panel, status: String, base_color: Color, di
 			style.border_width_right = 1
 			style.border_width_bottom = 1
 		BattleEngine.INTENT_STATUS_MISS:
-			mark.offset_left = 246.0
-			mark.offset_top = 17.0
-			mark.offset_right = 268.0
-			mark.offset_bottom = 33.0
+			mark.offset_left = 244.0
+			mark.offset_top = 15.0
+			mark.offset_right = 266.0
+			mark.offset_bottom = 31.0
 			style.bg_color = Color(fill.r, fill.g, fill.b, 0.16 * alpha_scale)
 			style.border_color = border
 			style.border_width_left = 2
@@ -693,17 +885,17 @@ func _apply_enemy_status_mark(mark: Panel, status: String, base_color: Color, di
 			style.border_width_right = 2
 			style.border_width_bottom = 2
 		BattleEngine.INTENT_STATUS_REMOVED:
-			mark.offset_left = 245.0
-			mark.offset_top = 24.0
-			mark.offset_right = 269.0
-			mark.offset_bottom = 28.0
+			mark.offset_left = 243.0
+			mark.offset_top = 22.0
+			mark.offset_right = 267.0
+			mark.offset_bottom = 26.0
 			style.bg_color = Color(fill.r, fill.g, fill.b, 0.64 * alpha_scale)
 			style.border_color = Color(border.r, border.g, border.b, 0.34 * alpha_scale)
 		_:
-			mark.offset_left = 249.0
-			mark.offset_top = 24.0
-			mark.offset_right = 265.0
-			mark.offset_bottom = 28.0
+			mark.offset_left = 247.0
+			mark.offset_top = 22.0
+			mark.offset_right = 263.0
+			mark.offset_bottom = 26.0
 			style.bg_color = Color(fill.r, fill.g, fill.b, 0.54 * alpha_scale)
 			style.border_color = Color(border.r, border.g, border.b, 0.28 * alpha_scale)
 	mark.add_theme_stylebox_override("panel", style)
@@ -743,11 +935,14 @@ func _enemy_stack_palette(status: String) -> Dictionary:
 				"line": Color(0.58, 0.46, 0.30, 0.30),
 			}
 
-func show_outcome(outcome: int) -> void:
+func show_outcome(outcome: int, reason: String = "") -> void:
 	if outcome == BattleState.Outcome.VICTORY:
-		banner.text = "胜 利"
+		banner.text = "胜 利" if reason == "" else "胜 利\n%s" % reason
 		banner.modulate = Color(0.7, 1.0, 0.8)
 	elif outcome == BattleState.Outcome.DEFEAT:
-		banner.text = "失 败"
+		banner.text = "失 败" if reason == "" else "失 败\n%s" % reason
 		banner.modulate = Color(1.0, 0.5, 0.5)
+	banner.offset_top = -56.0 if reason != "" else -40.0
+	banner.offset_bottom = 56.0 if reason != "" else 40.0
+	banner.add_theme_font_size_override("font_size", 36 if reason != "" else 64)
 	banner.visible = true

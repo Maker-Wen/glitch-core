@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UnitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+def_id = &"enemy_bone_grub"
+display_name = "蚀骨蛆群"
+faction = 1
+max_hp = 1
+move = 4
+attack_kind = 3
+attack_range = 1
+attack_damage = 1
+attack_force = 0
+color = Color(0.62, 0.66, 0.38, 1)

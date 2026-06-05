@@ -34,6 +34,9 @@ static func run(tr) -> void:
 	_test_no_spawn_on_round_1(tr)
 	_test_no_predictions_when_schedule_starts_at_round_2(tr)
 	_test_spawn_then_immediate_move(tr)
+	_test_scripted_spawn_then_immediate_move(tr)
+	_test_scripted_spawn_defers_when_occupied(tr)
+	_test_scripted_spawn_takes_priority_over_rift_same_cell(tr)
 
 static func _test_predicted_then_spawn(tr) -> void:
 	# Schedule entry with round=1 means: predicted during round 1, spawns
@@ -120,3 +123,78 @@ static func _test_spawn_then_immediate_move(tr) -> void:
 	tr.assert_true("spawned enemy has plan", plan != null)
 	# After round start moves, the enemy is at plan.move_to.
 	tr.assert_eq("enemy at planned post-move cell", spawned.position, plan.move_to)
+
+static func _test_scripted_spawn_then_immediate_move(tr) -> void:
+	# Scripted spawns are direct round-start spawns: no rift preview, and the
+	# spawned enemy participates in the same round's move planning.
+	var engine := BattleEngine.new()
+	var grid := Grid.new()
+	var carrion := _make_carrion_def()
+	var bh := _make_bh_def()
+	var spawn_pos := Vector2i(3, 2)
+	var scripted_schedule: Array = [{"round": 1, "pos": spawn_pos, "def": carrion}]
+	var dz: Array[Vector2i] = [Vector2i(3, 7)]
+	var all_events: Array = []
+	engine.events_produced.connect(func(events: Array): all_events.append_array(events))
+	engine.start_battle(grid, [bh], [], dz, [], [], 5, [], [], [], {}, scripted_schedule)
+	engine.apply_action(BattleAction.deploy(Vector2i(3, 7)))
+	all_events.clear()
+	engine.apply_action(BattleAction.confirm_deploy())
+	tr.assert_eq("scripted round 1 active", engine.state.current_round, 1)
+	tr.assert_eq("scripted enemy spawned", engine.state.enemies().size(), 1)
+	tr.assert_eq("scripted spawns do not create rift previews", engine.state.pending_rift_spawns.size(), 0)
+	var spawned: Unit = engine.state.enemies()[0]
+	tr.assert_eq("scripted spawned + approached to (3, 4)", spawned.position, Vector2i(3, 4))
+	var plan = engine.state.enemy_warnings.get(spawned.id, null)
+	tr.assert_true("scripted spawned enemy has plan", plan != null)
+	if plan != null:
+		tr.assert_eq("scripted enemy at planned post-move cell", spawned.position, plan.move_to)
+	var spawn_idx := -1
+	var move_idx := -1
+	for i in range(all_events.size()):
+		var e: BattleEvent = all_events[i]
+		if e.type == BattleEvent.Type.UNIT_SPAWNED and bool(e.extra.get("scripted_spawn", false)):
+			spawn_idx = i
+			tr.assert_eq("scripted spawn event to_pos", e.to_pos, spawn_pos)
+		elif e.type == BattleEvent.Type.UNIT_MOVED and spawn_idx >= 0 and e.unit_id == spawned.id:
+			move_idx = i
+			break
+	tr.assert_true("scripted UNIT_SPAWNED event exists", spawn_idx >= 0)
+	tr.assert_true("scripted UNIT_MOVED event exists", move_idx >= 0)
+	tr.assert_true("scripted spawn before move", spawn_idx >= 0 and spawn_idx < move_idx)
+
+static func _test_scripted_spawn_defers_when_occupied(tr) -> void:
+	# If the configured spawn cell is occupied at round start, the entry shifts
+	# forward one round instead of replacing or overlapping the occupant.
+	var engine := BattleEngine.new()
+	var grid := Grid.new()
+	var carrion := _make_carrion_def()
+	var bh := _make_bh_def()
+	var occupied := Vector2i(3, 7)
+	var scripted_schedule: Array = [{"round": 1, "pos": occupied, "def": carrion}]
+	var dz: Array[Vector2i] = [occupied]
+	engine.start_battle(grid, [bh], [], dz, [], [], 5, [], [], [], {}, scripted_schedule)
+	engine.apply_action(BattleAction.deploy(occupied))
+	engine.apply_action(BattleAction.confirm_deploy())
+	tr.assert_eq("occupied scripted spawn deferred enemy count", engine.state.enemies().size(), 0)
+	tr.assert_eq("occupied scripted spawn shifted to next round", int(engine.state.scripted_spawn_schedule[0].get("round", 0)), 2)
+
+static func _test_scripted_spawn_takes_priority_over_rift_same_cell(tr) -> void:
+	# Round-start order is scripted first, then pending rifts. If both want the
+	# same cell, the scripted spawn occupies it and the rift stays pending.
+	var engine := BattleEngine.new()
+	var grid := Grid.new()
+	var carrion := _make_carrion_def()
+	var bh := _make_bh_def()
+	var spawn_pos := Vector2i(3, 2)
+	var rift_schedule: Array = [{"round": 1, "pos": spawn_pos, "def": carrion}]
+	var scripted_schedule: Array = [{"round": 2, "pos": spawn_pos, "def": carrion}]
+	var dz: Array[Vector2i] = [Vector2i(3, 7)]
+	engine.start_battle(grid, [bh], [], dz, [spawn_pos], rift_schedule, 5, [], [], [], {}, scripted_schedule)
+	engine.apply_action(BattleAction.deploy(Vector2i(3, 7)))
+	engine.apply_action(BattleAction.confirm_deploy())
+	tr.assert_eq("same-cell round 1 prediction visible", engine.state.pending_rift_spawns.size(), 1)
+	engine.apply_action(BattleAction.end_turn())
+	tr.assert_eq("same-cell now round 2", engine.state.current_round, 2)
+	tr.assert_eq("same-cell only scripted enemy spawned", engine.state.enemies().size(), 1)
+	tr.assert_eq("same-cell rift stayed pending", engine.state.pending_rift_spawns.size(), 1)

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UnitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+def_id = &"enemy_ironhorn"
+display_name = "铁角兽"
+faction = 1
+max_hp = 3
+move = 2
+attack_kind = 2
+attack_range = 3
+attack_damage = 1
+attack_force = 2
+color = Color(0.7, 0.35, 0.2, 1)

@@ -1,0 +1,13 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot tactical enemy token on a 72x72 orthogonal square grid. Generate on a chroma background for alpha removal.
+Primary request: Create one enemy-side plague archer token. Keep the selected v8 back-side longbow idea, but remove all isometric-board, round-base, and diamond-floor language.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no shadow on the background, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: one compact anime-horror plague archer in a tattered dark robe, bird-beak plague mask, empty black eye sockets with a faint sickly green glint, torn cloak, bone and leather details. A slender bone longbow is carried along the outer side/back silhouette, mostly behind the cloak.
+Style/medium: dark anime cel-shaded collectible board-game figure translated into 2D token art. Crisp black ink outline, clean two-tone shadows, low saturation gothic horror palette, readable at 96x96 and 72x72.
+Composition/framing: orthogonal-board token view, front 3/4 with slight top-down angle, facing toward the bottom of the screen. Center the full figure. Bottom anchor centered near x=512, y=850. The robe hem creates a compact horizontal contact shape aligned to a square grid cell.
+Longbow rules: the longbow is about 65% to 85% of character height. It must be vertical or slightly diagonal along the outer side/back silhouette, not horizontal. It must not cross the face, beak, chest, belly, cloak center, legs, or bottom footprint. No visible bowstring. No arrow nocked on the bow. No active shooting pose.
+Lighting/mood: grim upper-left light, strong silhouette, quiet enemy threat.
+Color palette: charcoal, black, bone white, muted dry blood red accents, tiny sickly desaturated green glints.
+Materials/textures: smooth resin miniature surface, torn robe planes, bone longbow material, crisp ink outlines.
+Constraints: one complete token only; no circular base, no pedestal, no floor disk, no diamond base, no isometric tile, no cast shadow, no contact shadow, no reflection. The token must feel like it stands in the center of a square cell.
+Avoid: 45-degree isometric board camera, rhombus floor, diagonal display plinth, short bow, tiny bone prop, oversized bow wider than the character, bow crossing the front body, bowstring, drawn arrow, horizontal arrow across body, missing hands, weapon clipping through cloak, extra weapons, full side-view archer, tall realistic human, particles, UI rings.

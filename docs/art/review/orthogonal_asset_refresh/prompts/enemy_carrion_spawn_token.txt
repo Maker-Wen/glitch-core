@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot tactical enemy token on a 72x72 orthogonal square grid. Generate on a chroma background for alpha removal.
+Primary request: Create one small carrion spawn enemy token. Keep the selected cute-ugly sickly ghoul direction, but author it for a straight orthogonal square board, not an isometric or diamond board.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no shadow on the background, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: a small hunched carrion ghoul minion with oversized hooded head, crooked skull half-mask, ragged plague cloth, thin clawed hands, tiny legs, little bone charms and torn cloth tabs. Cute-ugly and collectible, but still clearly hostile.
+Style/medium: dark anime gothic fantasy, cel-shaded with subtle painterly texture, thick black outline, collectible plastic board-game miniature translated into 2D token art, readable at 96x96 and 72x72.
+Composition/framing: orthogonal-board token view, front 3/4 with slight top-down angle, facing toward the bottom of the screen. Center the full figure. Bottom anchor centered near x=512, y=850. Feet and robe scraps create a compact horizontal contact shape aligned to a square grid cell.
+Lighting/mood: moody top-left light, shy mischievous posture, hostile but not realistic gore.
+Color palette: charcoal black, muted blood red, pale bone, sickly desaturated green, weathered leather brown.
+Materials/textures: smooth resin miniature surface, rough cloth tabs, bone mask, crisp outline.
+Constraints: one complete token only; no circular base, no pedestal, no floor disk, no diamond base, no isometric tile, no cast shadow, no contact shadow, no reflection. The token must feel like it stands in the center of a square cell.
+Avoid: 45-degree isometric board camera, rhombus floor, diagonal display plinth, dinosaur, lizard, insect, grub, worm, blob, realistic gore, photorealism, western tabletop monster, messy pile of meat, smoke covering silhouette, extra characters, friendly cartoon mascot.

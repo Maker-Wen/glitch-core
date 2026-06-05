@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot protected-building overlay on a 72x72 orthogonal square grid. Generate on a chroma background for alpha removal.
+Primary request: Create one protected building terrain piece for a straight orthogonal square board. It must be a front-facing orthogonal sprite overlay, not a tabletop miniature, not an isometric object, and not a diamond tile.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: a compact front-facing gothic guard tower / chapel-like defense structure with boarded windows, dark roof, chipped stone, and one tiny ember lantern. It reads as a valuable protected target, not a normal obstacle. No characters.
+Style/medium: dark anime cel-shaded 2D terrain sprite, crisp black ink outline, clean two-tone shadows, subtle painterly stone texture, low saturation gothic palette, readable at 104x104 and 72x72.
+Composition/framing: strict orthogonal front-view sprite. Show the front facade and vertical silhouette only; do not show a top face, diagonal side face, perspective floor, or tabletop base. Bottom edge is a short horizontal contact line centered near x=512, y=820. No floor tile underneath. The structure fits in one square cell when scaled down.
+Lighting/mood: restrained upper-left light, protected-object importance without bright glow.
+Color palette: charcoal stone, dark blue-grey roof, bone-white edge highlights, tiny warm ember accent, muted tarnished brass.
+Materials/textures: cel-shaded weathered stone, dark roof, boarded windows, crisp outline.
+Constraints: one complete terrain overlay only; transparent-cutout-ready subject on chroma background; no square floor slab, no circular base, no pedestal, no rhombus base, no diamond tile, no isometric floor, no cast shadow, no contact shadow.
+Avoid: 45-degree isometric board camera, diagonal tile, top-down diamond roof perspective, visible top face, side-face perspective, tabletop miniature base, massive castle, full scene, round base, character, text HP labels, UI, bright colorful house, large glow.

@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: 1024x1024 PNG source for a Godot tactical enemy token on a 72x72 orthogonal square grid. Generate on a chroma background for alpha removal.
+Primary request: Create one small carrion spawn enemy token with a unified thin physical miniature base. Keep the selected cute-ugly sickly ghoul direction and restore the collectible board-game token feel.
+Scene/backdrop: perfectly flat solid #ff00ff chroma-key background only. No floor plane, no gradient, no vignette, no scenery, no UI, no text. Do not use #ff00ff anywhere in the subject.
+Subject: a small hunched carrion ghoul minion with oversized hooded head, crooked skull half-mask, ragged plague cloth, thin clawed hands, tiny legs, little bone charms and torn cloth tabs. Cute-ugly and collectible, but still clearly hostile.
+Base design: include one very thin physical oval miniature base directly under the creature's feet. The base is dark charcoal resin, low height, about 58% to 68% of character width and about 10% to 14% of character height. It is part of the physical token, not a UI ring. Add only a subtle dry-blood red rim highlight for enemy side. No large red disk, no glowing circle, no selection ring.
+Style/medium: dark anime gothic fantasy, cel-shaded with subtle painterly texture, thick black outline, collectible plastic board-game miniature translated into 2D token art, pseudo-3D body volume, readable at 96x96 and 72x72.
+Composition/framing: orthogonal-board token view, front 3/4 with slight top-down angle, facing toward the bottom of the screen. Center the full figure and base. Base center near x=512, base bottom near y=875. The token should sit in the center of a square cell when scaled down.
+Lighting/mood: moody upper-left light, shy mischievous posture, hostile but not realistic gore.
+Color palette: charcoal black, muted blood red, pale bone, sickly desaturated green, weathered leather brown.
+Constraints: one complete token only; include the thin physical base; no floor tile underneath; no diamond base; no square slab; no cast shadow separate from the base; no contact shadow on the background.
+Avoid: no-base floating character, huge pedestal, thick plinth, large colored faction disk, glowing UI ring, selection circle, dinosaur, lizard, insect, grub, worm, blob, realistic gore, photorealism, messy pile of meat, smoke covering silhouette, friendly cartoon mascot.

@@ -2,7 +2,10 @@
 
 > 本文档描述当前 Demo 已实现的所有功能。对应版本：战斗垂直切片（Battle Vertical Slice）。
 >
-> 主策划案：[game_design.md](game_design.md) §15「第一阶段：战斗垂直切片」
+> 设计入口：[AI_README.md](AI_README.md)  
+> 当前主纲：[design/defense_roguelite_core_design.md](design/defense_roguelite_core_design.md)  
+> 注意：本文描述当前实现状态，不覆盖新版设计规则。
+>
 > 相关设计文档：
 > - [design/round_flow_and_intent.md](design/round_flow_and_intent.md) — 回合流程精确步骤
 > - [design/combat_resolution_truth_table.md](design/combat_resolution_truth_table.md) — 物理结算真值表
@@ -66,7 +69,7 @@ godot --headless --path . -s scripts/tests/test_runner.gd
 | **移动** | ✅ | 显示移动力（点击棋盘绿格即可） |
 | **遗物技能** | ⏳ | 占位按钮，灰色禁用（1.0+ 实装）|
 
-**上膛状态**：点击技能按钮后进入「等待选择目标」状态，棋盘上只显示该技能的合法范围。再次点击同一技能或右键取消。
+**上膛状态** ：点击技能按钮后进入「等待选择目标」状态，棋盘上只显示该技能的合法范围。再次点击同一技能或右键取消。
 
 ### 2.3 守卫者（3 种，全部可用）
 
@@ -119,6 +122,7 @@ godot --headless --path . -s scripts/tests/test_runner.gd
 | **地裂被占据时延迟** | ✅ | 占据者优先级高，出怪推迟到下回合 |
 | **第 1 回合无活动** | ✅ | rift_schedule 默认从 round=2 开始，让玩家有干净的起手 |
 | **出怪 schedule 配置** | ✅ | 通过 `BattleEngine.start_battle(... rift_schedule)` 传入 |
+| **脚本出怪 schedule 配置** | ✅ | `scripted_spawns` 从地图 catalog 构造为 `scripted_spawn_schedule`，在配置回合开始直接刷出并参与本回合移动；出生格被占用时顺延 1 回合 |
 
 ### 2.8 完美信息 UI
 
@@ -171,9 +175,49 @@ godot --headless --path . -s scripts/tests/test_runner.gd
 | **顶部状态栏** | ✅ "第 N / 5 轮"、"玩家回合"、按钮文字 |
 | **底部技能页** | ✅ "默认攻击"、"移动"、"遗物技能" |
 | **信息面板** | ✅ 单位名、阶段、伤害预算等 |
-| **帮助提示** | ✅ "操作：点击守卫者后..." |
-| **胜负横幅** | ✅ "胜 利" / "失 败" |
+| **战斗目标摘要** | ✅ 显示撑到最大回合、保护目标数量 / HP、预计守护值损失 |
+| **奖励任务面板** | ✅ 显示完美防守、终局清场、物理击杀进度 |
+| **敌方行动顺序栈** | ✅ 显示敌方顺序、命中 / 落空 / 移除状态，并与预演和棋盘高亮联动 |
+| **帮助提示** | ✅ 显示当前节点标题和压力标签 |
+| **胜负横幅** | ✅ "胜 利" / "失 败"，并显示守住回合、Boss Doom 满、防线溃败或守卫者全灭原因 |
 | **CJK 字体回退** | ✅ PingFang SC / Hiragino Sans GB / 微软雅黑 / Noto Sans CJK |
+
+### 2.13 Demo Run 奖励与遗物
+
+| 功能 | 状态 | 详情 |
+|---|---|---|
+| **`pending_reward` 生成** | ✅ | 普通战、精英战、Boss 根据基础余烬和奖励任务完成数生成统一奖励结构 |
+| **防重复领取** | ✅ | 已领取 `reward_id` 会记录，重复 claim 或重建同节点奖励不会再次发放 |
+| **Demo 遗物数据** | ✅ | 12 个 Demo 遗物使用正式 ID、名称、稀有度、类型、描述、tags 数据化 |
+| **精英战遗物选择** | ✅ | 精英战给遗物选项；完成 2 个奖励任务后选项 +1 |
+| **Boss 章节奖励** | ✅ | Boss 奖励使用章节奖励组，发放稀有 Demo 遗物选项 |
+| **守护值恢复机会** | ✅ | 完成 3 个奖励任务且守护值未满时生成守护值 +1 选项 |
+| **基础升级写回** | ✅ | 只给存活守卫者生成升级；领取后写回 `hp_max`、`hp`、`upgrades` |
+| **遗物战斗效果** | ⏳ | 当前仅数据化和领取写回，战斗内触发 hook 尚未接入 |
+
+### 2.14 Demo Run 战斗节点配置
+
+| 功能 | 状态 | 详情 |
+|---|---|---|
+| **战斗配置目录** | ✅ | `scripts/data/battle_config_catalog.gd` 已接入 4 个固定路线战斗节点：`outer_wall_01`、`crack_courtyard_03`、`iron_gate_04`、`boss_outer_bell_01` |
+| **Run 节点引用** | ✅ | `RunState.route_nodes[].battle` 现在包含正式 `config_id` 和 `map_id`，`variant` 仅保留作旧演示 fallback |
+| **BattleScene 配置读取** | ✅ | `_start_slice_battle` 优先通过 catalog 构造 `grid`、`protected_targets`、初始敌人、地裂位置、`rift_schedule`、`scripted_spawn_schedule`、`max_rounds` 和运行时奖励任务 |
+| **旧 variant fallback** | ✅ | 找不到 `config_id/map_id` 时仍走 `intro/archer/elite/boss/pillars` 旧逻辑，避免现有测试和演示断裂 |
+| **地图池配置字段** | 部分接入 | catalog 已保存 `protected_targets`、`pillars`、`rifts`、`initial_enemies`、`rift_schedule`、`scripted_spawns`、`reward_tasks`、Boss 锚石/心脏钟配置；运行时已消费可由现有引擎表达的字段和 Boss 最小配置 |
+| **专属敌人 UnitDef** | ✅ | `ironhorn`、`shell_beetle`、`bone_grub`、`bell_thrall` 已解析为独立 UnitDef；当前先复用现有 AI / AttackKind 表达基础压力 |
+| **未接入字段** | ⏳ | 铁角兽冲刺车道、护壳虫正面减推、蚀骨蛆只咬建筑、钟奴裂痕建筑、奖励任务专属判定仍未运行时生效 |
+
+### 2.15 Demo Boss 最小逻辑
+
+| 功能 | 状态 | 详情 |
+|---|---|---|
+| **Boss 配置入口** | ✅ | `BattleEngine.start_battle` 接受 `boss_config`，BattleScene 在 `boss` variant / catalog 节点中传入 `boss_config_id`、Doom 上限、锚石和心脏钟字段 |
+| **毁灭计数** | ✅ | `doom_count / doom_count_max` 已进入 `BattleState`；第 3 / 5 / 6 回合按公开脚本条件增长，达到上限标记 `boss_breached` 并结束本场 |
+| **锚石** | ✅ | 2 个 HP=2 的阻挡锚石以特殊 `PILLAR` 运行；可被守卫者攻击或推撞扣 HP，全部摧毁后压制后续锚石条件 Doom 增长 |
+| **心脏钟** | 占位 | 锚石全毁后暴露并可记录 `heart_hits`；当前只用于第 6 回合是否压制 Doom，不做完整暴露窗口和收益链 |
+| **Boss 胜负** | ✅ | 清怪、锚石全毁和心脏钟命中都不提前胜利；第 6 回合结束时至少 1 名守卫者存活且 Doom 未满则胜利 |
+| **Boss 结算字段** | ✅ | battle summary 输出 `boss_doom_count`、`boss_doom_count_max`、`boss_breached`、`boss_anchor_*`、`boss_heart_hits`；Boss 溃败会设置 `line_breached` 供 Run 层扣守护值 |
+| **Boss HUD** | ✅ | 顶部目标文本显示 Doom、锚石 HP、心脏钟命中和预计守护值损失；完整 Boss 动效和独立状态区留给后续 |
 
 ---
 
@@ -244,7 +288,11 @@ scripts/
 │       ├── warden_graverobber.tres
 │       ├── warden_mage.tres
 │       ├── enemy_carrion_spawn.tres
-│       └── enemy_plague_archer.tres
+│       ├── enemy_plague_archer.tres
+│       ├── enemy_ironhorn.tres
+│       ├── enemy_shell_beetle.tres
+│       ├── enemy_bone_grub.tres
+│       └── enemy_bell_thrall.tres
 ├── view/                             # 视图层（Node 场景）
 │   ├── battle_scene.gd              # 战斗场景根
 │   ├── grid_view.gd                 # 棋盘渲染
@@ -279,13 +327,16 @@ scripts/
 | **回合流程** | ~10 | 地裂出怪 / 锁定原则 / 阶段切换 |
 | **守卫者攻击** | ~10 | BH 推 / GR 拉 / Mage 推 / 友军误伤禁用 |
 | **完整战斗** | ~6 | 部署 → 5 回合 → 胜负 |
-| **总计** | **127** | 全部通过 |
+| **Run / 奖励回归** | ~90 | 固定路线、事件、营地、`pending_reward`、遗物选择、升级、Boss 领取 |
+| **Boss 回归** | ~22 | 清怪 / 锚石全毁不提前胜利、锚石碰撞损坏、Doom 溃败、第 6 回合胜利、summary 字段 |
+| **战斗 UI 回归** | ~15 | HUD 目标摘要、Boss 状态、结算原因、敌方行动顺序栈 |
+| **总计** | **583 断言** | 全部通过 |
 
 ---
 
 ## 4. 已知未实装项（与主策划案的差距）
 
-按主策划案 §15 切片范围，以下项**有意识地推迟**，由 1.0+ 实装：
+按主策划案 §15 切片范围，以下项 **有意识地推迟** ，由 1.0+ 实装：
 
 ### 4.1 切片范围外
 
@@ -296,13 +347,15 @@ scripts/
 | **守卫者死亡 / 跨场恢复** | ⏳ | §6.4 |
 | **Run 元结构（5 场连战）** | ⏳ | §6 |
 | **节点图分支** | ⏳ | 1.0+ |
-| **遗物系统** | ⏳ | §6.6 / 1.0+ |
+| **遗物战斗效果** | ⏳ | Demo 12 遗物已数据化并可领取，战斗内触发 hook 未接入 |
 | **挑战目标** | ⏳ | §3.1 |
-| **余烬经济** | ⏳ | §6.5 |
+| **商店经济** | ⏳ | 战斗奖励余烬已写回，商店消费未实装 |
 | **商店 / 营地** | ⏳ | §6.2 |
-| **Boss 战（裂心钟主）** | ⏳ | §8.7 |
+| **Boss 完整表现（裂心钟主）** | ⏳ | A6 / A7 已接入最小逻辑和状态 HUD；视觉动效、独立状态区、专属奖励任务和心脏钟收益链仍留给后续 |
+| **Boss 脚本出怪 / 专属敌人** | 部分接入 | Boss 地图的 `scripted_spawns` 已按回合刷怪；钟奴已使用独立 UnitDef；Boss 脚本本身仍只处理 Doom，钟奴裂痕等专属 AI 留给后续 |
 | **碎裂状态** | ⏳ | §3.6 |
 | **铁角兽（冲撞型敌人）** | ⏳ | §8.5 |
+| **地图池脚本出怪** | ✅ | `scripted_spawns` 已由 BattleScene 传入 BattleEngine，按配置回合直接刷出并立即参与敌方移动 |
 | **诅咒巫师 / 腐土钻地虫** | ⏳ | 1.0+ |
 | **守卫者升华路线** | ⏳ | 1.0+ |
 | **战中卡牌系统** | ⏳ | §9 / 1.0+ |
@@ -334,7 +387,7 @@ scripts/
 | 腐食兽移动力 | 2 | **3** | 接战节奏更紧凑 |
 | 瘟疫弓手 | 1.0+ 才出 | **切片实装** | 给玩家挡线/击线战术体验 |
 | 弓手射线锁定 | 直线第一个单位（含友军误伤）| **只锁定守卫者** | 简化 UX |
-| 友军误伤 | 设计允许 | **禁用**（同阵营 chain 0 伤）| 简化战术决策 |
+| 友军误伤 | 设计允许 | **禁用** （同阵营 chain 0 伤）| 简化战术决策 |
 | 地裂数量 | 设计未规定 | **2** | 演示充足，不过载 |
 | 出怪 schedule | 设计未规定 | **round 2/2/3 三条目** | 5 回合战中段压力 |
 
@@ -366,18 +419,18 @@ scripts/
 2. **回合 1**
    - 北边一线 3 只敌人（2 腐食兽 + 1 弓手）
    - 敌人移动可见（向南推进 2-3 格）
-   - 攻击意图箭头**可能不显示**（弓手射线被挡 / 腐食兽未邻接）
+   - 攻击意图箭头 **可能不显示** （弓手射线被挡 / 腐食兽未邻接）
    - 操作 3 个守卫者：移动 + 攻击
    - 按空格结束回合 → 敌人执行攻击（如果有）
 
 3. **回合 2**
    - 顶部「第 2 / 5 轮」
-   - 棋盘上的两个地裂**亮起金色 ↑**（下回合出怪预告）
+   - 棋盘上的两个地裂 **亮起金色 ↑**（下回合出怪预告）
    - 敌人进一步接近，攻击意图显示
    - 玩家继续操作
 
 4. **回合 3**
-   - 两个地裂**冒出新腐食兽**（淡入 + 缩放动画）
+   - 两个地裂 **冒出新腐食兽** （淡入 + 缩放动画）
    - 新出怪立即向南移动
    - 中段战斗压力最大
 
@@ -403,7 +456,7 @@ scripts/
 
 ### 8.4 弓手挡线
 
-让腐食兽站在弓手与守卫者之间 → 弓手本回合**无法射击**（同阵营挡线但 0 伤）。等于让弓手白费一回合。
+让腐食兽站在弓手与守卫者之间 → 弓手本回合 **无法射击** （同阵营挡线但 0 伤）。等于让弓手白费一回合。
 
 ### 8.5 推开敌人 = 平移攻击线
 
@@ -425,7 +478,7 @@ scripts/
 |---|---|
 | **源代码总行数** | ~2630 行 GDScript |
 | **逻辑层 / 表现层** | 1385 / 1213 行（接近 1:1）|
-| **单元测试数量** | 127 个，0 失败 |
+| **单元测试数量** | 583 断言，0 失败 |
 | **测试执行时间** | < 2 秒 |
 | **冷启动到可玩** | < 3 秒 |
 | **每帧渲染单位数** | 8×8 棋盘 + ≤ 10 单位 + 透明叠加层 |
@@ -440,7 +493,7 @@ scripts/
 - **碎裂状态** — 数据已留字段，添加施加点 + 视觉
 - **建筑系统** — TileType.BUILDING 已留，加 HP + 攻击响应
 - **守护值 UI** — 顶部 7 印章 + 战斗结算扣值
-- **铁角兽** — 加一个 `AttackKind.CHARGE` + AI
+- **铁角兽完整 AI** — 当前已有独立 UnitDef；后续再加 `AttackKind.CHARGE` + 车道 AI
 
 ### 10.2 中等改动
 
@@ -453,7 +506,7 @@ scripts/
 - **Run 元结构** — `RunState` 独立 + 节点图 + 商店
 - **战中卡牌** — 整套新动词系统
 
-按主策划案优先级，**碎裂状态 + 建筑 + 守护值** 是最紧迫的三项，能让切片接近 MVP 教学关 1 的体验。
+按主策划案优先级， **碎裂状态 + 建筑 + 守护值** 是最紧迫的三项，能让切片接近 MVP 教学关 1 的体验。
 
 ---
 

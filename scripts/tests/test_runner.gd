@@ -40,6 +40,8 @@ func _run_all() -> void:
 		"res://scripts/tests/test_archer_round1.gd",
 		"res://scripts/tests/test_round1_archer_moves.gd",
 		"res://scripts/tests/test_defense_objectives.gd",
+		"res://scripts/tests/test_boss_flow.gd",
+		"res://scripts/tests/test_battle_config_catalog.gd",
 		"res://scripts/tests/test_run_flow.gd",
 		"res://scripts/tests/test_run_state_regression.gd",
 	]

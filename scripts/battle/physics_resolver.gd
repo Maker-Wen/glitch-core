@@ -121,7 +121,7 @@ static func _advance_push(
 		if tile == Grid.TileType.PILLAR or tile == Grid.TileType.BUILDING:
 			# Wall damage 1, push force voided
 			_apply_damage(state, subject, 1, events, &"wall")
-			if tile == Grid.TileType.BUILDING:
+			if tile == Grid.TileType.BUILDING or state.is_boss_anchor_alive(to):
 				_damage_tile(state, to, 1, events)
 			var ew := BattleEvent.make(BattleEvent.Type.BUMP_WALL)
 			ew.unit_id = subject.id
@@ -208,7 +208,9 @@ static func _damage_tile(
 	amount: int,
 	events: Array[BattleEvent],
 ) -> void:
-	var result := state.grid.damage_tile(pos, amount)
+	var result := state.damage_boss_anchor(pos, amount) \
+		if state.is_boss_anchor_alive(pos) \
+		else state.grid.damage_tile(pos, amount)
 	var damaged: int = result.get("damaged", 0)
 	if damaged <= 0:
 		return
@@ -217,7 +219,8 @@ static func _damage_tile(
 	ed.amount = damaged
 	events.append(ed)
 	var destroyed: bool = result.get("destroyed", false)
-	state.record_protected_tile_damage(pos, damaged, destroyed)
+	if not state.is_boss_anchor(pos):
+		state.record_protected_tile_damage(pos, damaged, destroyed)
 	if destroyed:
 		var ex := BattleEvent.make(BattleEvent.Type.TILE_DESTROYED)
 		ex.to_pos = pos

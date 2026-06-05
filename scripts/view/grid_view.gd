@@ -1,7 +1,7 @@
 class_name GridView extends Node2D
 ## Renders the 8x8 board background + tile features.
 
-const CELL_SIZE := 72
+const CELL_SIZE := 64
 const COLOR_TILE_A := Color(0.16, 0.15, 0.18)
 const COLOR_TILE_B := Color(0.12, 0.11, 0.14)
 const COLOR_PILLAR := Color(0.32, 0.30, 0.34)
@@ -17,7 +17,7 @@ const COLOR_RIFT_INACTIVE := Color(0.22, 0.18, 0.20, 0.85)
 const COLOR_GRID_LINE := Color(0.05, 0.04, 0.06, 0.6)
 const COLOR_TILE_EDGE := Color(0.06, 0.055, 0.075, 0.62)
 const COLOR_TILE_CRACK := Color(0.035, 0.032, 0.042, 0.26)
-const FEATURE_DRAW_SIZE := Vector2(104, 104)
+const FEATURE_DRAW_SIZE := Vector2(92, 92)
 
 const TEX_PILLAR := preload("res://art/tiles/board_pillar_tile.png")
 const TEX_BUILDING := preload("res://art/tiles/board_building_tile.png")
