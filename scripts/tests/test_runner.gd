@@ -40,12 +40,16 @@ func _run_all() -> void:
 		"res://scripts/tests/test_archer_round1.gd",
 		"res://scripts/tests/test_round1_archer_moves.gd",
 		"res://scripts/tests/test_defense_objectives.gd",
+		"res://scripts/tests/test_run_flow.gd",
+		"res://scripts/tests/test_run_state_regression.gd",
 	]
 	for path in test_scripts:
 		if not ResourceLoader.exists(path):
 			continue
 		var script: Script = load(path)
 		if script == null:
+			_failures.append("%s failed to load" % path.get_file())
+			print("  X   %s failed to load" % path.get_file())
 			continue
 		print("\n[%s]" % path.get_file())
 		# Each test file calls back into us via the global `Tester` instance.
