@@ -1,14 +1,14 @@
 [gd_resource type="Resource" script_class="UnitDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/units/enemies/enemy_plague_archer_token.png" id="2_token"]
+[ext_resource type="Texture2D" path="res://art/atlases/battle/battle_units.enemy_plague_archer_token.tres" id="2_token"]
 
 [resource]
 script = ExtResource("1")
 def_id = &"enemy_plague_archer"
 display_name = "瘟疫弓手"
 faction = 1
-max_hp = 2
+max_hp = 1
 move = 2
 ; attack_kind = 2 (RANGED_PUSH) with attack_force = 0 -> ranged DIRECT damage,
 ; no push. (No dedicated "RANGED_DIRECT" enum -- saved by force=0.)

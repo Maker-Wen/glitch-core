@@ -17,7 +17,7 @@ func bind(battle: Node) -> void:
 func _process(_delta: float) -> void:
 	if _battle == null:
 		return
-	var cell := GridView.pixel_to_cell(_battle.grid_view.get_local_mouse_position())
+	var cell := _board_cell_under_mouse()
 	var inside := _cell_in_bounds(cell)
 	if cell != _hover_cell or inside != _hover_inside:
 		_hover_cell = cell
@@ -44,7 +44,9 @@ func _input(event: InputEvent) -> void:
 func handle_board_input(event: InputEvent, local_pos: Vector2) -> void:
 	if _battle == null:
 		return
-	var cell := GridView.pixel_to_cell(local_pos)
+	var cell := Vector2i(-1, -1)
+	if _battle.has_method("board_cell_from_local"):
+		cell = _battle.board_cell_from_local(local_pos)
 	var inside := _cell_in_bounds(cell)
 	if event is InputEventMouseMotion:
 		hover_changed.emit(cell, inside)
@@ -77,6 +79,11 @@ func _handle_global_action(event: InputEvent) -> void:
 
 func _cell_in_bounds(cell: Vector2i) -> bool:
 	return cell.x >= 0 and cell.x < Grid.SIZE and cell.y >= 0 and cell.y < Grid.SIZE
+
+func _board_cell_under_mouse() -> Vector2i:
+	if _battle.has_method("board_cell_under_mouse"):
+		return _battle.board_cell_under_mouse()
+	return Vector2i(-1, -1)
 
 func _on_cell_clicked(cell: Vector2i) -> void:
 	var state: BattleState = _battle.engine.state

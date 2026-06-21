@@ -21,6 +21,9 @@ const INTENT_STATUS_REMOVED := "removed"
 const TARGET_KIND_NONE := "none"
 const TARGET_KIND_UNIT := "unit"
 const TARGET_KIND_BUILDING := "building"
+const HAZARD_CHARGE_LANE := "charge_lane"
+const HAZARD_CRACKED_GROUND := "cracked_ground"
+const HAZARD_BELL_WAVE := "bell_wave"
 
 var state: BattleState
 var _history: Array[BattleState] = []
@@ -43,6 +46,9 @@ func start_battle(
 	warden_starting_hp: Array[int] = [],
 	boss_config: Dictionary = {},
 	scripted_spawn_schedule: Array = [],
+	cracked_ground_schedule: Array = [],
+	abyss_edges: Dictionary = {},
+	bell_wave_schedule: Array = [],
 ) -> Array[BattleEvent]:
 	state = BattleState.new()
 	state.grid = grid
@@ -68,6 +74,11 @@ func start_battle(
 		state.grid.set_tile(r, Grid.TileType.RIFT)
 	state.rift_schedule = rift_schedule.duplicate(true)
 	state.pending_rift_spawns.clear()
+	state.cracked_ground_schedule = cracked_ground_schedule.duplicate(true)
+	state.pending_cracked_ground.clear()
+	state.bell_wave_schedule = bell_wave_schedule.duplicate(true)
+	state.pending_bell_wave.clear()
+	state.abyss_edges = abyss_edges.duplicate(true)
 	state.scripted_spawn_schedule = scripted_spawn_schedule.duplicate(true)
 	if protected_targets.is_empty():
 		state.protected_targets = state.grid.cells_of_type(Grid.TileType.BUILDING)
@@ -76,6 +87,7 @@ func start_battle(
 	for p in state.protected_targets:
 		if state.grid.get_tile(p) == Grid.TileType.BUILDING and not state.grid.tile_hp.has(p):
 			state.grid.tile_hp[p] = Grid.DEFAULT_BUILDING_HP
+	state.capture_protected_initial_hp()
 	state.configure_boss(boss_config)
 	state.set_reward_tasks(reward_tasks)
 	state.phase = BattleState.Phase.GARRISON
@@ -141,7 +153,12 @@ func get_legal_moves(unit_id: int) -> Array[Vector2i]:
 		return []
 	if state.phase != BattleState.Phase.PLAYER_ACTION:
 		return []
-	return state.grid.reachable_cells(u.position, u.def.move, state.occupied_cells(u.id))
+	var cells := state.grid.reachable_cells(u.position, u.def.move, state.opposing_occupied_cells(u))
+	var legal: Array[Vector2i] = []
+	for cell in cells:
+		if state.get_unit_at(cell) == null:
+			legal.append(cell)
+	return legal
 
 func get_legal_attack_targets(unit_id: int) -> Array[Vector2i]:
 	var u := state.find_unit(unit_id)
@@ -269,8 +286,10 @@ func _do_move(s: BattleState, a: BattleAction) -> Array[BattleEvent]:
 		return []
 	if s.phase != BattleState.Phase.PLAYER_ACTION:
 		return []
-	var legal := s.grid.reachable_cells(u.position, u.def.move, s.occupied_cells(u.id))
+	var legal := s.grid.reachable_cells(u.position, u.def.move, s.opposing_occupied_cells(u))
 	if a.target_pos != u.position and not (a.target_pos in legal):
+		return []
+	if a.target_pos != u.position and s.get_unit_at(a.target_pos) != null:
 		return []
 	var events := PhysicsResolver.resolve_move(s, u, a.target_pos)
 	u.has_moved = true
@@ -281,6 +300,8 @@ func _do_attack(s: BattleState, a: BattleAction) -> Array[BattleEvent]:
 	if u == null or not u.is_warden() or u.has_acted:
 		return []
 	if s.phase != BattleState.Phase.PLAYER_ACTION:
+		return []
+	if not _warden_can_attack_pos(s, u, a.target_pos):
 		return []
 	var target := s.get_alive_unit_at(a.target_pos)
 	if target == null:
@@ -299,6 +320,26 @@ func _do_attack(s: BattleState, a: BattleAction) -> Array[BattleEvent]:
 	u.has_acted = true
 	return events
 
+func _warden_can_attack_pos(s: BattleState, u: Unit, target_pos: Vector2i) -> bool:
+	if _is_melee(u.def):
+		if abs(target_pos.x - u.position.x) + abs(target_pos.y - u.position.y) != 1:
+			return false
+	else:
+		var dir := Direction.from_cells(u.position, target_pos)
+		if dir == Vector2i.ZERO:
+			return false
+		var distance := absi(target_pos.x - u.position.x) + absi(target_pos.y - u.position.y)
+		if distance > u.def.attack_range:
+			return false
+		for step in range(1, distance):
+			var p: Vector2i = u.position + dir * step
+			if s.grid.blocks_movement(p) or s.get_unit_at(p) != null:
+				return false
+	if _is_warden_attackable_tile(s, target_pos):
+		return true
+	var target := s.get_alive_unit_at(target_pos)
+	return target != null and target.is_enemy()
+
 func _resolve_warden_attack(s: BattleState, u: Unit, target: Unit, dir: Vector2i) -> Array[BattleEvent]:
 	match u.def.attack_kind:
 		UnitDef.AttackKind.MELEE_BUMP:
@@ -314,6 +355,7 @@ func _resolve_warden_tile_attack(s: BattleState, u: Unit, target_pos: Vector2i) 
 	var events: Array[BattleEvent] = []
 	if s.is_boss_anchor_alive(target_pos):
 		var result := s.damage_boss_anchor(target_pos, u.def.attack_damage)
+		result["boss_anchor"] = true
 		_append_tile_damage_events(events, target_pos, result)
 		return events
 	if s.is_boss_heart_attackable(target_pos):
@@ -366,21 +408,30 @@ func _maybe_end_player_turn(s: BattleState, events: Array[BattleEvent]) -> void:
 
 func _begin_round(s: BattleState) -> Array[BattleEvent]:
 	## ITB-style round start. Order:
-	##   1. Spawn scripted enemies and rifts predicted last round.
-	##   2. Plan all enemies (move + attack target).
-	##   3. EXECUTE ALL MOVES (visible).
-	##   4. Re-plan attacks based on post-move state (handles
+	##   1. Resolve hazards predicted last round.
+	##   2. Spawn scripted enemies and rifts predicted last round.
+	##   3. Plan all enemies (move + attack target).
+	##   4. EXECUTE ALL MOVES (visible).
+	##   5. Re-plan attacks based on post-move state (handles
 	##      "ranged enemy's target moved" cases).
-	##   5. Predict NEXT round's spawns -> golden ↑ markers.
-	##   6. Reset warden flags + player turn.
+	##   6. Predict NEXT round's spawns/hazards -> board markers.
+	##   7. Reset warden flags + player turn.
 	var events: Array[BattleEvent] = []
 	events.append(_make_round_event(BattleEvent.Type.ROUND_STARTED, s.current_round))
+	s.refresh_boss_heart_exposure()
+	events.append_array(_resolve_pending_cracked_ground(s))
+	events.append_array(_resolve_pending_bell_wave(s))
+	_check_battle_end(s, events)
+	if s.outcome != BattleState.Outcome.UNDECIDED:
+		return events
 	events.append_array(_spawn_scripted_for_round(s))
 	events.append_array(_spawn_pending_rifts(s))
 	s.enemy_warnings = AIDecider.plan_enemy_turn(s)
 	events.append_array(_execute_enemy_moves(s))
 	_replan_attacks_post_move(s)
 	_queue_rift_predictions(s)
+	_queue_cracked_ground_predictions(s)
+	_queue_bell_wave_predictions(s)
 	_reset_warden_turn_flags(s)
 	s.phase = BattleState.Phase.PLAYER_ACTION
 	return events
@@ -441,6 +492,7 @@ func _execute_enemy_attacks(s: BattleState) -> Array[BattleEvent]:
 		start.to_pos = actual_attack_pos
 		events.append(start)
 		if not _plan_will_hit(s, enemy, plan):
+			s.record_enemy_attack_miss()
 			var miss := BattleEvent.make(BattleEvent.Type.ENEMY_ATTACK_MISSED)
 			miss.unit_id = enemy.id
 			miss.from_pos = enemy.position
@@ -450,6 +502,8 @@ func _execute_enemy_attacks(s: BattleState) -> Array[BattleEvent]:
 		var dir := _locked_attack_dir_for_plan(enemy, plan)
 		var target := s.get_alive_unit_at(actual_attack_pos)
 		if target != null and target.is_warden():
+			if _is_bone_grub(enemy):
+				continue
 			events.append_array(_resolve_enemy_attack(s, enemy, target, dir))
 		elif _is_attackable_building(s, actual_attack_pos):
 			events.append_array(_resolve_enemy_building_attack(s, enemy, actual_attack_pos))
@@ -464,7 +518,10 @@ func _resolve_enemy_attack(s: BattleState, enemy: Unit, target: Unit, dir: Vecto
 
 func _resolve_enemy_building_attack(s: BattleState, enemy: Unit, target_pos: Vector2i) -> Array[BattleEvent]:
 	var events: Array[BattleEvent] = []
-	var result := s.grid.damage_tile(target_pos, enemy.def.attack_damage)
+	var damage := enemy.def.attack_damage
+	if s.consume_protected_crack(target_pos):
+		damage += 1
+	var result := s.grid.damage_tile(target_pos, damage)
 	var damaged: int = result.get("damaged", 0)
 	if damaged <= 0:
 		return events
@@ -474,6 +531,8 @@ func _resolve_enemy_building_attack(s: BattleState, enemy: Unit, target_pos: Vec
 	events.append(ed)
 	var destroyed: bool = result.get("destroyed", false)
 	s.record_protected_tile_damage(target_pos, damaged, destroyed)
+	if _is_bell_thrall(enemy) and not destroyed:
+		s.crack_protected_target(target_pos)
 	if destroyed:
 		var ex := BattleEvent.make(BattleEvent.Type.TILE_DESTROYED)
 		ex.to_pos = target_pos
@@ -488,11 +547,15 @@ func _append_tile_damage_events(events: Array[BattleEvent], target_pos: Vector2i
 	var ed := BattleEvent.make(BattleEvent.Type.TILE_DAMAGED)
 	ed.to_pos = target_pos
 	ed.amount = damaged
+	if bool(result.get("boss_anchor", false)):
+		ed.extra = {"boss_anchor": true}
 	events.append(ed)
 	if bool(result.get("destroyed", false)):
 		var ex := BattleEvent.make(BattleEvent.Type.TILE_DESTROYED)
 		ex.to_pos = target_pos
 		ex.amount = result.get("tile", Grid.TileType.EMPTY)
+		if bool(result.get("boss_anchor", false)):
+			ex.extra = {"boss_anchor_destroyed": true}
 		events.append(ex)
 
 func _replan_attacks_post_move(s: BattleState) -> void:
@@ -532,6 +595,7 @@ func _spawn_pending_rifts(s: BattleState) -> Array[BattleEvent]:
 			continue
 		var pos: Vector2i = entry.pos
 		if s.get_unit_at(pos) != null:
+			s.record_rift_suppression()
 			still_pending.append(entry)  # defer 1 round (occupied)
 			continue
 		events.append(_spawn_scheduled_enemy(s, entry, {"from_rift": true}))
@@ -544,6 +608,52 @@ func _queue_rift_predictions(s: BattleState) -> void:
 	for entry in s.rift_schedule:
 		if entry.round == s.current_round:
 			s.pending_rift_spawns.append({"pos": entry.pos, "def": entry.def})
+
+func _resolve_pending_cracked_ground(s: BattleState) -> Array[BattleEvent]:
+	return _resolve_pending_unit_hazard(s, s.pending_cracked_ground, StringName(HAZARD_CRACKED_GROUND))
+
+func _resolve_pending_bell_wave(s: BattleState) -> Array[BattleEvent]:
+	return _resolve_pending_unit_hazard(s, s.pending_bell_wave, StringName(HAZARD_BELL_WAVE))
+
+func _resolve_pending_unit_hazard(s: BattleState, pending_cells: Array[Vector2i], hazard_type: StringName) -> Array[BattleEvent]:
+	var events: Array[BattleEvent] = []
+	var cells := pending_cells.duplicate()
+	pending_cells.clear()
+	var damaged_units: Dictionary = {}
+	for cell in cells:
+		if not s.grid.in_bounds(cell):
+			continue
+		var unit := s.get_alive_unit_at(cell)
+		if unit == null or damaged_units.has(unit.id):
+			continue
+		damaged_units[unit.id] = true
+		events.append_array(PhysicsResolver.resolve_environment_damage(s, unit, 1, hazard_type))
+	return events
+
+func _queue_cracked_ground_predictions(s: BattleState) -> void:
+	_queue_unit_hazard_predictions(s, s.cracked_ground_schedule, s.pending_cracked_ground)
+
+func _queue_bell_wave_predictions(s: BattleState) -> void:
+	_queue_unit_hazard_predictions(s, s.bell_wave_schedule, s.pending_bell_wave)
+
+func _queue_unit_hazard_predictions(s: BattleState, schedule: Array, pending_cells: Array[Vector2i]) -> void:
+	var warned: Dictionary = {}
+	for entry in schedule:
+		if int(entry.get("round", 0)) != s.current_round:
+			continue
+		var cells: Array = entry.get("cells", [])
+		if cells.is_empty() and entry.has("pos"):
+			cells = [entry.get("pos", Vector2i(-1, -1))]
+		for raw in cells:
+			var cell: Vector2i = raw
+			if not s.grid.in_bounds(cell):
+				continue
+			if s.grid.blocks_movement(cell):
+				continue
+			if warned.has(cell):
+				continue
+			warned[cell] = true
+			pending_cells.append(cell)
 
 func _spawn_scheduled_enemy(s: BattleState, entry: Dictionary, extra: Dictionary) -> BattleEvent:
 	var pos: Vector2i = entry.get("pos", Vector2i(-1, -1))
@@ -591,6 +701,8 @@ func _enemy_intent_ui_state_for_state(s: BattleState) -> Array[Dictionary]:
 		}
 		var status := INTENT_STATUS_NO_ATTACK
 		var attack_fires := false
+		var hazard_type := ""
+		var hazard_cells: Array[Vector2i] = []
 		if plan != null:
 			post_move = _project_enemy_post_move_for_state(s, enemy, plan)
 			attack_pos = _actual_attack_pos_for_plan(s, enemy, plan)
@@ -598,10 +710,14 @@ func _enemy_intent_ui_state_for_state(s: BattleState) -> Array[Dictionary]:
 			if plan.has_attack():
 				attack_fires = attack_pos != Vector2i(-1, -1)
 				status = INTENT_STATUS_HIT if _plan_will_hit(s, enemy, plan) else INTENT_STATUS_MISS
+				hazard_type = _hazard_type_for_plan(enemy, plan)
+				hazard_cells = _hazard_cells_for_plan(s, enemy, plan, attack_pos, hazard_type)
 		rows.append({
 			"enemy_id": eid,
 			"enemy_name": enemy.def.display_name if enemy.def != null else "敌人",
 			"enemy_def": enemy.def,
+			"enemy_hp": enemy.hp,
+			"enemy_max_hp": enemy.def.max_hp if enemy.def != null else enemy.hp,
 			"order": idx + 1,
 			"enemy_pos": enemy.position,
 			"post_move": post_move,
@@ -616,6 +732,8 @@ func _enemy_intent_ui_state_for_state(s: BattleState) -> Array[Dictionary]:
 			"target_pos": target_info.get("pos", Vector2i(-1, -1)),
 			"has_attack": plan != null and plan.has_attack(),
 			"attack_fires": attack_fires,
+			"hazard_type": hazard_type,
+			"hazard_cells": hazard_cells,
 		})
 	return rows
 
@@ -665,6 +783,8 @@ func _merge_preview_intent_rows(preview_rows: Array[Dictionary], removed_ids: Di
 			"enemy_id": eid,
 			"enemy_name": original.def.display_name if original != null and original.def != null else "敌人",
 			"enemy_def": original.def if original != null else null,
+			"enemy_hp": original.hp if original != null else 0,
+			"enemy_max_hp": original.def.max_hp if original != null and original.def != null else 0,
 			"order": idx + 1,
 			"enemy_pos": original.position if original != null else Vector2i(-1, -1),
 			"post_move": original.position if original != null else Vector2i(-1, -1),
@@ -679,6 +799,8 @@ func _merge_preview_intent_rows(preview_rows: Array[Dictionary], removed_ids: Di
 			"target_pos": plan.attack_pos if plan != null else Vector2i(-1, -1),
 			"has_attack": plan != null and plan.has_attack(),
 			"attack_fires": false,
+			"hazard_type": "",
+			"hazard_cells": [],
 		})
 	preview_rows.sort_custom(func(a, b): return int(a.get("order", 0)) < int(b.get("order", 0)))
 	return preview_rows
@@ -743,6 +865,30 @@ func _is_damageable_target_at(s: BattleState, pos: Vector2i) -> bool:
 	var target := s.get_alive_unit_at(pos)
 	return (target != null and target.is_warden()) or _is_attackable_building(s, pos)
 
+func _hazard_type_for_plan(enemy: Unit, plan) -> String:
+	if enemy == null or enemy.def == null or plan == null or not plan.has_attack():
+		return ""
+	if enemy.def.def_id == BattleState.DEF_IRONHORN:
+		return HAZARD_CHARGE_LANE
+	return ""
+
+func _hazard_cells_for_plan(s: BattleState, enemy: Unit, plan, attack_pos: Vector2i, hazard_type: String) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if hazard_type != HAZARD_CHARGE_LANE:
+		return cells
+	var dir := _locked_attack_dir_for_plan(enemy, plan)
+	if dir == Vector2i.ZERO:
+		return cells
+	var max_steps := maxi(1, enemy.def.attack_range if enemy != null and enemy.def != null else 1)
+	for step in range(1, max_steps + 1):
+		var p: Vector2i = enemy.position + dir * step
+		if not s.grid.in_bounds(p):
+			break
+		cells.append(p)
+		if p == attack_pos:
+			break
+	return cells
+
 
 # ---------- boss script ----------
 
@@ -789,6 +935,11 @@ func _check_battle_end(s: BattleState, events: Array[BattleEvent]) -> void:
 		_set_outcome(s, events, BattleState.Outcome.DEFEAT)
 
 func _settle_max_round_outcome(s: BattleState, events: Array[BattleEvent]) -> void:
+	if s.apply_boss_heart_doom_reduction():
+		var ev := BattleEvent.make(BattleEvent.Type.PHASE_CHANGED)
+		ev.amount = s.doom_count
+		ev.extra = {"boss_heart_doom_reduction": true, "heart_hits": s.heart_hits}
+		events.append(ev)
 	var boss_ok := not s.is_boss_doom_breached()
 	var outcome := BattleState.Outcome.VICTORY \
 		if not s.wardens().is_empty() and boss_ok \
@@ -845,6 +996,12 @@ func _is_melee(def: UnitDef) -> bool:
 func _is_ranged(def: UnitDef) -> bool:
 	return def.attack_kind == UnitDef.AttackKind.RANGED_PUSH \
 		or def.attack_kind == UnitDef.AttackKind.RANGED_PULL
+
+func _is_bone_grub(unit: Unit) -> bool:
+	return unit != null and unit.def != null and unit.def.def_id == BattleState.DEF_BONE_GRUB
+
+func _is_bell_thrall(unit: Unit) -> bool:
+	return unit != null and unit.def != null and unit.def.def_id == BattleState.DEF_BELL_THRALL
 
 func _is_warden_attackable_tile(s: BattleState, pos: Vector2i) -> bool:
 	return s.is_boss_anchor_alive(pos) or s.is_boss_heart_attackable(pos)

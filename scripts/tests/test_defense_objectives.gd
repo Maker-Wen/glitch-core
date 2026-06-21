@@ -38,6 +38,7 @@ static func run(tr) -> void:
 	_test_all_protected_targets_destroyed_defeats(tr)
 	_test_reward_tasks_finalize_at_battle_end(tr)
 	_test_enemy_targets_and_damages_protected_building(tr)
+	_test_special_reward_tasks_accounting(tr)
 
 static func _test_clear_enemies_does_not_end_battle(tr) -> void:
 	var engine := BattleEngine.new()
@@ -159,3 +160,47 @@ static func _test_enemy_targets_and_damages_protected_building(tr) -> void:
 	tr.assert_eq("building damaged by enemy", engine.state.grid.tile_hp[building], 1)
 	tr.assert_eq("perfect defense still not failed by damage alone",
 		engine.state.reward_failed[BattleState.REWARD_PERFECT_DEFENSE], false)
+
+static func _test_special_reward_tasks_accounting(tr) -> void:
+	var s := BattleState.new()
+	var key := Vector2i(3, 3)
+	s.grid.set_tile(key, Grid.TileType.BUILDING, 3)
+	s.protected_targets = [Vector2i(4, 4), key]
+	s.capture_protected_initial_hp()
+	s.configure_boss({
+		"boss_config_id": "test_boss",
+		"anchor_positions": [Vector2i(1, 1), Vector2i(6, 1)],
+		"anchor_hp": 1,
+		"heart_position": Vector2i(3, 1),
+	})
+	s.set_reward_tasks([
+		BattleState.REWARD_PUSH_THREAT,
+		BattleState.REWARD_ALL_WARDENS_SURVIVE,
+		BattleState.REWARD_RIFT_SUPPRESSION,
+		BattleState.REWARD_LOW_LOSS_LINE,
+		BattleState.REWARD_ELITE_HUNT,
+		BattleState.REWARD_KEY_TARGET_UNDAMAGED,
+		BattleState.REWARD_ANCHOR_DESTROY,
+		BattleState.REWARD_PERFECT_WATCH,
+		BattleState.REWARD_HEART_WINDOW,
+	])
+	s.record_enemy_attack_miss()
+	tr.assert_eq("push threat completed", s.reward_completed[BattleState.REWARD_PUSH_THREAT], true)
+	s.record_rift_suppression()
+	tr.assert_eq("rift suppression completed", s.reward_completed[BattleState.REWARD_RIFT_SUPPRESSION], true)
+	s.record_enemy_kill(&"direct", BattleState.DEF_IRONHORN)
+	tr.assert_eq("elite hunt completed", s.reward_completed[BattleState.REWARD_ELITE_HUNT], true)
+	s.record_protected_tile_damage(Vector2i(4, 4), 1, false)
+	tr.assert_eq("low loss still alive at one damage", s.reward_failed[BattleState.REWARD_LOW_LOSS_LINE], false)
+	s.record_warden_death()
+	tr.assert_eq("all wardens survive failed on death", s.reward_failed[BattleState.REWARD_ALL_WARDENS_SURVIVE], true)
+	s.record_protected_tile_damage(key, 1, false)
+	tr.assert_eq("key target undamaged failed on key damage", s.reward_failed[BattleState.REWARD_KEY_TARGET_UNDAMAGED], true)
+	s.damage_boss_anchor(Vector2i(1, 1), 1)
+	s.damage_boss_anchor(Vector2i(6, 1), 1)
+	s.phase = BattleState.Phase.PLAYER_ACTION
+	s.record_boss_heart_hit(3)
+	s.finalize_reward_tasks()
+	tr.assert_eq("anchor destroy completed", s.reward_completed[BattleState.REWARD_ANCHOR_DESTROY], true)
+	tr.assert_eq("perfect watch completed when no building destroyed", s.reward_completed[BattleState.REWARD_PERFECT_WATCH], true)
+	tr.assert_eq("heart window completed at cap", s.reward_completed[BattleState.REWARD_HEART_WINDOW], true)

@@ -3,21 +3,21 @@ class_name BattleScene extends Node2D
 
 signal battle_finished(summary: Dictionary)
 
-@onready var grid_view: GridView = $Board/GridView
-@onready var preview: PreviewOverlay = $Board/PreviewOverlay
-@onready var units_root: Node2D = $Board/Units
+@onready var diamond_board_view: DiamondBoardView = $DiamondBoardView
 @onready var hud: HUD = $HUD
 @onready var input_ctl: InputController = $InputController
 
-const UNIT_VIEW_SCENE := preload("res://Scenes/battle/UnitView.tscn")
 const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
+const BattleEventAnimatorScript := preload("res://scripts/view/battle_event_animator.gd")
+const AttackFxPresenterScript := preload("res://scripts/view/attack_fx_presenter.gd")
 
 var engine: BattleEngine
-var unit_views: Dictionary = {}  # unit_id: int -> UnitView
 var selected_warden_id: int = -1
 ## When non-empty, the player is in "ability targeting" mode: clicking a valid
 ## cell executes the armed ability. Right-click cancels back to normal selection.
-## Slice supports "attack" and "move"; future relics will add more ids.
+## Slice currently executes the primary attack. The HUD already reserves the
+## target 3 active skill slots; non-primary skills stay disabled until the
+## data-driven ability system lands.
 var _armed_ability_id: String = ""
 var _hover_cell: Vector2i = Vector2i(-1, -1)
 var _animating: bool = false
@@ -26,20 +26,33 @@ var _executing_enemy_id: int = -1
 var _defer_state_refresh_until_events: bool = false
 var _defer_enemy_intent_refresh_until_events: bool = false
 var _suppress_enemy_intents_until_events_done: bool = false
+var _pending_player_attack_context: Dictionary = {}
+var _event_unit_snapshots: Dictionary = {}
+var _event_protected_damage_start: int = 0
+var _event_protected_damage_pending: int = 0
+var _event_tile_display_overrides: Dictionary = {}
+var _event_unit_display_overrides: Dictionary = {}
 var _battle_config: Dictionary = {}
 var _run_wardens: Array[Dictionary] = []
-var _sanctuary_integrity: int = 7
-var _sanctuary_integrity_max: int = 7
+var _sanctuary_integrity: int = 12
+var _sanctuary_integrity_max: int = 12
 var _finish_emitted: bool = false
 ## Debug mode: when ON, info panel shows planned actions, execution order,
 ## displacement state, etc. Toggle with F1. OFF by default so the panel
 ## stays clean (just HP / move / attack range).
 var _debug_mode: bool = false
+var _event_animator = null
+var _attack_fx_presenter = null
 
 func _ready() -> void:
 	engine = BattleEngine.new()
 	engine.events_produced.connect(_on_events)
 	engine.state_changed.connect(_on_state_changed)
+	_configure_board_presentation()
+	_event_animator = BattleEventAnimatorScript.new()
+	_event_animator.bind(self, diamond_board_view)
+	_attack_fx_presenter = AttackFxPresenterScript.new()
+	_attack_fx_presenter.bind(self, diamond_board_view)
 	input_ctl.bind(self)
 	input_ctl.warden_selected.connect(_on_warden_selected)
 	input_ctl.action_requested.connect(_on_action_requested)
@@ -100,10 +113,12 @@ func _start_slice_battle() -> void:
 			var def: UnitDef = def_by_id.get(String(w.get("warden_id", "")), null)
 			if def == null:
 				continue
-			warden_defs.append(def)
-			warden_hp.append(int(w.get("hp", def.max_hp)))
+			var run_max_hp := int(w.get("hp_max", def.max_hp))
+			var battle_def := _runtime_warden_def(def, run_max_hp)
+			warden_defs.append(battle_def)
+			warden_hp.append(int(w.get("hp", battle_def.max_hp)))
 	var enemies := _build_enemies_for_variant(variant, carrion, archer, catalog_config)
-	var deploy_zone := BattleConfigCatalogScript.build_deploy_zone()
+	var deploy_zone := BattleConfigCatalogScript.build_deploy_zone(catalog_config)
 
 	# Two rifts on the north half. Schedule (design §3.4): the golden "↑"
 	# marker appears during round N (predicting round N+1 spawns), the
@@ -120,6 +135,9 @@ func _start_slice_battle() -> void:
 	for p in rift_data.positions:
 		rift_positions.append(p)
 	var rift_schedule: Array = rift_data.schedule
+	var cracked_ground_schedule: Array = BattleConfigCatalogScript.build_cracked_ground_schedule(catalog_config, grid)
+	var abyss_edges: Dictionary = BattleConfigCatalogScript.build_abyss_edges(catalog_config)
+	var bell_wave_schedule: Array = BattleConfigCatalogScript.build_bell_wave_schedule(catalog_config, grid)
 	var scripted_spawn_schedule := _scripted_spawns_for_variant(catalog_config)
 	var max_rounds := int(catalog_config.get("max_rounds", battle_ref.get("max_rounds", 5)))
 	var reward_tasks := _reward_tasks_for_variant(variant, catalog_config)
@@ -138,12 +156,21 @@ func _start_slice_battle() -> void:
 		warden_hp,
 		boss_config,
 		scripted_spawn_schedule,
+		cracked_ground_schedule,
+		abyss_edges,
+		bell_wave_schedule,
 	)
-	grid_view.bind(engine.state.grid)
-	_rebuild_unit_views()
+	diamond_board_view.bind_state(engine.state)
 	hud.set_sanctuary(_sanctuary_integrity, _sanctuary_integrity_max)
 	hud.set_help(_battle_help_text(config, variant))
 	_on_state_changed()
+
+func _runtime_warden_def(def: UnitDef, run_max_hp: int) -> UnitDef:
+	if def == null:
+		return null
+	var result: UnitDef = def.duplicate(true)
+	result.max_hp = maxi(1, run_max_hp)
+	return result
 
 func _resolve_catalog_battle_config(config: Dictionary) -> Dictionary:
 	var battle_ref: Dictionary = config.get("battle", {})
@@ -369,27 +396,6 @@ func _battle_help_text(config: Dictionary, variant: String) -> String:
 		return "%s · Boss 节点 · 压力：%s" % [title, tags]
 	return "%s · 压力：%s" % [title, tags]
 
-func _rebuild_unit_views() -> void:
-	for child in units_root.get_children():
-		child.queue_free()
-	unit_views.clear()
-	for u in engine.state.units:
-		_spawn_unit_view(u)
-
-func _spawn_unit_view(u: Unit, at_cell: Vector2i = Vector2i(-99, -99)) -> void:
-	## Create a view for unit `u`. By default the view appears at u.position,
-	## but callers can override `at_cell` to place it at a specific spawn
-	## location -- needed when the engine has already mutated u.position
-	## (e.g. rift spawn + immediate move in the same event batch).
-	var view: UnitView = UNIT_VIEW_SCENE.instantiate()
-	units_root.add_child(view)
-	view.configure(u)
-	if at_cell == Vector2i(-99, -99):
-		view.snap_to_cell(u.position)
-	else:
-		view.snap_to_cell(at_cell)
-	unit_views[u.id] = view
-
 # ---------- input handlers ----------
 
 func _on_warden_selected(unit_id: int) -> void:
@@ -401,6 +407,7 @@ func _on_warden_selected(unit_id: int) -> void:
 	_refresh_persistent_hud()
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
+	_refresh_hover_preview()
 	_refresh_info_panel()
 
 func _on_ability_selected(ability_id: String) -> void:
@@ -418,15 +425,22 @@ func _on_ability_selected(ability_id: String) -> void:
 		_armed_ability_id = ability_id
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
+	_refresh_hover_preview()
 
 func _on_action_requested(action: BattleAction) -> void:
 	if _animating and action.kind != BattleAction.Kind.UNDO:
 		return
 	if action.kind == BattleAction.Kind.UNDO:
+		_pending_player_attack_context.clear()
+		_event_unit_snapshots.clear()
+		if _attack_fx_presenter != null:
+			_attack_fx_presenter.clear()
 		engine.apply_action(action)
 		# After undo, do a full rebuild
 		_full_rebuild()
 		return
+	_capture_player_attack_context(action)
+	_capture_event_unit_snapshots()
 	_defer_state_refresh_until_events = true
 	_defer_enemy_intent_refresh_until_events = true
 	var events := engine.apply_action(action)
@@ -441,12 +455,14 @@ func _on_action_requested(action: BattleAction) -> void:
 func _on_hover_changed(cell: Vector2i, inside: bool) -> void:
 	if not inside:
 		_hover_cell = Vector2i(-1, -1)
-		preview.clear_preview()
+		_set_diamond_board_hover(Vector2i(-1, -1))
+		_clear_diamond_board_preview()
 		_set_focused_enemy(-1)
 		_refresh_info_panel()
 		_refresh_enemy_intent_overlay()
 		return
 	_hover_cell = cell
+	_set_diamond_board_hover(cell)
 	_refresh_hover_preview()
 	_refresh_info_panel()
 
@@ -461,11 +477,69 @@ func _on_state_changed() -> void:
 	_refresh_ability_bar()
 
 func _refresh_state_presentation() -> void:
-	hud.set_sanctuary(_sanctuary_integrity, _sanctuary_integrity_max)
+	hud.set_sanctuary(_effective_sanctuary_integrity(), _sanctuary_integrity_max)
 	hud.update_status(engine.state)
+	_refresh_diamond_board()
 	_refresh_persistent_hud()
 	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
 		hud.show_outcome(engine.state.outcome, _battle_outcome_reason(engine.state))
+
+func _configure_board_presentation() -> void:
+	if diamond_board_view != null:
+		diamond_board_view.visible = true
+
+func _refresh_diamond_board() -> void:
+	if diamond_board_view != null:
+		diamond_board_view.queue_redraw()
+
+func _set_diamond_board_hover(cell: Vector2i) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_hover_cell(cell)
+
+func _clear_diamond_board_preview() -> void:
+	if diamond_board_view != null:
+		diamond_board_view.clear_preview()
+	if hud != null:
+		hud.set_sanctuary_preview_loss(0)
+
+func _set_diamond_board_selection_ranges(move_cells: Array, attack_cells: Array) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_selection_ranges(move_cells, attack_cells)
+
+func _set_diamond_board_enemy_intents(rows: Array) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_enemy_intents(rows)
+
+func _set_diamond_board_predicted_rifts(cells: Array) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_predicted_rifts(cells)
+
+func _set_diamond_board_predicted_cracked_ground(cells: Array) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_predicted_cracked_ground(cells)
+
+func _set_diamond_board_predicted_bell_wave(cells: Array) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_predicted_bell_wave(cells)
+
+func _set_diamond_board_preview_markers(markers: Array, paths: Array, protected_damage: Dictionary = {}) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_preview_markers(markers, paths, protected_damage)
+	_set_sanctuary_preview_from_damage(protected_damage)
+
+func _set_diamond_board_focus(enemy_id: int) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_focused_enemy(enemy_id)
+
+func board_cell_under_mouse() -> Vector2i:
+	if diamond_board_view != null:
+		return diamond_board_view.pixel_to_cell(diamond_board_view.get_local_mouse_position())
+	return Vector2i(-1, -1)
+
+func board_cell_from_local(local_pos: Vector2) -> Vector2i:
+	if diamond_board_view == null:
+		return Vector2i(-1, -1)
+	return diamond_board_view.pixel_to_cell(local_pos)
 
 func _on_events(events: Array) -> void:
 	_defer_enemy_intent_refresh_until_events = false
@@ -475,18 +549,25 @@ func _on_events(events: Array) -> void:
 		_refresh_state_presentation()
 		_refresh_enemy_intent_overlay()
 		_refresh_selection_highlights()
+		_refresh_ability_bar()
 		_refresh_info_panel()
 		return
 	_animating = true
+	_begin_event_damage_playback(events)
 	_executing_enemy_id = -1
-	preview.clear_preview()
-	preview.clear_all_ranges()
+	_clear_diamond_board_preview()
+	_set_diamond_board_selection_ranges([], [])
+	_set_diamond_board_predicted_rifts([])
+	_set_diamond_board_predicted_cracked_ground([])
+	_set_diamond_board_predicted_bell_wave([])
 	_suppress_enemy_intents_until_events_done = _events_include_enemy_displacement(events)
 	if _suppress_enemy_intents_until_events_done:
+		_set_diamond_board_enemy_intents([])
 		hud.set_enemy_action_stack([])
 		_set_focused_enemy(-1)
 	await _play_events(events)
 	_animating = false
+	_end_event_damage_playback()
 	_suppress_enemy_intents_until_events_done = false
 	_executing_enemy_id = -1
 	hud.set_enemy_stack_executing(-1)
@@ -532,7 +613,7 @@ func _build_battle_summary() -> Dictionary:
 		"outcome": state.outcome,
 		"victory": state.outcome == BattleState.Outcome.VICTORY,
 		"line_breached": state.outcome == BattleState.Outcome.DEFEAT \
-			and (state.boss_breached or (state.has_protected_targets() and state.alive_protected_targets().is_empty())),
+			and state.has_protected_targets() and state.alive_protected_targets().is_empty(),
 		"boss_config_id": state.boss_config_id,
 		"boss_doom_count": state.doom_count,
 		"boss_doom_count_max": state.doom_count_max,
@@ -552,116 +633,159 @@ func _build_battle_summary() -> Dictionary:
 	}
 
 func _play_events(events: Array) -> void:
-	## Plays each event from the engine sequentially, awaiting animations.
-	## Adding a new event type? Add a case here + handler below.
-	for raw in events:
-		var e: BattleEvent = raw
-		match e.type:
-			BattleEvent.Type.UNIT_SPAWNED: await _anim_unit_spawned(e)
-			BattleEvent.Type.UNIT_MOVED:
-				if _suppress_enemy_intents_until_events_done and _event_unit_is_enemy(e):
-					preview.set_enemy_intents([])
-					hud.set_enemy_action_stack([])
-					_set_focused_enemy(-1)
-				await _anim_unit_moved(e)
-			BattleEvent.Type.UNIT_PUSHED:
-				if _suppress_enemy_intents_until_events_done and _event_unit_is_enemy(e):
-					preview.set_enemy_intents([])
-					hud.set_enemy_action_stack([])
-					_set_focused_enemy(-1)
-				await _anim_unit_pushed(e)
-			BattleEvent.Type.UNIT_DAMAGED: await _anim_unit_damaged(e)
-			BattleEvent.Type.UNIT_DIED, BattleEvent.Type.UNIT_FELL:
-				await _anim_unit_died(e)
-			BattleEvent.Type.UNIT_REMOVED: _anim_unit_removed(e)
-			BattleEvent.Type.TILE_DAMAGED, BattleEvent.Type.TILE_DESTROYED:
-				_anim_tile_changed(e)
-			BattleEvent.Type.BUMP_WALL, BattleEvent.Type.BUMP_UNIT:
-				await _anim_bump(e)
-			BattleEvent.Type.ENEMY_ATTACK_STARTED:
-				_set_executing_enemy(e.unit_id)
-				await get_tree().create_timer(0.10).timeout
-			BattleEvent.Type.ENEMY_ATTACK_MISSED:
-				await _anim_enemy_attack_missed(e)
-			BattleEvent.Type.ROUND_STARTED:
-				if _suppress_enemy_intents_until_events_done:
-					preview.set_enemy_intents([])
-					hud.set_enemy_action_stack([])
-					_set_focused_enemy(-1)
-			# Phase / round / battle-end events are state changes; no animation.
-			_:
-				pass
+	if _event_animator == null:
+		_event_animator = BattleEventAnimatorScript.new()
+	_event_animator.bind(self, diamond_board_view)
+	_event_animator.set_unit_snapshots(_event_unit_snapshots)
+	await _event_animator.play_events(events)
+	_event_unit_snapshots.clear()
 
 # ---------- per-event animations ----------
 
+func _update_boss_event_feedback(e: BattleEvent) -> void:
+	if hud == null or engine == null or engine.state == null:
+		return
+	var text := ""
+	if e.extra.get("boss_doom", false):
+		text = "Boss Doom +1：当前 %d / %d" % [
+			engine.state.doom_count,
+			engine.state.doom_count_max,
+		]
+	elif e.extra.get("boss_heart_doom_reduction", false):
+		text = "心脏钟压制生效：Boss Doom -1，当前 %d / %d" % [
+			engine.state.doom_count,
+			engine.state.doom_count_max,
+		]
+	elif e.extra.get("boss_heart_hit", false):
+		text = "心脏钟命中：%d / %d" % [
+			engine.state.heart_hits,
+			engine.state.heart_hit_cap,
+		]
+	elif e.extra.get("boss_anchor_destroyed", false):
+		text = "Boss 锚石破坏：剩余 %d / %d" % [
+			engine.state.boss_alive_anchor_count(),
+			engine.state.boss_anchor_positions.size(),
+		]
+	elif e.extra.get("boss_anchor", false):
+		text = "Boss 锚石受损：剩余 %d / %d" % [
+			engine.state.boss_alive_anchor_count(),
+			engine.state.boss_anchor_positions.size(),
+		]
+	if text == "":
+		return
+	hud.set_help(text)
+	hud.set_boss_status(engine.state)
+
 func _anim_unit_spawned(e: BattleEvent) -> void:
-	var u := engine.state.find_unit(e.unit_id)
-	if u == null or unit_views.has(u.id):
-		return
-	# Place at the SPAWN cell (e.to_pos), not u.position -- u.position may
-	# have already been mutated by a later move event in the same batch.
-	_spawn_unit_view(u, e.to_pos)
-	if not e.extra.get("from_rift", false):
-		return
-	var view: UnitView = unit_views.get(u.id)
-	if view == null:
-		return
-	# Rising-from-rift animation: fade in + scale up.
-	view.modulate.a = 0.0
-	view.scale = Vector2(0.5, 0.5)
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(view, "modulate:a", 1.0, 0.35)
-	tw.tween_property(view, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	await tw.finished
+	_refresh_diamond_board()
+	if e.extra.get("from_rift", false):
+		await get_tree().create_timer(0.12).timeout
 
-func _anim_unit_moved(e: BattleEvent) -> void:
-	var view: UnitView = unit_views.get(e.unit_id, null)
-	if view != null:
-		await view.move_to_cell(e.to_pos, 0.18)
-
-func _anim_unit_pushed(e: BattleEvent) -> void:
-	var view: UnitView = unit_views.get(e.unit_id, null)
-	if view != null:
-		await view.push_to_cell(e.to_pos, 0.30)
-
-func _anim_unit_damaged(e: BattleEvent) -> void:
-	## Impact flash + tiny shake so attacks feel weighty.
-	var u := engine.state.find_unit(e.unit_id)
-	var view: UnitView = unit_views.get(e.unit_id, null)
-	if view == null or u == null:
+func _capture_player_attack_context(action: BattleAction) -> void:
+	_pending_player_attack_context.clear()
+	if action.kind != BattleAction.Kind.ATTACK:
 		return
-	view.configure(u)  # redraw HP pips
-	var orig_color: Color = view.modulate
-	var orig_pos: Vector2 = view.position
-	view.modulate = Color(1.6, 0.8, 0.8)
-	create_tween().tween_property(view, "modulate", orig_color, 0.14)
-	var shake := create_tween()
-	shake.tween_property(view, "position", orig_pos + Vector2(3, 0), 0.04)
-	shake.tween_property(view, "position", orig_pos + Vector2(-3, 0), 0.04)
-	shake.tween_property(view, "position", orig_pos, 0.04)
+	if engine == null or engine.state == null:
+		return
+	var attacker := engine.state.find_unit(action.actor_id)
+	if attacker == null or not attacker.is_warden():
+		return
+	_pending_player_attack_context = _build_attack_fx_request(attacker, action.target_pos, true)
+
+func _capture_event_unit_snapshots() -> void:
+	_event_unit_snapshots.clear()
+	if engine == null or engine.state == null:
+		return
+	for unit in engine.state.units:
+		_event_unit_snapshots[unit.id] = unit.clone()
+
+func _play_pending_player_attack_fx(e: BattleEvent, events: Array = []) -> void:
+	if _pending_player_attack_context.is_empty():
+		return
+	var target_pos: Vector2i = _pending_player_attack_context.get("to_cell", Vector2i(-1, -1))
+	if _event_has_target_pos(e) and e.to_pos != target_pos:
+		return
+	var request := _pending_player_attack_context.duplicate(true)
+	await _play_attack_fx(request)
+	_pending_player_attack_context.clear()
+
+func _play_enemy_attack_fx(e: BattleEvent) -> void:
+	var attacker := engine.state.find_unit(e.unit_id) if engine != null and engine.state != null else null
+	if attacker == null:
+		attacker = _event_unit_snapshots.get(e.unit_id, null)
+	var request := _build_attack_fx_request(attacker, e.to_pos, false, e.unit_id, e.from_pos)
+	await _play_attack_fx(request)
+
+func _build_attack_fx_request(attacker: Unit, to_cell: Vector2i, is_player_attack: bool, fallback_id: int = -1, fallback_from_cell: Vector2i = DiamondBoardView.INVALID_CELL) -> Dictionary:
+	var from_cell := fallback_from_cell
+	var attacker_id := fallback_id
+	var attack_kind := UnitDef.AttackKind.MELEE_BUMP
+	if attacker != null:
+		if from_cell == DiamondBoardView.INVALID_CELL:
+			from_cell = attacker.position
+		if attacker_id < 0:
+			attacker_id = attacker.id
+		if attacker.def != null:
+			attack_kind = attacker.def.attack_kind
+	return {
+		"attacker_id": attacker_id,
+		"from_cell": from_cell,
+		"to_cell": to_cell,
+		"attack_kind": attack_kind,
+		"direction": Direction.from_cells(from_cell, to_cell),
+		"is_player_attack": is_player_attack,
+	}
+
+func _play_attack_fx(request: Dictionary) -> void:
+	if _attack_fx_presenter == null:
+		_attack_fx_presenter = AttackFxPresenterScript.new()
+	_attack_fx_presenter.bind(self, diamond_board_view)
+	await _attack_fx_presenter.play_attack(request)
+
+func _event_has_target_pos(e: BattleEvent) -> bool:
+	return e.type == BattleEvent.Type.UNIT_DAMAGED \
+		or e.type == BattleEvent.Type.UNIT_PUSHED \
+		or e.type == BattleEvent.Type.UNIT_FELL \
+		or e.type == BattleEvent.Type.TILE_DAMAGED \
+		or e.type == BattleEvent.Type.TILE_DESTROYED \
+		or e.type == BattleEvent.Type.BUMP_WALL \
+		or e.type == BattleEvent.Type.BUMP_UNIT
+
+func _event_is_attack_fx_trigger(e: BattleEvent) -> bool:
+	return e.type == BattleEvent.Type.UNIT_DAMAGED \
+		or e.type == BattleEvent.Type.UNIT_PUSHED \
+		or e.type == BattleEvent.Type.UNIT_FELL \
+		or e.type == BattleEvent.Type.TILE_DAMAGED \
+		or e.type == BattleEvent.Type.TILE_DESTROYED \
+		or e.type == BattleEvent.Type.BUMP_WALL \
+		or e.type == BattleEvent.Type.BUMP_UNIT
+
+func _event_starts_player_attack_fx(e: BattleEvent) -> bool:
+	if _pending_player_attack_context.is_empty() or not _event_is_attack_fx_trigger(e):
+		return false
+	var target_pos: Vector2i = _pending_player_attack_context.get("to_cell", Vector2i(-1, -1))
+	return _event_has_target_pos(e) and e.to_pos == target_pos
+
+func _anim_unit_moved(_e: BattleEvent) -> void:
+	_refresh_diamond_board()
+
+func _anim_unit_pushed(_e: BattleEvent) -> void:
+	_refresh_diamond_board()
+
+func _anim_unit_damaged(_e: BattleEvent) -> void:
+	_consume_presented_unit_damage(_e)
+	_refresh_live_damage_presentation()
 	await get_tree().create_timer(0.10).timeout
 
-func _anim_unit_died(e: BattleEvent) -> void:
-	var view: UnitView = unit_views.get(e.unit_id, null)
-	if view != null:
-		var tw := create_tween()
-		tw.tween_property(view, "modulate:a", 0.0, 0.18)
-		await tw.finished
+func _anim_unit_died(_e: BattleEvent) -> void:
+	_refresh_diamond_board()
+	await get_tree().create_timer(0.08).timeout
 
-func _anim_unit_removed(e: BattleEvent) -> void:
-	var view: UnitView = unit_views.get(e.unit_id, null)
-	if view != null:
-		view.queue_free()
-		unit_views.erase(e.unit_id)
+func _anim_unit_removed(_e: BattleEvent) -> void:
+	_refresh_diamond_board()
 
-func _anim_bump(e: BattleEvent) -> void:
-	## Quick vertical shake on the impacted unit.
-	var view: UnitView = unit_views.get(e.unit_id, null)
-	if view != null:
-		var orig: Vector2 = view.position
-		var shake := create_tween()
-		shake.tween_property(view, "position", orig + Vector2(0, -4), 0.04)
-		shake.tween_property(view, "position", orig, 0.06)
+func _anim_bump(_e: BattleEvent) -> void:
+	_refresh_diamond_board()
 	await get_tree().create_timer(0.08).timeout
 
 func _anim_enemy_attack_missed(e: BattleEvent) -> void:
@@ -670,47 +794,219 @@ func _anim_enemy_attack_missed(e: BattleEvent) -> void:
 	await get_tree().create_timer(0.16).timeout
 
 func _anim_tile_changed(_e: BattleEvent) -> void:
-	grid_view.queue_redraw()
+	_consume_presented_protected_damage(_e)
+	_refresh_live_damage_presentation()
 
 func _refresh_selection_highlights() -> void:
-	_sync_unit_view_action_states()
-	# Garrison phase: show deploy zone as the "move range" highlight.
+	_refresh_action_state_presentation()
 	if engine.state.phase == BattleState.Phase.GARRISON:
-		preview.set_move_range(engine.get_deploy_zone())
-		preview.set_attack_targets([])
+		_set_diamond_board_selection_ranges([], [])
 		return
 	if selected_warden_id == -1 or engine.state.phase != BattleState.Phase.PLAYER_ACTION:
-		preview.set_move_range([])
-		preview.set_attack_targets([])
+		_set_diamond_board_selection_ranges([], [])
 		return
 	# Range display depends on whether an ability is armed:
 	#   - "attack" armed: only attack targets (red).
 	#   - "move"   armed: only move cells (green).
 	#   - none    armed: both, so the player can click whatever they want.
+	var move_cells: Array[Vector2i] = []
+	var attack_cells: Array[Vector2i] = []
 	match _armed_ability_id:
 		"attack":
-			preview.set_move_range([])
-			preview.set_attack_targets(engine.get_legal_attack_targets(selected_warden_id))
+			attack_cells = engine.get_legal_attack_targets(selected_warden_id)
 		"move":
-			preview.set_move_range(engine.get_legal_moves(selected_warden_id))
-			preview.set_attack_targets([])
+			move_cells = engine.get_legal_moves(selected_warden_id)
 		_:
-			preview.set_move_range(engine.get_legal_moves(selected_warden_id))
-			preview.set_attack_targets(engine.get_legal_attack_targets(selected_warden_id))
+			move_cells = engine.get_legal_moves(selected_warden_id)
+			attack_cells = engine.get_legal_attack_targets(selected_warden_id)
+	_set_diamond_board_selection_ranges(move_cells, attack_cells)
 
-func _sync_unit_view_action_states() -> void:
-	for u in engine.state.units:
-		var v: UnitView = unit_views.get(u.id, null)
-		if v != null:
-			v.set_acted(u.has_acted, u.has_moved)
+func _refresh_action_state_presentation() -> void:
+	_refresh_diamond_board()
 	_refresh_persistent_hud()
 
 func _refresh_persistent_hud() -> void:
 	if hud == null or engine == null or engine.state == null:
 		return
+	hud.set_sanctuary(_effective_sanctuary_integrity(), _sanctuary_integrity_max)
 	hud.set_squad_status(engine.state.wardens(), selected_warden_id)
 	hud.set_reward_tasks(engine.state)
 	hud.set_battle_status_summary(engine.state)
+
+func _effective_sanctuary_integrity() -> int:
+	if engine == null or engine.state == null:
+		return _sanctuary_integrity
+	return maxi(0, _sanctuary_integrity - _presented_protected_damage_taken())
+
+func _presented_protected_damage_taken() -> int:
+	if engine == null or engine.state == null:
+		return 0
+	if _animating:
+		return maxi(0, _event_protected_damage_start + _event_protected_damage_pending)
+	return maxi(0, engine.state.protected_damage_taken)
+
+func _begin_event_damage_playback(events: Array) -> void:
+	if engine == null or engine.state == null:
+		_event_protected_damage_start = 0
+		_event_protected_damage_pending = 0
+		_event_tile_display_overrides.clear()
+		_event_unit_display_overrides.clear()
+		return
+	var batch_damage := _total_protected_damage_in_events(events)
+	_event_protected_damage_start = maxi(0, engine.state.protected_damage_taken - batch_damage)
+	_event_protected_damage_pending = 0
+	_event_tile_display_overrides = _initial_tile_display_overrides(events)
+	_event_unit_display_overrides = _initial_unit_display_overrides(events)
+	_apply_tile_display_overrides()
+	_apply_unit_display_overrides()
+
+func _end_event_damage_playback() -> void:
+	_event_protected_damage_start = 0
+	_event_protected_damage_pending = 0
+	_event_tile_display_overrides.clear()
+	_event_unit_display_overrides.clear()
+	if diamond_board_view != null:
+		diamond_board_view.clear_tile_display_overrides()
+		diamond_board_view.clear_unit_display_overrides()
+
+func _consume_presented_protected_damage(e: BattleEvent) -> void:
+	if e.type == BattleEvent.Type.TILE_DAMAGED:
+		_consume_tile_display_damage(e)
+		if engine != null and engine.state != null and engine.state.is_protected_target(e.to_pos):
+			_event_protected_damage_pending += maxi(0, e.amount)
+	elif e.type == BattleEvent.Type.TILE_DESTROYED:
+		_event_tile_display_overrides.erase(e.to_pos)
+	_apply_tile_display_overrides()
+
+func _consume_presented_unit_damage(e: BattleEvent) -> void:
+	if e.type != BattleEvent.Type.UNIT_DAMAGED:
+		return
+	if not _event_unit_display_overrides.has(e.unit_id):
+		return
+	var display: Dictionary = _event_unit_display_overrides.get(e.unit_id, {})
+	var hp := int(display.get("hp", 0)) - maxi(0, e.amount)
+	display["hp"] = hp
+	display["alive"] = hp > 0
+	_event_unit_display_overrides[e.unit_id] = display
+	_apply_unit_display_overrides()
+
+func _total_protected_damage_in_events(events: Array) -> int:
+	var total := 0
+	if engine == null or engine.state == null:
+		return total
+	for raw in events:
+		var e: BattleEvent = raw
+		if e.type == BattleEvent.Type.TILE_DAMAGED and engine.state.is_protected_target(e.to_pos):
+			total += maxi(0, e.amount)
+	return total
+
+func _initial_tile_display_overrides(events: Array) -> Dictionary:
+	var pending_by_pos: Dictionary = {}
+	if engine == null or engine.state == null:
+		return pending_by_pos
+	for raw in events:
+		var e: BattleEvent = raw
+		if e.type == BattleEvent.Type.TILE_DAMAGED and engine.state.is_protected_target(e.to_pos):
+			_add_preview_protected_damage(pending_by_pos, e.to_pos, maxi(0, e.amount))
+	var overrides: Dictionary = {}
+	for pos in pending_by_pos.keys():
+		var cell: Vector2i = pos
+		var final_tile := engine.state.grid.get_tile(cell)
+		var final_hp := int(engine.state.grid.tile_hp.get(cell, 0))
+		var display_hp := final_hp + int(pending_by_pos.get(cell, 0))
+		if display_hp <= 0:
+			continue
+		overrides[cell] = {
+			"tile": Grid.TileType.BUILDING,
+			"hp": display_hp,
+		}
+	return overrides
+
+func _initial_unit_display_overrides(events: Array) -> Dictionary:
+	var pending_by_unit: Dictionary = {}
+	if engine == null or engine.state == null:
+		return pending_by_unit
+	for raw in events:
+		var e: BattleEvent = raw
+		if e.type == BattleEvent.Type.UNIT_DAMAGED:
+			pending_by_unit[e.unit_id] = int(pending_by_unit.get(e.unit_id, 0)) + maxi(0, e.amount)
+	var overrides: Dictionary = {}
+	for unit_id in pending_by_unit.keys():
+		var unit := _unit_for_event_display(int(unit_id))
+		if unit == null:
+			continue
+		var final_hp := maxi(0, unit.hp)
+		var display_hp := final_hp + int(pending_by_unit.get(unit_id, 0))
+		overrides[int(unit_id)] = {
+			"hp": display_hp,
+			"alive": display_hp > 0,
+		}
+	return overrides
+
+func _unit_for_event_display(unit_id: int) -> Unit:
+	if engine != null and engine.state != null:
+		var unit := engine.state.find_unit(unit_id)
+		if unit != null:
+			return unit
+	return _event_unit_snapshots.get(unit_id, null)
+
+func _consume_tile_display_damage(e: BattleEvent) -> void:
+	if not _event_tile_display_overrides.has(e.to_pos):
+		return
+	var display: Dictionary = _event_tile_display_overrides.get(e.to_pos, {})
+	var hp := int(display.get("hp", 0)) - maxi(0, e.amount)
+	if hp > 0:
+		display["hp"] = hp
+		_event_tile_display_overrides[e.to_pos] = display
+	else:
+		_event_tile_display_overrides.erase(e.to_pos)
+
+func _apply_tile_display_overrides() -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_tile_display_overrides(_event_tile_display_overrides)
+
+func _apply_unit_display_overrides() -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_unit_display_overrides(_event_unit_display_overrides)
+
+func _refresh_live_damage_presentation() -> void:
+	_refresh_diamond_board()
+	if hud == null or engine == null or engine.state == null:
+		return
+	hud.set_sanctuary(_effective_sanctuary_integrity(), _sanctuary_integrity_max)
+	hud.set_squad_status(_display_wardens_for_live_damage(), selected_warden_id)
+
+func _display_wardens_for_live_damage() -> Array:
+	var wardens: Array = []
+	if engine == null or engine.state == null:
+		return wardens
+	var listed: Dictionary = {}
+	for unit_id in _event_unit_snapshots.keys():
+		var snapshot: Unit = _event_unit_snapshots.get(int(unit_id), null)
+		if snapshot == null or not snapshot.is_warden() or not snapshot.alive:
+			continue
+		var display: Dictionary = _event_unit_display_overrides.get(int(unit_id), {})
+		if int(display.get("hp", snapshot.hp)) <= 0:
+			continue
+		wardens.append(_display_unit_for_live_damage(snapshot))
+		listed[snapshot.id] = true
+	for unit in engine.state.wardens():
+		if listed.has(unit.id):
+			continue
+		wardens.append(_display_unit_for_live_damage(unit))
+		listed[unit.id] = true
+	return wardens
+
+func _display_unit_for_live_damage(unit: Unit) -> Unit:
+	if unit == null:
+		return Unit.new()
+	var display_unit := unit.clone()
+	var display: Dictionary = _event_unit_display_overrides.get(unit.id, {})
+	if display.has("hp"):
+		display_unit.hp = int(display.get("hp", display_unit.hp))
+	if display.has("alive"):
+		display_unit.alive = bool(display.get("alive", display_unit.alive))
+	return display_unit
 
 func _battle_outcome_reason(state: BattleState) -> String:
 	if state.outcome == BattleState.Outcome.VICTORY:
@@ -725,7 +1021,10 @@ func _battle_outcome_reason(state: BattleState) -> String:
 
 func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool = false) -> void:
 	if _suppress_enemy_intents_until_events_done and rows_override.is_empty():
-		preview.set_enemy_intents([])
+		_set_diamond_board_enemy_intents([])
+		if diamond_board_view != null:
+			diamond_board_view.set_preview_protected_damage({})
+		_set_sanctuary_preview_from_damage({})
 		hud.set_enemy_action_stack([])
 		return
 	var rows: Array = rows_override if not rows_override.is_empty() else engine.get_enemy_intent_ui_state()
@@ -733,7 +1032,11 @@ func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool
 	for row in rows:
 		if row.get("has_attack", false) or row.get("status", BattleEngine.INTENT_STATUS_NO_ATTACK) == BattleEngine.INTENT_STATUS_REMOVED:
 			attack_rows.append(row)
-	preview.set_enemy_intents(attack_rows, preview_mode)
+	_set_diamond_board_enemy_intents(attack_rows)
+	var intent_damage := _preview_protected_damage_from_intent_rows(attack_rows)
+	if diamond_board_view != null:
+		diamond_board_view.set_preview_protected_damage(intent_damage)
+	_set_sanctuary_preview_from_damage(intent_damage)
 	hud.set_enemy_action_stack(
 		rows,
 		preview_mode,
@@ -744,90 +1047,76 @@ func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool
 	var predicted: Array[Vector2i] = []
 	for entry in engine.state.pending_rift_spawns:
 		predicted.append(entry.pos)
-	preview.set_predicted_rifts(predicted)
-	# Refresh execution-order labels on each enemy view.
-	_refresh_enemy_order_labels(engine.enemy_execution_order())
+	_set_diamond_board_predicted_rifts(predicted)
+	_set_diamond_board_predicted_cracked_ground(engine.state.pending_cracked_ground)
+	_set_diamond_board_predicted_bell_wave(engine.state.pending_bell_wave)
+
+func _preview_protected_damage_from_events(events: Array) -> Dictionary:
+	var damage: Dictionary = {}
+	if engine == null or engine.state == null:
+		return damage
+	for raw in events:
+		var e: BattleEvent = raw
+		if e.type != BattleEvent.Type.TILE_DAMAGED:
+			continue
+		if not engine.state.is_protected_target(e.to_pos):
+			continue
+		_add_preview_protected_damage(damage, e.to_pos, e.amount)
+	return damage
+
+func _preview_protected_damage_from_intent_rows(rows: Array) -> Dictionary:
+	var damage: Dictionary = {}
+	var remaining_by_pos: Dictionary = {}
+	for row in rows:
+		if row.get("target_kind", "") != BattleEngine.TARGET_KIND_BUILDING:
+			continue
+		if row.get("status", "") != BattleEngine.INTENT_STATUS_HIT:
+			continue
+		if not bool(row.get("attack_fires", false)):
+			continue
+		var pos: Vector2i = row.get("target_pos", Vector2i(-1, -1))
+		if pos == Vector2i(-1, -1):
+			continue
+		if not remaining_by_pos.has(pos):
+			remaining_by_pos[pos] = maxi(0, int(row.get("target_hp", 0)))
+		var remaining := int(remaining_by_pos.get(pos, 0))
+		var amount := mini(remaining, maxi(0, int(row.get("target_damage", 0))))
+		if amount <= 0:
+			continue
+		remaining_by_pos[pos] = remaining - amount
+		_add_preview_protected_damage(damage, pos, amount)
+	return damage
+
+func _merge_preview_protected_damage(first: Dictionary, second: Dictionary) -> Dictionary:
+	var merged := first.duplicate(true)
+	for pos in second.keys():
+		_add_preview_protected_damage(merged, pos, int(second.get(pos, 0)))
+	return merged
+
+func _add_preview_protected_damage(damage: Dictionary, pos: Vector2i, amount: int) -> void:
+	if amount <= 0:
+		return
+	damage[pos] = int(damage.get(pos, 0)) + amount
+
+func _set_sanctuary_preview_from_damage(damage: Dictionary) -> void:
+	if hud == null:
+		return
+	var total := 0
+	for amount in damage.values():
+		total += maxi(0, int(amount))
+	hud.set_sanctuary_preview_loss(total)
 
 func _refresh_info_panel() -> void:
-	if _hover_cell == Vector2i(-1, -1):
-		_set_focused_enemy(-1)
-		_show_selected_unit_info_or_hide()
-		return
-	# Priority 1: a unit at the hovered cell.
-	var unit := engine.state.get_alive_unit_at(_hover_cell)
-	if unit != null:
-		_show_unit_info(unit)
-		if unit.is_enemy():
-			_set_focused_enemy(unit.id)
-		else:
-			_set_focused_enemy(-1)
-		return
-	# Priority 2: a tile feature.
-	var tile: int = engine.state.grid.get_tile(_hover_cell)
-	if tile == Grid.TileType.PILLAR:
-		if engine.state.is_boss_anchor(_hover_cell):
-			hud.show_info_panel(
-				"Boss 锚石",
-				"  · 阻挡寻路 / 阻挡推动\n  · 可被攻击或撞击\n  · HP: %d / %d\n  · 全毁后压制 Doom 增长" % [
-					int(engine.state.boss_anchor_hp.get(_hover_cell, 0)),
-					engine.state.boss_anchor_hp_max,
-				],
-			)
-			_set_focused_enemy(-1)
-			return
-		hud.show_info_panel("石柱", "  · 阻挡寻路 / 阻挡推动\n  · 可被攻击或撞击\n  · HP: 2 (后续阶段实装)")
-		_set_focused_enemy(-1)
-		return
-	if engine.state.is_boss_heart_attackable(_hover_cell):
-		hud.show_info_panel(
-			"心脏钟",
-			"  · 锚石全毁后暴露\n  · 命中: %d / %d\n  · 命中 1 次可压制第 6 回合 Doom" % [
-				engine.state.heart_hits,
-				engine.state.heart_hit_cap,
-			],
-		)
-		_set_focused_enemy(-1)
-		return
-	if tile == Grid.TileType.BUILDING:
-		var hp: int = engine.state.grid.tile_hp.get(_hover_cell, Grid.DEFAULT_BUILDING_HP)
-		var protected := "是" if engine.state.is_protected_target(_hover_cell) else "否"
-		hud.show_info_panel(
-			"建筑",
-			"  · 保护目标: %s\n  · HP: %d\n  · 所有保护目标被毁则失败" % [protected, hp],
-		)
-		_set_focused_enemy(-1)
-		return
-	if tile == Grid.TileType.RUIN:
-		hud.show_info_panel("废墟", "  · 建筑被毁后的残骸\n  · 可通行，不再提供保护")
-		_set_focused_enemy(-1)
-		return
-	if tile == Grid.TileType.RIFT:
-		var about_to_spawn: bool = false
-		for entry in engine.state.pending_rift_spawns:
-			if entry.pos == _hover_cell:
-				about_to_spawn = true
-				break
-		var body := "  · 敌人出生点\n  · 单位站上可延迟 1 回合（但受 1 伤）"
-		if about_to_spawn:
-			body = "  · ⚠ 下回合将冒出敌人\n" + body
-		hud.show_info_panel("地裂", body)
-		_set_focused_enemy(-1)
-		return
-	# Otherwise: empty cell. Hide the panel.
 	_set_focused_enemy(-1)
 	_show_selected_unit_info_or_hide()
 
 func _show_selected_unit_info_or_hide() -> void:
-	if selected_warden_id == -1:
-		hud.hide_info_panel()
-		return
-	var selected := engine.state.find_unit(selected_warden_id)
-	if selected == null or not selected.alive:
-		hud.hide_info_panel()
-		return
-	_show_unit_info(selected)
+	hud.hide_info_panel()
 
 func _show_unit_info(unit: Unit) -> void:
+	if unit.is_warden() and unit.id == selected_warden_id and _hover_cell == Vector2i(-1, -1):
+		hud.hide_info_panel()
+		return
 	## Default info panel: only HP / 移动 / 攻击范围.
 	## Debug-mode info panel: + 出手顺序、意图、伤害预算 等.
 	var faction_tag: String = "守卫者" if unit.is_warden() else "敌方"
@@ -918,8 +1207,6 @@ func _refresh_ability_bar() -> void:
 	var subtitle: String = ""
 	if _armed_ability_id == "attack":
 		subtitle = " ▸ 选择目标"
-	elif _armed_ability_id == "move":
-		subtitle = " ▸ 选择移动落点"
 	var warden_data := {
 		"name": "%s%s" % [warden.def.display_name, subtitle],
 		"hp": warden.hp,
@@ -929,58 +1216,66 @@ func _refresh_ability_bar() -> void:
 		"token": warden.def.token_texture,
 	}
 	var abilities: Array = []
-	abilities.append({
-		"id": "attack",
-		"name": "攻击",
-		"icon": "⚔",
-		"desc": _attack_kind_text(warden.def),
-		"active": not warden.has_acted,
-		"is_default": true,
-		"is_armed": _armed_ability_id == "attack",
-	})
-	abilities.append({
-		"id": "move",
-		"name": "移动",
-		"icon": "✣",
-		"desc": "%d 格" % warden.def.move,
-		"active": not warden.has_moved and not warden.has_acted,
-		"is_default": false,
-		"is_armed": _armed_ability_id == "move",
-	})
-	abilities.append({
-		"id": "relic",
-		"name": "遗物",
-		"icon": "✦",
-		"desc": "未装备",
-		"active": false,
-		"is_default": false,
-		"is_armed": false,
-	})
-	abilities.append({
-		"id": "wait",
-		"name": "待命",
-		"icon": "⌛",
-		"desc": "结束",
-		"active": true,
-		"is_default": false,
-		"is_armed": false,
-	})
+	var skill_defs := _warden_skill_slots(warden)
+	for i in range(skill_defs.size()):
+		var skill: Dictionary = skill_defs[i]
+		abilities.append({
+			"id": skill.get("id", ""),
+			"name": skill.get("name", "?"),
+			"icon": skill.get("icon", ""),
+			"desc": skill.get("desc", ""),
+			"active": bool(skill.get("active", false)),
+			"is_default": i == 0,
+			"is_armed": _armed_ability_id == skill.get("id", ""),
+		})
 	hud.show_ability_bar(warden_data, abilities)
 
-func _refresh_enemy_order_labels(order_ids: Array[int]) -> void:
-	# Clear badges first.
-	for u in engine.state.units:
-		var v: UnitView = unit_views.get(u.id, null)
-		if v != null:
-			v.set_order_badge(0)
-	# Assign 1-indexed badges to alive enemies in actionable order.
-	for i in range(order_ids.size()):
-		var v: UnitView = unit_views.get(order_ids[i], null)
-		if v != null:
-			v.set_order_badge(i + 1)
+func _warden_skill_slots(warden: Unit) -> Array:
+	var primary_desc := _attack_kind_text(warden.def)
+	var primary := {
+		"id": "attack",
+		"name": _primary_skill_name(warden),
+		"icon": "⚔",
+		"desc": primary_desc,
+		"active": not warden.has_acted,
+	}
+	match String(warden.def.def_id):
+		"warden_bountyhunter":
+			return [
+				primary,
+				{"id": "guard_shoulder", "name": "护卫肩撞", "icon": "⛨", "desc": "换位 · 护建筑", "active": false},
+				{"id": "bounty_execute", "name": "悬赏处决", "icon": "◆", "desc": "击杀收益", "active": false},
+			]
+		"warden_graverobber":
+			return [
+				primary,
+				{"id": "rift_wedge", "name": "裂隙楔", "icon": "▰", "desc": "延迟地裂", "active": false},
+				{"id": "backhand_throw", "name": "反手抛", "icon": "↶", "desc": "拉近侧推", "active": false},
+			]
+		"warden_mage":
+			return [
+				primary,
+				{"id": "ward_fire", "name": "护火", "icon": "✚", "desc": "修复建筑", "active": false},
+				{"id": "sigil", "name": "法阵", "icon": "◇", "desc": "区域减速", "active": false},
+			]
+	return [
+		primary,
+		{"id": "skill_2", "name": "技能 2", "icon": "◆", "desc": "未接入", "active": false},
+		{"id": "skill_3", "name": "技能 3", "icon": "◇", "desc": "未接入", "active": false},
+	]
+
+func _primary_skill_name(warden: Unit) -> String:
+	match String(warden.def.def_id):
+		"warden_bountyhunter":
+			return "链锤击"
+		"warden_graverobber":
+			return "倒钩索"
+		"warden_mage":
+			return "斥力弹"
+	return "攻击"
 
 func _refresh_hover_preview() -> void:
-	preview.clear_preview()
+	_clear_diamond_board_preview()
 	if selected_warden_id == -1 or _hover_cell == Vector2i(-1, -1):
 		_refresh_enemy_intent_overlay()
 		return
@@ -1000,6 +1295,10 @@ func _refresh_hover_preview() -> void:
 	var events := engine.preview_action(action)
 	var preview_rows := engine.preview_enemy_intent_ui_state(action)
 	_refresh_enemy_intent_overlay(preview_rows, true)
+	var protected_damage := _merge_preview_protected_damage(
+		_preview_protected_damage_from_events(events),
+		_preview_protected_damage_from_intent_rows(preview_rows)
+	)
 	# Build per-unit projection:
 	#   start_pos = position when the chain began
 	#   end_pos   = final landing cell (or original if never moved)
@@ -1044,7 +1343,7 @@ func _refresh_hover_preview() -> void:
 		var start_pos: Vector2i = start_positions.get(uid, u.position)
 		var fate: String = fates.get(uid, "")
 		if fate == "fell":
-			markers.append({"pos": end_pos, "kind": "fall"})
+			markers.append({"pos": start_pos, "kind": "fall"})
 		elif fate == "dead":
 			# Show skull at where the unit actually lands (or its current pos if no move).
 			markers.append({"pos": end_pos, "kind": "skull"})
@@ -1057,7 +1356,7 @@ func _refresh_hover_preview() -> void:
 		# Draw an arrow from start to end if the unit was displaced.
 		if end_pos != start_pos:
 			paths.append({"from": start_pos, "to": end_pos, "enemy": u.is_enemy()})
-	preview.set_preview_markers(markers, paths)
+	_set_diamond_board_preview_markers(markers, paths, protected_damage)
 
 # ---------- helpers exposed to children ----------
 
@@ -1076,14 +1375,17 @@ func deselect(refresh_now: bool = true) -> void:
 	if refresh_now:
 		_refresh_persistent_hud()
 		_refresh_selection_highlights()
-	preview.clear_preview()
+	_clear_diamond_board_preview()
 	hud.hide_ability_bar()
 	if refresh_now and not _defer_enemy_intent_refresh_until_events and not _animating:
 		_refresh_enemy_intent_overlay()
 
 func _full_rebuild() -> void:
-	grid_view.bind(engine.state.grid)
-	_rebuild_unit_views()
+	diamond_board_view.bind_state(engine.state)
+	if _event_animator != null:
+		_event_animator.bind(self, diamond_board_view)
+	if _attack_fx_presenter != null:
+		_attack_fx_presenter.bind(self, diamond_board_view)
 	deselect()
 	_on_state_changed()
 
@@ -1094,7 +1396,7 @@ func _set_focused_enemy(enemy_id: int) -> void:
 	if _focused_enemy_id == enemy_id:
 		return
 	_focused_enemy_id = enemy_id
-	preview.set_focused_enemy(enemy_id)
+	_set_diamond_board_focus(enemy_id)
 	hud.set_enemy_stack_focus(enemy_id)
 
 func _set_executing_enemy(enemy_id: int) -> void:
@@ -1117,4 +1419,6 @@ func _events_include_enemy_displacement(events: Array) -> bool:
 
 func _event_unit_is_enemy(e: BattleEvent) -> bool:
 	var u := engine.state.find_unit(e.unit_id)
+	if u == null:
+		u = _event_unit_snapshots.get(e.unit_id, null)
 	return u != null and u.is_enemy()

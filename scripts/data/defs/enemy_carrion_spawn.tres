@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="UnitDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1"]
-[ext_resource type="Texture2D" path="res://art/units/enemies/enemy_carrion_spawn_token.png" id="2_token"]
+[ext_resource type="Texture2D" path="res://art/atlases/battle/battle_units.enemy_carrion_spawn_token.tres" id="2_token"]
 
 [resource]
 script = ExtResource("1")

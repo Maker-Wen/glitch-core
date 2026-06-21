@@ -1,7 +1,7 @@
 # Demo Run 集成验收清单
 
-> 日期：2026-06-04  
-> 状态：A8 第一阶段验收骨架  
+> 日期：2026-06-15  
+> 状态：P0 自动化验收记录中  
 > 范围：1 章 6 节点 Demo Run，从主菜单进入新 Run 到 Boss 通关或 Run 失败。  
 > 关联管理计划：[demo_run_project_plan.md](demo_run_project_plan.md)
 
@@ -16,7 +16,7 @@
 
 - [ ] 从主菜单可以点击开始新 Run。
 - [ ] 新 Run 使用固定 3 名守卫者：赏金猎人、盗墓人、大魔法师。
-- [ ] 初始守护值为 7 / 7。
+- [ ] 初始守护值为 12 / 12。
 - [ ] 新 Run 后进入路线或节点预览，而不是直接跳过 Run 外壳进入单场战斗。
 - [ ] 放弃、失败或通关后可以回到主菜单或 Run 结果页，状态不会残留到下一次新 Run。
 
@@ -49,8 +49,8 @@
 - [ ] 普通战、精英战和 Boss 前普通战读取节点自身的地图、敌群、回合数和奖励任务配置。
 - [ ] 战斗开始时读取 Run 级守卫者 HP，而不是重置为满血。
 - [ ] 敌人全灭不会提前胜利，胜利只在最大回合结束后结算。
-- [ ] 保护目标被毁会在战斗结算中生成 `destroyed_protected_count` 或 `line_breached` 信息。
-- [ ] 战斗结束后写回守卫者 HP、守护值损失、奖励任务完成数和节点结算字段。
+- [ ] 保护目标受伤会在战斗结算中生成 `protected_damage_taken`，保护目标全毁会生成 `line_breached` 信息。
+- [ ] 战斗结束后按保护目标总受伤点数写回守护值损失，并写回守卫者 HP、奖励任务完成数和节点结算字段。
 
 ## 7. 奖励与 `pending_reward`
 
@@ -71,8 +71,8 @@
 
 ## 9. 失败与通关
 
-- [ ] 防线溃败时守护值扣 3；若守护值仍大于 0，Run 可继续。
-- [ ] 非溃败保护目标损失按被毁数量扣守护值，且单场最多扣 3。
+- [ ] 防线溃败不额外追加固定守护值损失；只按保护目标累计受伤扣减，若守护值仍大于 0，Run 可继续。
+- [ ] 非溃败保护目标损失按受伤点数扣守护值，且单场不封顶。
 - [ ] 守护值归 0 时进入 Run 失败。
 - [ ] 所有守卫者死亡时进入 Run 失败。
 - [ ] Run 失败清空未领取的 `pending_reward`，避免失败后领奖。
@@ -87,7 +87,7 @@
 
 ## 11. 自动化回归
 
-- [ ] 运行 Godot 测试：
+- [x] 运行 Godot 测试：
 
 ```bash
 /Applications/Godot_mono.app/Contents/MacOS/Godot --headless --path . -s scripts/tests/test_runner.gd
@@ -99,10 +99,24 @@
 godot --headless --path . -s scripts/tests/test_runner.gd
 ```
 
-- [ ] 运行 Markdown 校验：
+- [x] 运行 Markdown 校验：
 
 ```bash
 python3 /Users/happyelements/.config/opencode/skills/markdown/scripts/verify_markdown.py docs/management/demo_run_acceptance_checklist.md docs/management/demo_run_project_plan.md
 ```
 
 - [ ] 若测试失败，先确认是否由本轮 A8 测试或清单引入；非 A8 范围失败只记录，不修改其他 worker 的实现。
+
+### 11.1 2026-06-15 自动化验收记录
+
+| 项 | 记录 |
+|---|---|
+| 工作树基线 | 验收前工作树已有大量未提交改动，本轮只记录结果，不回滚非收尾改动 |
+| Godot 测试命令 | `/Applications/Godot_mono.app/Contents/MacOS/Godot --headless --path . -s scripts/tests/test_runner.gd` |
+| Godot 测试结果 | PASS，`Passes: 859   Failures: 0` |
+| Godot 观察项 | 退出时出现 CanvasItem RID、ObjectDB 和 resource still in use 泄漏警告；本次归类为非阻断观察项，后续如做发布包需单独排查 |
+| Markdown 全量命令 | `python3 /Users/happyelements/.config/opencode/skills/markdown/scripts/verify_markdown.py docs/management/demo_run_closeout_plan.md docs/management/demo_run_acceptance_checklist.md docs/management/demo_run_project_plan.md` |
+| Markdown 全量结果 | FAIL，`docs/management/demo_run_project_plan.md` 第 205 行 Mermaid verification timed out |
+| Markdown 收尾子集命令 | `python3 /Users/happyelements/.config/opencode/skills/markdown/scripts/verify_markdown.py docs/management/demo_run_closeout_plan.md docs/management/demo_run_acceptance_checklist.md` |
+| Markdown 收尾子集结果 | PASS，2 个文件 CJK emphasis issues 0、Mermaid errors 0 |
+| 范围分类 | Godot 回归通过；Markdown 全量失败来自既有项目计划 Mermaid 校验超时，不阻断本收尾记录，但需要后续单独处理或在发布前复验 |

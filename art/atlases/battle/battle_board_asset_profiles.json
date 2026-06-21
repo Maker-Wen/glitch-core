@@ -1,0 +1,179 @@
+{
+	"version": 2,
+	"profiles": {
+		"board_building_body": {
+			"id": "board_building_body",
+			"kind": "prop_body",
+			"profile_resource": "res://art/tiles/profiles/board_building_body_profile.tres",
+			"source": "res://art/tiles/board_building_body_v2.png",
+			"texture": "res://art/atlases/battle/battle_props.board_building_body.tres",
+			"alpha_bbox": {
+				"x": 223.0,
+				"y": 11.0,
+				"w": 571.0,
+				"h": 994.0
+			},
+			"crop": {
+				"x": 223.0,
+				"y": 11.0,
+				"w": 571.0,
+				"h": 994.0
+			},
+			"anchor_px": {
+				"x": 508.5,
+				"y": 1005.0
+			},
+			"target_height": 100.0,
+			"foot_offset": {
+				"x": 0.0,
+				"y": 10.0
+			},
+			"hp_offset": {
+				"x": -22.0,
+				"y": -23.0
+			},
+			"footprint_scale": 0.78,
+			"foundation_scale": {
+				"x": 0.720000028610229,
+				"y": 0.360000014305115
+			},
+			"foundation_offset": {
+				"x": 0.0,
+				"y": 1.0
+			},
+			"floor_occlusion_strength": 0.26,
+			"contact_shadow_strength": 0.56,
+			"sort_bias": 0.0,
+			"max_draw_width": 64.0,
+			"tint": {
+				"r": 0.959999978542328,
+				"g": 0.970000028610229,
+				"b": 0.920000016689301,
+				"a": 0.959999978542328
+			},
+			"issues": [],
+			"atlas_region": {
+				"x": 0.0,
+				"y": 3084.0,
+				"w": 1024.0,
+				"h": 1024.0
+			}
+		},
+		"board_pillar_body": {
+			"id": "board_pillar_body",
+			"kind": "prop_body",
+			"profile_resource": "res://art/tiles/profiles/board_pillar_body_profile.tres",
+			"source": "res://art/tiles/board_pillar_body_v2.png",
+			"texture": "res://art/atlases/battle/battle_props.board_pillar_body.tres",
+			"alpha_bbox": {
+				"x": 100.0,
+				"y": 188.0,
+				"w": 824.0,
+				"h": 651.0
+			},
+			"crop": {
+				"x": 100.0,
+				"y": 188.0,
+				"w": 824.0,
+				"h": 651.0
+			},
+			"anchor_px": {
+				"x": 512.0,
+				"y": 839.0
+			},
+			"target_height": 54.0,
+			"foot_offset": {
+				"x": 0.0,
+				"y": 10.0
+			},
+			"hp_offset": {
+				"x": -22.0,
+				"y": -23.0
+			},
+			"footprint_scale": 0.68,
+			"foundation_scale": {
+				"x": 0.680000007152557,
+				"y": 0.280000001192093
+			},
+			"foundation_offset": {
+				"x": 0.0,
+				"y": 1.0
+			},
+			"floor_occlusion_strength": 0.18,
+			"contact_shadow_strength": 0.38,
+			"sort_bias": -2.0,
+			"max_draw_width": 70.0,
+			"tint": {
+				"r": 0.779999971389771,
+				"g": 0.819999992847443,
+				"b": 0.759999990463257,
+				"a": 0.939999997615814
+			},
+			"issues": [],
+			"atlas_region": {
+				"x": 1028.0,
+				"y": 3084.0,
+				"w": 1024.0,
+				"h": 1024.0
+			}
+		},
+		"board_ruin_body": {
+			"id": "board_ruin_body",
+			"kind": "prop_body",
+			"profile_resource": "res://art/tiles/profiles/board_ruin_body_profile.tres",
+			"source": "res://art/tiles/board_ruin_body_v2.png",
+			"texture": "res://art/atlases/battle/battle_props.board_ruin_body.tres",
+			"alpha_bbox": {
+				"x": 104.0,
+				"y": 142.0,
+				"w": 826.0,
+				"h": 786.0
+			},
+			"crop": {
+				"x": 104.0,
+				"y": 142.0,
+				"w": 826.0,
+				"h": 786.0
+			},
+			"anchor_px": {
+				"x": 517.0,
+				"y": 928.0
+			},
+			"target_height": 58.0,
+			"foot_offset": {
+				"x": 0.0,
+				"y": 10.0
+			},
+			"hp_offset": {
+				"x": -22.0,
+				"y": -23.0
+			},
+			"footprint_scale": 0.7,
+			"foundation_scale": {
+				"x": 0.740000009536743,
+				"y": 0.300000011920929
+			},
+			"foundation_offset": {
+				"x": 0.0,
+				"y": 1.0
+			},
+			"floor_occlusion_strength": 0.22,
+			"contact_shadow_strength": 0.42,
+			"sort_bias": -2.0,
+			"max_draw_width": 66.0,
+			"tint": {
+				"r": 0.959999978542328,
+				"g": 0.970000028610229,
+				"b": 0.920000016689301,
+				"a": 0.899999976158142
+			},
+			"issues": [],
+			"atlas_region": {
+				"x": 2056.0,
+				"y": 3084.0,
+				"w": 1024.0,
+				"h": 1024.0
+			}
+		}
+	}
+}

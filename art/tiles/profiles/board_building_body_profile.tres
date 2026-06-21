@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="BattleBoardPropProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/battle_board_prop_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"board_building_body"
+source = "res://art/tiles/board_building_body_v2.png"
+texture = "res://art/atlases/battle/battle_props.board_building_body.tres"
+body_crop = Rect2(223, 11, 571, 994)
+body_anchor_px = Vector2(508.5, 1005)
+board_foot_offset = Vector2(0, 10)
+hp_offset = Vector2(-22, -23)
+target_height = 100.0
+max_draw_width = 64.0
+footprint_scale = 0.78
+foundation_scale = Vector2(0.72, 0.36)
+foundation_offset = Vector2(0, 1)
+floor_occlusion_strength = 0.26
+contact_shadow_strength = 0.56
+sort_bias = 0.0
+tint = Color(0.96, 0.97, 0.92, 0.96)
+min_edge_margin = 4
+min_horizontal_margin = 64
+max_alpha_width_ratio = 0.84

@@ -1,0 +1,344 @@
+{
+	"battle_units": {
+		"texture": "res://art/atlases/battle/battle_units.png",
+		"cell_size": {
+			"x": 1024,
+			"y": 1024
+		},
+		"padding": 4,
+		"items": {
+			"warden_bountyhunter_token": {
+				"id": "warden_bountyhunter_token",
+				"source": "res://art/units/wardens/warden_bountyhunter_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.warden_bountyhunter_token.tres",
+				"region": {
+					"x": 0,
+					"y": 0,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"warden_graverobber_token": {
+				"id": "warden_graverobber_token",
+				"source": "res://art/units/wardens/warden_graverobber_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.warden_graverobber_token.tres",
+				"region": {
+					"x": 1028,
+					"y": 0,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"warden_mage_token": {
+				"id": "warden_mage_token",
+				"source": "res://art/units/wardens/warden_mage_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.warden_mage_token.tres",
+				"region": {
+					"x": 2056,
+					"y": 0,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_carrion_spawn_token": {
+				"id": "enemy_carrion_spawn_token",
+				"source": "res://art/units/enemies/enemy_carrion_spawn_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_carrion_spawn_token.tres",
+				"region": {
+					"x": 0,
+					"y": 1028,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_plague_archer_token": {
+				"id": "enemy_plague_archer_token",
+				"source": "res://art/units/enemies/enemy_plague_archer_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_plague_archer_token.tres",
+				"region": {
+					"x": 1028,
+					"y": 1028,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"warden_bountyhunter_body": {
+				"id": "warden_bountyhunter_body",
+				"source": "res://art/units/board_body/wardens/warden_bountyhunter_body.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.warden_bountyhunter_body.tres",
+				"region": {
+					"x": 2056,
+					"y": 1028,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"warden_graverobber_body": {
+				"id": "warden_graverobber_body",
+				"source": "res://art/units/board_body/wardens/warden_graverobber_body.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.warden_graverobber_body.tres",
+				"region": {
+					"x": 0,
+					"y": 2056,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"warden_mage_body": {
+				"id": "warden_mage_body",
+				"source": "res://art/units/board_body/wardens/warden_mage_body.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.warden_mage_body.tres",
+				"region": {
+					"x": 1028,
+					"y": 2056,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_carrion_spawn_body": {
+				"id": "enemy_carrion_spawn_body",
+				"source": "res://art/units/board_body/enemies/enemy_carrion_spawn_body.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_carrion_spawn_body.tres",
+				"region": {
+					"x": 2056,
+					"y": 2056,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_plague_archer_body": {
+				"id": "enemy_plague_archer_body",
+				"source": "res://art/units/board_body/enemies/enemy_plague_archer_body.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_plague_archer_body.tres",
+				"region": {
+					"x": 0,
+					"y": 3084,
+					"w": 1024,
+					"h": 1024
+				}
+			}
+		}
+	},
+	"battle_props": {
+		"texture": "res://art/atlases/battle/battle_props.png",
+		"cell_size": {
+			"x": 1024,
+			"y": 1024
+		},
+		"padding": 4,
+		"items": {
+			"board_floor_tile": {
+				"id": "board_floor_tile",
+				"source": "res://art/tiles/board_floor_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_floor_tile.tres",
+				"region": {
+					"x": 0,
+					"y": 0,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_deploy_floor_tile": {
+				"id": "board_deploy_floor_tile",
+				"source": "res://art/tiles/board_deploy_floor_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_deploy_floor_tile.tres",
+				"region": {
+					"x": 1028,
+					"y": 0,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_rift_floor_tile": {
+				"id": "board_rift_floor_tile",
+				"source": "res://art/tiles/board_rift_floor_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_rift_floor_tile.tres",
+				"region": {
+					"x": 2056,
+					"y": 0,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_base_tile": {
+				"id": "board_base_tile",
+				"source": "res://art/tiles/board_base_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_base_tile.tres",
+				"region": {
+					"x": 0,
+					"y": 1028,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_deploy_tile": {
+				"id": "board_deploy_tile",
+				"source": "res://art/tiles/board_deploy_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_deploy_tile.tres",
+				"region": {
+					"x": 1028,
+					"y": 1028,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_building_tile": {
+				"id": "board_building_tile",
+				"source": "res://art/tiles/board_building_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_building_tile.tres",
+				"region": {
+					"x": 2056,
+					"y": 1028,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_pillar_tile": {
+				"id": "board_pillar_tile",
+				"source": "res://art/tiles/board_pillar_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_pillar_tile.tres",
+				"region": {
+					"x": 0,
+					"y": 2056,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_rift_tile": {
+				"id": "board_rift_tile",
+				"source": "res://art/tiles/board_rift_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_rift_tile.tres",
+				"region": {
+					"x": 1028,
+					"y": 2056,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_ruin_tile": {
+				"id": "board_ruin_tile",
+				"source": "res://art/tiles/board_ruin_tile.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_ruin_tile.tres",
+				"region": {
+					"x": 2056,
+					"y": 2056,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_building_body": {
+				"id": "board_building_body",
+				"source": "res://art/tiles/board_building_body_v2.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_building_body.tres",
+				"region": {
+					"x": 0,
+					"y": 3084,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_pillar_body": {
+				"id": "board_pillar_body",
+				"source": "res://art/tiles/board_pillar_body_v2.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_pillar_body.tres",
+				"region": {
+					"x": 1028,
+					"y": 3084,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"board_ruin_body": {
+				"id": "board_ruin_body",
+				"source": "res://art/tiles/board_ruin_body_v2.png",
+				"atlas": "res://art/atlases/battle/battle_props.png",
+				"texture": "res://art/atlases/battle/battle_props.board_ruin_body.tres",
+				"region": {
+					"x": 2056,
+					"y": 3084,
+					"w": 1024,
+					"h": 1024
+				}
+			}
+		}
+	},
+	"battle_ui": {
+		"texture": "res://art/atlases/battle/battle_ui.png",
+		"cell_size": {
+			"x": 64,
+			"y": 64
+		},
+		"padding": 4,
+		"items": {
+			"attack_icon": {
+				"id": "attack_icon",
+				"source": "res://art/ui/battle_hud/icons/attack_icon_gpt-image-2.png",
+				"atlas": "res://art/atlases/battle/battle_ui.png",
+				"texture": "res://art/atlases/battle/battle_ui.attack_icon.tres",
+				"region": {
+					"x": 0,
+					"y": 0,
+					"w": 64,
+					"h": 64
+				}
+			},
+			"move_icon": {
+				"id": "move_icon",
+				"source": "res://art/ui/battle_hud/icons/move_icon_gpt-image-2.png",
+				"atlas": "res://art/atlases/battle/battle_ui.png",
+				"texture": "res://art/atlases/battle/battle_ui.move_icon.tres",
+				"region": {
+					"x": 68,
+					"y": 0,
+					"w": 64,
+					"h": 64
+				}
+			},
+			"relic_icon": {
+				"id": "relic_icon",
+				"source": "res://art/ui/battle_hud/icons/relic_icon_gpt-image-2.png",
+				"atlas": "res://art/atlases/battle/battle_ui.png",
+				"texture": "res://art/atlases/battle/battle_ui.relic_icon.tres",
+				"region": {
+					"x": 136,
+					"y": 0,
+					"w": 64,
+					"h": 64
+				}
+			},
+			"wait_icon": {
+				"id": "wait_icon",
+				"source": "res://art/ui/battle_hud/icons/wait_icon_gpt-image-2.png",
+				"atlas": "res://art/atlases/battle/battle_ui.png",
+				"texture": "res://art/atlases/battle/battle_ui.wait_icon.tres",
+				"region": {
+					"x": 204,
+					"y": 0,
+					"w": 64,
+					"h": 64
+				}
+			}
+		}
+	}
+}

@@ -17,6 +17,8 @@ static func _add(s: BattleState, faction: int, hp: int, move_v: int, pos: Vector
 static func run(tr) -> void:
 	_test_carrion_moves_toward_nearest_warden(tr)
 	_test_carrion_attacks_when_adjacent(tr)
+	_test_carrion_prefers_exposed_low_hp_warden_over_distant_building(tr)
+	_test_carrion_prefers_close_building_over_full_hp_warden(tr)
 
 static func _test_carrion_moves_toward_nearest_warden(tr) -> void:
 	var s := BattleState.new()
@@ -36,3 +38,28 @@ static func _test_carrion_attacks_when_adjacent(tr) -> void:
 	var plans := AIDecider.plan_enemy_turn(s)
 	var plan = plans[carrion.id]
 	tr.assert_eq("attacks warden at (3,4)", plan.attack_pos, Vector2i(3, 4))
+
+static func _test_carrion_prefers_exposed_low_hp_warden_over_distant_building(tr) -> void:
+	var s := BattleState.new()
+	var building := Vector2i(7, 7)
+	s.grid.set_tile(building, Grid.TileType.BUILDING, 2)
+	s.protected_targets = [building]
+	s.capture_protected_initial_hp()
+	var carrion := _add(s, UnitDef.Faction.ENEMY, 2, 2, Vector2i(3, 4))
+	var warden := _add(s, UnitDef.Faction.WARDEN, 2, 2, Vector2i(3, 5))
+	warden.hp = 1
+	var plans := AIDecider.plan_enemy_turn(s)
+	var plan = plans[carrion.id]
+	tr.assert_eq("carrion pressures exposed low-hp warden", plan.attack_pos, warden.position)
+
+static func _test_carrion_prefers_close_building_over_full_hp_warden(tr) -> void:
+	var s := BattleState.new()
+	var building := Vector2i(3, 5)
+	s.grid.set_tile(building, Grid.TileType.BUILDING, 2)
+	s.protected_targets = [building]
+	s.capture_protected_initial_hp()
+	var carrion := _add(s, UnitDef.Faction.ENEMY, 2, 2, Vector2i(3, 4))
+	_add(s, UnitDef.Faction.WARDEN, 3, 2, Vector2i(4, 4))
+	var plans := AIDecider.plan_enemy_turn(s)
+	var plan = plans[carrion.id]
+	tr.assert_eq("carrion keeps close building pressure", plan.attack_pos, building)

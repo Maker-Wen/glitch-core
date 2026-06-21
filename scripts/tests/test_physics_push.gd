@@ -18,6 +18,7 @@ static func _add_unit(s: BattleState, faction: int, hp: int, pos: Vector2i) -> U
 static func run(tr) -> void:
 	_test_push_slide(tr)
 	_test_push_off_board_fell(tr)
+	_test_push_off_abyss_edge_marks_event(tr)
 	_test_push_into_pillar_wall_bump(tr)
 	_test_zero_force_just_damage(tr)
 
@@ -38,6 +39,18 @@ static func _test_push_off_board_fell(tr) -> void:
 	# Push east 1 -> off board -> fell
 	PhysicsResolver.resolve_attack(s, attacker, target, Vector2i(1, 0), 1, 1)
 	tr.assert_eq("target removed from board after fall", s.find_unit(target.id), null)
+
+static func _test_push_off_abyss_edge_marks_event(tr) -> void:
+	var s := _make_state()
+	s.abyss_edges[Vector2i(7, 4)] = {Vector2i(1, 0): true}
+	var attacker := _add_unit(s, UnitDef.Faction.WARDEN, 2, Vector2i(6, 4))
+	var target := _add_unit(s, UnitDef.Faction.ENEMY, 2, Vector2i(7, 4))
+	var events := PhysicsResolver.resolve_attack(s, attacker, target, Vector2i(1, 0), 1, 1)
+	var marked := false
+	for e in events:
+		if e.type == BattleEvent.Type.UNIT_FELL and bool(e.extra.get("abyss_edge", false)):
+			marked = true
+	tr.assert_true("abyss edge fall marks event", marked)
 
 static func _test_push_into_pillar_wall_bump(tr) -> void:
 	var s := _make_state()

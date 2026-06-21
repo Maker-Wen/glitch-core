@@ -59,6 +59,17 @@ static func resolve_move(
 	events.append(e)
 	return events
 
+static func resolve_environment_damage(
+	state: BattleState,
+	unit: Unit,
+	damage: int,
+	cause: StringName,
+) -> Array[BattleEvent]:
+	var events: Array[BattleEvent] = []
+	_apply_damage(state, unit, damage, events, cause)
+	_finalize(state, events)
+	return events
+
 # ------------- internal -------------
 
 static func _apply_damage(
@@ -79,7 +90,9 @@ static func _apply_damage(
 	if u.hp <= 0:
 		u.alive = false
 		if u.is_enemy():
-			state.record_enemy_kill(cause)
+			state.record_enemy_kill(cause, u.def.def_id if u.def != null else &"")
+		elif u.is_warden():
+			state.record_warden_death()
 		var ek := BattleEvent.make(BattleEvent.Type.UNIT_DIED)
 		ek.unit_id = u.id
 		ek.to_pos = u.position
@@ -97,7 +110,7 @@ static func _advance_push(
 	events: Array[BattleEvent],
 	attacker: Unit,
 ) -> void:
-	var remaining := force
+	var remaining := _adjust_force_for_subject(subject, direction, force)
 	while remaining > 0:
 		var from := subject.position
 		var to: Vector2i = from + direction
@@ -106,11 +119,15 @@ static func _advance_push(
 			var was_alive := subject.alive
 			subject.alive = false
 			if was_alive and subject.is_enemy():
-				state.record_enemy_kill(&"fall")
+				state.record_enemy_kill(&"fall", subject.def.def_id if subject.def != null else &"")
+			elif was_alive and subject.is_warden():
+				state.record_warden_death()
 			var ef := BattleEvent.make(BattleEvent.Type.UNIT_FELL)
 			ef.unit_id = subject.id
 			ef.from_pos = from
 			ef.to_pos = to
+			if state.is_abyss_edge(from, direction):
+				ef.extra = {"abyss_edge": true}
 			events.append(ef)
 			# Also emit UNIT_DIED if not already dead
 			# (for hp>0 units pushed off board)
@@ -186,6 +203,20 @@ static func _advance_push(
 				# transferred == 0: U takes 1 dmg in place, subject stops short.
 				pass
 			return
+		if state.is_boss_heart_attackable(to):
+			_apply_damage(state, subject, 1, events, &"wall")
+			state.record_boss_heart_hit(1)
+			var heart_event := BattleEvent.make(BattleEvent.Type.TILE_DAMAGED)
+			heart_event.to_pos = to
+			heart_event.amount = 1
+			heart_event.extra = {"boss_heart_hit": true, "from_push": true}
+			events.append(heart_event)
+			var heart_bump := BattleEvent.make(BattleEvent.Type.BUMP_WALL)
+			heart_bump.unit_id = subject.id
+			heart_bump.from_pos = from
+			heart_bump.to_pos = to
+			events.append(heart_bump)
+			return
 		# 4) Empty -> slide
 		subject.position = to
 		var ep2 := BattleEvent.make(BattleEvent.Type.UNIT_PUSHED)
@@ -202,27 +233,40 @@ static func _finalize(state: BattleState, events: Array[BattleEvent]) -> void:
 		er.unit_id = uid
 		events.append(er)
 
+static func _adjust_force_for_subject(subject: Unit, _direction: Vector2i, force: int) -> int:
+	if subject != null and subject.def != null and subject.def.def_id == BattleState.DEF_SHELL_BEETLE:
+		return maxi(0, force - 1)
+	return force
+
 static func _damage_tile(
 	state: BattleState,
 	pos: Vector2i,
 	amount: int,
 	events: Array[BattleEvent],
 ) -> void:
+	var final_amount := amount
+	if state.consume_protected_crack(pos):
+		final_amount += 1
 	var result := state.damage_boss_anchor(pos, amount) \
 		if state.is_boss_anchor_alive(pos) \
-		else state.grid.damage_tile(pos, amount)
+		else state.grid.damage_tile(pos, final_amount)
+	var was_boss_anchor := state.is_boss_anchor(pos)
 	var damaged: int = result.get("damaged", 0)
 	if damaged <= 0:
 		return
 	var ed := BattleEvent.make(BattleEvent.Type.TILE_DAMAGED)
 	ed.to_pos = pos
 	ed.amount = damaged
+	if was_boss_anchor:
+		ed.extra = {"boss_anchor": true}
 	events.append(ed)
 	var destroyed: bool = result.get("destroyed", false)
-	if not state.is_boss_anchor(pos):
+	if not was_boss_anchor:
 		state.record_protected_tile_damage(pos, damaged, destroyed)
 	if destroyed:
 		var ex := BattleEvent.make(BattleEvent.Type.TILE_DESTROYED)
 		ex.to_pos = pos
 		ex.amount = result.get("tile", Grid.TileType.EMPTY)
+		if was_boss_anchor:
+			ex.extra = {"boss_anchor_destroyed": true}
 		events.append(ex)

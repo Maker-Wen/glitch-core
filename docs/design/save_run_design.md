@@ -107,7 +107,7 @@ save:
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `sanctuary_integrity` | int | 当前守护值 |
-| `sanctuary_integrity_max` | int | Demo 默认 7 |
+| `sanctuary_integrity_max` | int | Demo 默认 12 |
 | `embers` | int | 当前余烬 |
 | `corruption` | int | 当前腐化 |
 | `chapter_guardian_reward_used` | bool | 本章奖励任务修复守护值是否已使用 |
@@ -326,8 +326,8 @@ run:
   chapter_index: 1
   chapter_node_index: 0
   current_node_id: ""
-  sanctuary_integrity: 7
-  sanctuary_integrity_max: 7
+  sanctuary_integrity: 12
+  sanctuary_integrity_max: 12
   embers: 0
   corruption: 0
   wardens:

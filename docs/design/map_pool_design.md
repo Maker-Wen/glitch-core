@@ -56,10 +56,10 @@
 | map_id | 显示名 | 适用节点 | 回合 | 裂隙强度 | 压力标签 | 用途 |
 |---|---|---|---:|---:|---|---|
 | `map_demo_broken_wall_outpost` | 断墙前哨 | 第 1 节点普通战 | 5 | 0 | 基础防守、远程线压 | Demo 首战 |
-| `map_demo_rift_courtyard` | 裂缝庭院 | 第 3 节点普通战 | 5 | 1 | 基础防守、裂隙压力、远程线压 | Demo 第二场普通战 |
-| `map_demo_ironhorn_gate` | 铁角闸门 | 第 4 节点精英战 | 5 | 1 | 精英冲撞、堵路拥挤、裂隙压力 | Demo 精英战 |
-| `map_demo_outer_bell_ring` | 钟楼外环 | 第 6 节点 Boss | 6 | 2 | Boss 脚本、裂隙压力 | Demo Boss |
-| `map_demo_pillar_graveyard` | 石柱墓园 | 候补普通 / 精英战 | 5 | 1-2 | 堵路拥挤、裂隙压力 | 调试推撞和石柱 |
+| `map_demo_rift_courtyard` | 裂缝庭院 | 第 2 层普通战 | 5 | 1 | 基础防守、裂隙压力、远程线压 | Demo 分支普通战 |
+| `map_demo_pillar_graveyard` | 石柱墓园 | 第 3 层普通战 | 5 | 1 | 堵路拥挤、裂隙压力、推撞连锁 | Demo 高收益普通战 |
+| `map_demo_ironhorn_gate` | 铁角闸门 | 第 4 层精英战 | 5 | 1 | 精英冲撞、堵路拥挤、裂隙压力 | Demo 精英战 |
+| `map_demo_outer_bell_ring` | 钟楼外环 | 第 6 层 Boss | 6 | 2 | Boss 脚本、裂隙压力 | Demo Boss |
 | `map_demo_broken_bridge_edge` | 断桥边缘 | 候补普通 / 精英战 | 5 | 1 | 深渊边缘、精英冲撞 | 调试坠渊和边缘推位 |
 
 ## 4. 固定路线地图
@@ -271,16 +271,16 @@
 - 如果心脏钟暴露，`h_heart_bell` 可被合法攻击或被推撞命中，但不能触发提前胜利。
 - 总敌人 13 个，符合 Boss 战预算。
 
-## 5. 候补地图
+## 5. 扩展地图
 
 ### 5.1 石柱墓园
 
 | 项 | 配置 |
 |---|---|
 | map_id | `map_demo_pillar_graveyard` |
-| 适用节点 | 候补普通战、候补精英战 |
+| 适用节点 | `pillar_graveyard_03`；第 1 章第 3 层普通战 |
 | max_rounds | 5 |
-| rift_strength | 普通战 1；精英战 2 |
+| rift_strength | 1 |
 | 保护目标 | 3 个普通建筑 |
 | 地图题型 | 石柱墓园 + 推撞连锁 |
 
@@ -416,7 +416,7 @@
 | `target_type` | `normal_building`、`key_building`、`temporary_target` |
 | `coord` | 坐标 |
 | `hp` | 初始 HP |
-| `sanctuary_loss_on_destroyed` | 被毁扣守护值 |
+| `sanctuary_loss_per_damage` | 每 1 点实际受伤扣多少守护值，默认 1 |
 | `preview_priority` | UI 排序 |
 
 ### 7.3 `rift_spawn_config`

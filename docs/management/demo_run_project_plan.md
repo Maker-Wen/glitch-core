@@ -49,9 +49,9 @@
 | M1：设计解除阻塞 | 补齐 `event_pool_design.md`、`map_pool_design.md`、`save_run_design.md` 的 Demo 范围 | `doc_status_inventory.md` 和 `AI_README.md` 同步更新 |
 | M2：Run 外壳可走通 | 主菜单、新 Run、路线图、节点预览、战后结算、奖励选择和 Run 结果形成闭环 | 不要求所有内容丰富，但可以从入口跑到结局 |
 | M3：战斗内容接入 | 4 个战斗节点使用不同地图、敌群、奖励任务和 Run 状态输入 | 节点预览与实际战斗配置一致 |
-| M4：奖励与遗物可用 | 精英战、Boss 和高完成奖励能生成并领取遗物 / 升级 / 守护值恢复 | `pending_reward` 防重复领取有效 |
+| M4：奖励与遗物可用 | 精英战、Boss 和高完成奖励能生成并领取遗物 / 升级 / 守护值恢复，Boss 心脏钟命中收益可见且可领取 | `pending_reward` 防重复领取有效 |
 | M5：事件与营地可用 | 事件节点和营地节点改变 Run 状态，并回到路线图 | 选择前展示收益代价，选择后不可重复进入 |
-| M6：Boss 终局 | Demo Boss 6 回合脚本、毁灭计数、锚石、奖励任务和重试语义可用 | 不以击杀 Boss 或清怪提前胜利 |
+| M6：Boss 终局 | Demo Boss 6 回合脚本、毁灭计数、锚石、心脏钟命中奖励、奖励任务和重试语义可用 | 不以击杀 Boss 或清怪提前胜利 |
 | M7：验收与文档收口 | Demo Run 测试、文档状态和功能清单同步 | 测试通过，功能清单反映真实状态 |
 
 ## 4. 并行工作包
@@ -122,7 +122,7 @@ A0 不直接改玩法规则。发现设计冲突时，新开或更新对应设�
 
 重点风险：
 
-- 当前战斗层把所有保护目标全毁直接标记战斗失败；Run 设计要求“防线溃败，守护值 -3，若守护值仍大于 0 则 Run 继续”。实现时需要在 Run 层把 `line_breached` 与 `outcome` 区分清楚，避免把可继续的溃败误判为 Run 失败。
+- 当前战斗层把所有保护目标全毁直接标记战斗失败；Run 设计要求“防线溃败，只按本场保护目标累计受伤扣守护值，若守护值仍大于 0 则 Run 继续”。实现时需要在 Run 层把 `line_breached` 与 `outcome` 区分清楚，避免把可继续的溃败误判为 Run 失败。
 - 不允许恢复旧逻辑“敌人全灭即胜利”。
 
 ### A4：奖励、遗物与升级
@@ -255,12 +255,14 @@ flowchart TD
 | A1.2 | Demo 地图池设计 | 已完成 | Content agent | 无 | 已交付 `map_pool_design.md`：4 张固定路线地图 + 2 张候补地图、8x8 坐标、敌群和 `rift_schedule` |
 | A1.3 | 最小存档设计 | 已完成 | System design agent | 无 | 已交付 `save_run_design.md`：保存时机、字段、版本、`pending_reward` 防重复领取和崩溃恢复 |
 | A2 | Run 外壳与页面流 | 已完成 | UI Flow agent | A0 | 已接入主菜单、新 Run、固定路线、节点预览、事件、营地、战斗结算、奖励和 Run 结果闭环 |
-| A3 | 战斗节点配置与地图接入 | 已完成 | Combat Config agent | A1.2 | 4 个固定路线战斗节点已接入 `BattleConfigCatalog`、`RunState.battle.config_id/map_id` 和 BattleScene 优先读取；`scripted_spawns` 和专属敌人 UnitDef 已接入；剩余专属 AI、奖励任务专属判定归入后续扩展 |
+| A3 | 战斗节点配置与地图接入 | 已完成 | Combat Config agent | A1.2 | 4 个固定路线战斗节点已接入 `BattleConfigCatalog`、`RunState.battle.config_id/map_id` 和 BattleScene 优先读取；`scripted_spawns`、专属敌人 UnitDef / 规则、地图专属奖励任务已接入；剩余为表现增强 |
 | A4 | 奖励、遗物与升级 | 已完成 | Reward agent | A2 接口 | Demo 12 遗物已数据化；`pending_reward`、领取写回、防重复领奖和基础升级测试已通过 |
+| A4.1 | Boss 心脏钟收益链 | 已完成 | Lead + Explorer agent | A4、A6 | `boss_heart_hits` 已进入 Boss 章节 `pending_reward`，按命中次数追加固定余烬和可见 modifier；奖励页展示修正来源，防重复领取测试已通过 |
 | A5 | 事件与营地节点 | 已完成 | Node Content agent | A1.1、A2 | Demo 最小事件页和营地页已接入；完整事件池配置替换留给后续配置接入 |
-| A6 | Boss 终局脚本 | 已完成 | Boss agent | A3 | 已接入 Demo Boss 最小逻辑：毁灭计数、2 个锚石、心脏钟命中计数、6 回合 Doom 脚本、Boss 溃败 summary 字段和回归测试；锚石可被直接攻击和单位碰撞损坏；心脏钟收益链 / Boss 专属奖励任务留给后续 |
-| A7 | 战斗 UI 完成度 | 已完成 | Battle UI agent | A3、A6 | 已补齐 HUD 目标摘要、保护目标 HP、奖励任务、敌方行动顺序栈、Boss Doom / 锚石 / 心脏钟状态和战斗结束原因；复杂动效和独立 Boss 状态区留给后续 |
-| A8 | 测试、验收与回归 | 已完成 | QA agent | 所有实现包 | 已接入 Run 回归测试、Boss 回归测试、战斗 UI 回归测试和 Demo Run 验收清单；当前 Godot 583 断言通过 |
+| A6 | Boss 终局脚本 | 已完成 | Boss agent | A3 | 已接入 Demo Boss 逻辑：毁灭计数、2 个锚石、心脏钟暴露窗口、直接攻击 / 推撞命中、第 1 次压制第 6 回合 Doom、第 2 次终局 Doom -1、第 3 次完成 `heart_window` 奖励任务、Boss 溃败 summary 字段和回归测试 |
+| A7 | 战斗 UI 完成度 | 已完成 | Battle UI agent | A3、A6 | 已补齐 HUD 目标摘要、保护目标 HP、奖励任务、敌方行动顺序栈、独立 Boss 状态区、Boss Doom / 锚石 / 心脏钟事件反馈和战斗结束原因；复杂动效留给后续 |
+| A8 | 测试、验收与回归 | 已完成 | QA agent | 所有实现包 | 已接入 Run 回归测试、Boss 回归测试、战斗 UI 回归测试和 Demo Run 验收清单；当前 Godot 643 断言通过 |
+| A9 | 守卫者 3 技能系统 | 待开始 | Combat Ability agent | A7、A8 | 目标设计已定：每名守卫者 3 个主动技能；下一步接入 `AbilityDef`、`BattleAction.USE_ABILITY`、技能目标 / 预演 / 结算、数据驱动技能栏，并把移动改为棋盘直接操作、遗物强化并入技能描述 |
 
 状态枚举：
 

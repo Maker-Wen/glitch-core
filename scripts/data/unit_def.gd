@@ -20,5 +20,7 @@ enum AttackKind {
 @export var attack_force: int = 0  # push or pull magnitude (0 for MELEE_BUMP)
 ## Display color when no art asset is available (slice placeholder).
 @export var color: Color = Color.WHITE
-## Optional static token art. When unset, UnitView falls back to the colored disc.
+## Optional static token art for battle board rendering.
 @export var token_texture: Texture2D = null
+## Optional bust/portrait art for HUD cards. Falls back to token_texture.
+@export var ui_portrait: Texture2D = null
