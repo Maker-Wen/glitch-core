@@ -2,19 +2,11 @@ extends RefCounted
 ## Regression coverage for the fixed demo Run state and Run-to-battle HP handoff.
 
 const RunStateScript := preload("res://scripts/run/run_state.gd")
+const SkillCatalog := preload("res://scripts/battle/warden_skill_catalog.gd")
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
 
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"warden_bountyhunter"
-	d.display_name = "BH"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func _summary(victory: bool, destroyed: int, completed: int, warden_hp: int = 2, protected_damage: int = -1) -> Dictionary:
 	var damage := destroyed if protected_damage < 0 else protected_damage
@@ -59,11 +51,13 @@ static func run(tr) -> void:
 	_test_battle_victory_builds_pending_reward(tr)
 	_test_reward_claim_marks_node_and_persists_warden_hp(tr)
 	_test_pending_reward_claims_only_once(tr)
-	_test_invalid_reward_choice_does_not_claim(tr)
-	_test_elite_reward_uses_demo_relic_options(tr)
+	_test_fixed_reward_claim_ignores_obsolete_choice_id(tr)
+	_test_elite_reward_uses_fixed_reward_list(tr)
 	_test_three_tasks_offer_guardian_recovery(tr)
 	_test_full_sanctuary_recovery_conversion_uses_chapter_slot(tr)
-	_test_dead_warden_has_no_upgrade_option(tr)
+	_test_fixed_battle_reward_has_no_choice_groups(tr)
+	_test_normal_reward_offers_skill_upgrade_without_hp_gain(tr)
+	_test_skill_upgrade_options_continue_after_first_skill_upgrade(tr)
 	_test_protected_damage_spends_sanctuary_without_immediate_defeat(tr)
 	_test_boss_reward_can_finish_route(tr)
 	_test_boss_heart_hits_add_visible_reward_bonus(tr)
@@ -72,11 +66,12 @@ static func run(tr) -> void:
 	_test_non_boss_ignores_boss_heart_hits(tr)
 	_test_battle_engine_accepts_run_level_warden_hp(tr)
 	_test_battle_scene_builds_runtime_warden_max_hp_def(tr)
+	_test_battle_engine_receives_run_skill_upgrades(tr)
 
 static func _test_demo_route_shape(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	tr.assert_eq("demo route has twelve graph nodes", run.route_nodes.size(), 12)
+	tr.assert_eq("demo route has twelve commission candidates", run.route_nodes.size(), 12)
 	var expected_types := [
 		RunStateScript.NODE_NORMAL,
 		RunStateScript.NODE_EVENT,
@@ -185,7 +180,9 @@ static func _test_battle_victory_builds_pending_reward(tr) -> void:
 	tr.assert_true("battle success creates pending reward", not run.pending_reward.is_empty())
 	tr.assert_eq("pending reward source node", run.pending_reward.source_node_id, "outer_wall_01")
 	tr.assert_eq("pending reward source type", run.pending_reward.source_type, "battle")
-	tr.assert_true("pending reward has choices", not run.pending_reward.choice_groups.is_empty())
+	tr.assert_eq("pending reward phase is fixed", run.pending_reward.reward_phase, "fixed")
+	tr.assert_true("pending reward has fixed rewards", not run.pending_reward.fixed_rewards.is_empty())
+	tr.assert_true("pending reward has no choices", run.pending_reward.choice_groups.is_empty())
 
 static func _test_reward_claim_marks_node_and_persists_warden_hp(tr) -> void:
 	var run = RunStateScript.new()
@@ -196,13 +193,13 @@ static func _test_reward_claim_marks_node_and_persists_warden_hp(tr) -> void:
 	tr.assert_eq("sanctuary lost one from protected damage", run.sanctuary_integrity, 11)
 	tr.assert_eq("warden hp persisted from battle", run.wardens[0].hp, 1)
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
-	run.claim_pending_reward("upgrade_bountyhunter_vanguard")
+	run.claim_pending_reward("")
 	run.mark_current_node_visited()
 	tr.assert_eq("fixed embers plus two-task bonus", run.embers, 11)
-	tr.assert_eq("upgrade increases max hp", run.wardens[0].hp_max, 4)
-	tr.assert_eq("upgrade heals one hp", run.wardens[0].hp, 2)
+	tr.assert_eq("fixed reward does not upgrade max hp", run.wardens[0].hp_max, 3)
+	tr.assert_eq("warden hp remains battle result", run.wardens[0].hp, 1)
 	tr.assert_eq("node marked visited", run.visited_nodes.size(), 1)
-	tr.assert_eq("next node advanced", run.next_unvisited_node().node_id, "extinguished_beacon_02")
+	tr.assert_eq("current commission advanced", run.next_unvisited_node().node_id, "extinguished_beacon_02")
 	tr.assert_eq("commission board refills after first battle", _node_ids(run.available_route_nodes()), ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"])
 
 static func _test_pending_reward_claims_only_once(tr) -> void:
@@ -212,16 +209,16 @@ static func _test_pending_reward_claims_only_once(tr) -> void:
 	run.current_node_id = node.node_id
 	run.apply_battle_resolution(_summary(true, 0, 1, 2))
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
-	run.claim_pending_reward("upgrade_bountyhunter_vanguard")
+	run.claim_pending_reward("")
 	var embers_after_first: int = run.embers
-	run.claim_pending_reward("upgrade_bountyhunter_vanguard")
+	run.claim_pending_reward("")
 	tr.assert_eq("second claim on cleared reward pays nothing", run.embers, embers_after_first)
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
 	tr.assert_true("claimed reward cannot be rebuilt for same node", run.pending_reward.is_empty())
 	run.claim_pending_reward("skip")
 	tr.assert_eq("rebuilt duplicate claim pays nothing", run.embers, embers_after_first)
 
-static func _test_invalid_reward_choice_does_not_claim(tr) -> void:
+static func _test_fixed_reward_claim_ignores_obsolete_choice_id(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
 	var node: Dictionary = run.next_unvisited_node()
@@ -229,23 +226,21 @@ static func _test_invalid_reward_choice_does_not_claim(tr) -> void:
 	run.apply_battle_resolution(_summary(true, 0, 1, 2))
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
 	run.claim_pending_reward("not_a_real_option")
-	tr.assert_true("invalid choice keeps pending reward", not run.pending_reward.is_empty())
-	tr.assert_eq("invalid choice does not pay fixed embers", run.embers, 0)
-	tr.assert_eq("invalid choice does not mark claimed", run.claimed_reward_ids.size(), 0)
+	tr.assert_true("obsolete choice id still claims fixed reward", run.pending_reward.is_empty())
+	tr.assert_eq("fixed reward pays embers", run.embers, 9)
+	tr.assert_eq("fixed reward marks claimed", run.claimed_reward_ids.size(), 1)
 
-static func _test_elite_reward_uses_demo_relic_options(tr) -> void:
+static func _test_elite_reward_uses_fixed_reward_list(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
 	var node: Dictionary = run.node_by_id("iron_gate_04")
 	run.current_node_id = node.node_id
 	run.apply_battle_resolution(_summary(true, 0, 2, 2))
 	var reward := run.build_pending_reward(node, run.last_resolution)
-	var group: Dictionary = reward.choice_groups[0]
-	tr.assert_eq("elite reward group is relic", group.group_type, "relic")
-	tr.assert_eq("elite two-task reward shows four relics", group.options.size(), 4)
-	tr.assert_eq("elite relic option uses formal demo id", group.options[0].option_id, "relic_chain_weight")
-	tr.assert_eq("elite relic has rarity", group.options[0].rarity, "普通")
-	tr.assert_eq("elite relic has type", group.options[0].relic_type, "角色 / 位移")
+	tr.assert_eq("elite reward is fixed phase", reward.get("reward_phase", ""), "fixed")
+	tr.assert_eq("elite reward has no relic choices", reward.get("choice_groups", []).size(), 0)
+	tr.assert_eq("elite fixed base embers", _fixed_reward_amount_for_reason(reward, "精英战基础奖励"), 11)
+	tr.assert_eq("elite fixed bonus embers", _fixed_reward_amount_for_reason(reward, "完成 2 个奖励任务"), 5)
 
 static func _test_three_tasks_offer_guardian_recovery(tr) -> void:
 	var run = RunStateScript.new()
@@ -254,9 +249,10 @@ static func _test_three_tasks_offer_guardian_recovery(tr) -> void:
 	run.current_node_id = node.node_id
 	run.apply_battle_resolution(_summary(true, 1, 3, 2))
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
-	tr.assert_true("three tasks creates recovery option", _has_option(run.pending_reward, "repair_sanctuary"))
-	run.claim_pending_reward("repair_sanctuary")
-	tr.assert_eq("recovery option restores sanctuary", run.sanctuary_integrity, 12)
+	tr.assert_eq("three tasks creates fixed recovery", _fixed_reward_amount_for_type(run.pending_reward, "sanctuary_integrity"), 1)
+	tr.assert_true("three tasks marks fixed recovery modifier", _has_modifier(run.pending_reward, "guardian_recovery_fixed"))
+	run.claim_pending_reward("")
+	tr.assert_eq("fixed recovery restores sanctuary", run.sanctuary_integrity, 12)
 	tr.assert_true("chapter recovery marked used", run.chapter_guardian_reward_used)
 
 static func _test_full_sanctuary_recovery_conversion_uses_chapter_slot(tr) -> void:
@@ -268,19 +264,39 @@ static func _test_full_sanctuary_recovery_conversion_uses_chapter_slot(tr) -> vo
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
 	tr.assert_true("full sanctuary converts recovery to embers", _has_modifier(run.pending_reward, "guardian_recovery_converted"))
 	tr.assert_true("converted recovery does not mark slot before claim", not run.chapter_guardian_reward_used)
-	run.claim_pending_reward("upgrade_bountyhunter_vanguard")
+	run.claim_pending_reward("")
 	tr.assert_true("converted recovery marks chapter slot used", run.chapter_guardian_reward_used)
 	tr.assert_eq("converted recovery pays extra embers", run.embers, 16)
 
-static func _test_dead_warden_has_no_upgrade_option(tr) -> void:
+static func _test_fixed_battle_reward_has_no_choice_groups(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
 	var node: Dictionary = run.next_unvisited_node()
 	run.current_node_id = node.node_id
 	run.apply_battle_resolution(_summary(true, 0, 2, 0))
 	var reward := run.build_pending_reward(node, run.last_resolution)
-	tr.assert_true("dead bountyhunter upgrade is not offered", not _has_option(reward, "upgrade_bountyhunter_vanguard"))
-	tr.assert_true("living graverobber upgrade remains available", _has_option(reward, "upgrade_graverobber_field_pack"))
+	tr.assert_eq("fixed battle reward has no choice groups", reward.get("choice_groups", []).size(), 0)
+	tr.assert_eq("fixed battle reward has two fixed ember entries", reward.get("fixed_rewards", []).size(), 2)
+
+static func _test_normal_reward_offers_skill_upgrade_without_hp_gain(tr) -> void:
+	var run = RunStateScript.new()
+	run.setup_new_demo()
+	var options := run._upgrade_options(3)
+	tr.assert_true("normal upgrade options include skill upgrade", not options.is_empty() and String(options[0].get("upgrade_kind", "")) == "skill")
+	tr.assert_eq("first skill upgrade id", String(options[0].get("option_id", "")), SkillCatalog.UPGRADE_BOUNTY_CHAIN_STRIKE_FORCE)
+	var hp_max_before := int(run.wardens[0].get("hp_max", 0))
+	var hp_before := int(run.wardens[0].get("hp", 0))
+	run._apply_reward_option(options[0])
+	tr.assert_true("skill upgrade persists on warden", SkillCatalog.UPGRADE_BOUNTY_CHAIN_STRIKE_FORCE in run.wardens[0].get("upgrades", []))
+	tr.assert_eq("skill upgrade does not add max hp", int(run.wardens[0].get("hp_max", 0)), hp_max_before)
+	tr.assert_eq("skill upgrade does not heal", int(run.wardens[0].get("hp", 0)), hp_before)
+
+static func _test_skill_upgrade_options_continue_after_first_skill_upgrade(tr) -> void:
+	var run = RunStateScript.new()
+	run.setup_new_demo()
+	run.wardens[0]["upgrades"] = [SkillCatalog.UPGRADE_BOUNTY_CHAIN_STRIKE_FORCE]
+	var options := run._upgrade_options(3)
+	tr.assert_eq("next bounty skill upgrade is offered after first", String(options[0].get("option_id", "")), SkillCatalog.UPGRADE_BOUNTY_GUARD_SHOULDER_READY)
 
 static func _test_protected_damage_spends_sanctuary_without_immediate_defeat(tr) -> void:
 	var run = RunStateScript.new()
@@ -301,11 +317,11 @@ static func _test_boss_reward_can_finish_route(tr) -> void:
 	run.current_node_id = boss.node_id
 	run.apply_battle_resolution(_summary(true, 0, 3, 2))
 	run.pending_reward = run.build_pending_reward(boss, run.last_resolution)
-	run.claim_pending_reward("relic_broken_bell_echo")
+	run.claim_pending_reward("")
 	run.mark_current_node_visited()
 	tr.assert_true("route complete after boss", run.is_route_complete())
 	tr.assert_eq("boss base plus three-task bonus", run.embers, 22)
-	tr.assert_eq("chapter relic claimed", run.relics.size(), 1)
+	tr.assert_eq("fixed boss reward does not grant chapter relic", run.relics.size(), 0)
 
 static func _test_boss_heart_hits_add_visible_reward_bonus(tr) -> void:
 	var run = RunStateScript.new()
@@ -316,7 +332,7 @@ static func _test_boss_heart_hits_add_visible_reward_bonus(tr) -> void:
 	var reward := run.build_pending_reward(boss, run.last_resolution)
 	tr.assert_true("boss heart bonus modifier exists", _has_modifier(reward, "boss_heart_bell_bonus"))
 	tr.assert_eq("boss heart bonus fixed reward amount", _fixed_reward_amount_for_reason(reward, "心脏钟命中 2 次"), 4)
-	tr.assert_eq("boss heart bonus keeps chapter reward phase", reward.get("reward_phase", ""), "chapter_choice")
+	tr.assert_eq("boss heart bonus keeps fixed reward phase", reward.get("reward_phase", ""), "fixed")
 
 static func _test_boss_heart_hits_clamp_at_cap(tr) -> void:
 	var run = RunStateScript.new()
@@ -334,10 +350,10 @@ static func _test_boss_heart_bonus_is_not_repaid_after_claim(tr) -> void:
 	run.current_node_id = boss.node_id
 	run.apply_battle_resolution(_boss_summary(3, 3))
 	run.pending_reward = run.build_pending_reward(boss, run.last_resolution)
-	run.claim_pending_reward("relic_broken_bell_echo")
+	run.claim_pending_reward("")
 	var embers_after_first: int = run.embers
 	tr.assert_eq("boss heart bonus pays through pending reward", embers_after_first, 28)
-	run.claim_pending_reward("relic_broken_bell_echo")
+	run.claim_pending_reward("")
 	tr.assert_eq("boss heart bonus second claim pays nothing", run.embers, embers_after_first)
 	run.pending_reward = run.build_pending_reward(boss, run.last_resolution)
 	tr.assert_true("boss heart claimed reward cannot rebuild", run.pending_reward.is_empty())
@@ -377,9 +393,34 @@ static func _test_battle_scene_builds_runtime_warden_max_hp_def(tr) -> void:
 	var base_def := _make_bh()
 	var runtime_def := scene._runtime_warden_def(base_def, 3)
 	tr.assert_eq("runtime warden def uses run max hp", runtime_def.max_hp, 3)
-	tr.assert_eq("base warden def keeps static max hp", base_def.max_hp, 2)
+	tr.assert_eq("base warden def keeps static max hp", base_def.max_hp, 3)
 	tr.assert_true("runtime warden def is isolated from base def", runtime_def != base_def)
 	scene.free()
+
+static func _test_battle_engine_receives_run_skill_upgrades(tr) -> void:
+	var engine := BattleEngine.new()
+	var grid := Grid.new()
+	var deploy_pos := Vector2i(3, 4)
+	engine.start_battle(
+		grid,
+		[_make_bh()],
+		[],
+		[deploy_pos],
+		[],
+		[],
+		5,
+		[],
+		[],
+		[3],
+		{},
+		[],
+		{},
+		[],
+		[[SkillCatalog.UPGRADE_BOUNTY_CHAIN_STRIKE_FORCE]]
+	)
+	engine.apply_action(BattleAction.deploy(deploy_pos))
+	var warden := engine.state.wardens()[0]
+	tr.assert_true("battle stores run skill upgrade on deployed unit", SkillCatalog.UPGRADE_BOUNTY_CHAIN_STRIKE_FORCE in engine.state.upgrades_for_warden(warden.id))
 
 static func _has_option(reward: Dictionary, option_id: String) -> bool:
 	for group in reward.get("choice_groups", []):
@@ -397,6 +438,12 @@ static func _has_modifier(reward: Dictionary, modifier_id: String) -> bool:
 static func _fixed_reward_amount_for_reason(reward: Dictionary, reason_prefix: String) -> int:
 	for fixed_reward in reward.get("fixed_rewards", []):
 		if String(fixed_reward.get("reason", "")).begins_with(reason_prefix):
+			return int(fixed_reward.get("amount", 0))
+	return 0
+
+static func _fixed_reward_amount_for_type(reward: Dictionary, reward_type: String) -> int:
+	for fixed_reward in reward.get("fixed_rewards", []):
+		if String(fixed_reward.get("reward_type", "")) == reward_type:
 			return int(fixed_reward.get("amount", 0))
 	return 0
 

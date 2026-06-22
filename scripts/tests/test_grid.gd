@@ -5,6 +5,7 @@ static func run(tr) -> void:
 	_test_bounds(tr)
 	_test_reachable_no_blockers(tr)
 	_test_reachable_blocked(tr)
+	_test_void_blocks_movement_and_path_target(tr)
 	_test_path_tie_break_NESW(tr)
 
 static func _test_bounds(tr) -> void:
@@ -27,6 +28,14 @@ static func _test_reachable_blocked(tr) -> void:
 	# From (3,3) range 1 should reach (2,3) (3,2) (4,3) but NOT (3,4)
 	tr.assert_eq("reachable with pillar block", cells.size(), 3)
 	tr.assert_true("pillar cell not reachable", not (Vector2i(3, 4) in cells))
+
+static func _test_void_blocks_movement_and_path_target(tr) -> void:
+	var g := Grid.new()
+	g.set_tile(Vector2i(4, 3), Grid.TileType.VOID)
+	var cells := g.reachable_cells(Vector2i(3, 3), 1, {})
+	tr.assert_true("void blocks movement", g.blocks_movement(Vector2i(4, 3)))
+	tr.assert_true("void cell not reachable", not (Vector2i(4, 3) in cells))
+	tr.assert_true("void cannot be path target", g.find_path(Vector2i(3, 3), Vector2i(4, 3), {}).is_empty())
 
 static func _test_path_tie_break_NESW(tr) -> void:
 	# Path from (3,3) to (4,2) -- N or E both 1-step. N=(3,2) wins, then E=(4,2).

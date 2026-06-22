@@ -65,7 +65,8 @@ func _handle_global_action(event: InputEvent) -> void:
 	if event.is_action_pressed("cancel"):
 		_battle.deselect()
 	elif event.is_action_pressed("undo"):
-		action_requested.emit(BattleAction.undo())
+		if _battle.engine != null and _battle.engine.can_undo():
+			action_requested.emit(BattleAction.undo())
 	elif event.is_action_pressed("end_turn"):
 		var state: BattleState = _battle.engine.state
 		if state.phase == BattleState.Phase.GARRISON:
@@ -107,6 +108,16 @@ func _on_cell_clicked(cell: Vector2i) -> void:
 		elif armed == "move":
 			if cell in move_cells:
 				action_requested.emit(BattleAction.move(selected_id, cell))
+				return
+		elif armed != "":
+			var skill_targets: Array[Vector2i] = _battle.engine.get_legal_skill_targets(selected_id, StringName(armed))
+			if cell in skill_targets:
+				action_requested.emit(BattleAction.skill(selected_id, StringName(armed), cell))
+				return
+			var skill_range: Array[Vector2i] = _battle.engine.get_skill_target_range(selected_id, StringName(armed))
+			if cell in skill_range:
+				if _battle.has_method("_on_ability_unavailable"):
+					_battle._on_ability_unavailable(armed, "不是有效目标")
 				return
 		else:
 			# No ability armed: click an enemy in range -> attack; otherwise

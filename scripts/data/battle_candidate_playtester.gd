@@ -57,13 +57,12 @@ static func _start_candidate_battle(config: Dictionary, candidate: Dictionary, d
 		int(runtime.get("max_rounds", 5)),
 		runtime.get("protected_targets", []),
 		runtime.get("reward_tasks", []),
-		[],
-		_boss_config(config),
-		_candidate_schedule(candidate.get("scripted_spawns", []), false),
-		runtime.get("cracked_ground_schedule", []),
-		runtime.get("abyss_edges", {}),
-		runtime.get("bell_wave_schedule", [])
-	)
+			[],
+			_boss_config(config),
+			_candidate_schedule(candidate.get("scripted_spawns", []), false),
+			runtime.get("abyss_edges", {}),
+			runtime.get("bell_wave_schedule", [])
+		)
 	for p in _deployment_spawns(runtime, candidate, deploy_spawns):
 		engine.apply_action(BattleAction.deploy(p))
 	engine.apply_action(BattleAction.confirm_deploy())

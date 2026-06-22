@@ -10,14 +10,13 @@ signal battle_finished(summary: Dictionary)
 const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
 const BattleEventAnimatorScript := preload("res://scripts/view/battle_event_animator.gd")
 const AttackFxPresenterScript := preload("res://scripts/view/attack_fx_presenter.gd")
+const WardenSkillCatalogScript := preload("res://scripts/battle/warden_skill_catalog.gd")
+const AudioManagerScript := preload("res://scripts/core/audio_manager.gd")
 
 var engine: BattleEngine
 var selected_warden_id: int = -1
 ## When non-empty, the player is in "ability targeting" mode: clicking a valid
 ## cell executes the armed ability. Right-click cancels back to normal selection.
-## Slice currently executes the primary attack. The HUD already reserves the
-## target 3 active skill slots; non-primary skills stay disabled until the
-## data-driven ability system lands.
 var _armed_ability_id: String = ""
 var _hover_cell: Vector2i = Vector2i(-1, -1)
 var _animating: bool = false
@@ -43,6 +42,7 @@ var _finish_emitted: bool = false
 var _debug_mode: bool = false
 var _event_animator = null
 var _attack_fx_presenter = null
+var _audio = null
 
 func _ready() -> void:
 	engine = BattleEngine.new()
@@ -61,6 +61,7 @@ func _ready() -> void:
 	hud.undo_pressed.connect(func(): _on_action_requested(BattleAction.undo()))
 	hud.confirm_deploy_pressed.connect(func(): _on_action_requested(BattleAction.confirm_deploy()))
 	hud.ability_selected.connect(_on_ability_selected)
+	hud.ability_unavailable.connect(_on_ability_unavailable)
 	hud.enemy_stack_hovered.connect(_on_enemy_stack_hovered)
 	hud.set_help("战斗准备中")
 	_start_slice_battle()
@@ -70,6 +71,9 @@ func configure_battle(config: Dictionary, run_wardens: Array[Dictionary], sanctu
 	_run_wardens = run_wardens.duplicate(true)
 	_sanctuary_integrity = sanctuary
 	_sanctuary_integrity_max = sanctuary_max
+
+func bind_audio(audio) -> void:
+	_audio = audio
 
 func _start_slice_battle() -> void:
 	var config := _battle_config
@@ -103,9 +107,11 @@ func _start_slice_battle() -> void:
 	}
 	var warden_defs: Array = []
 	var warden_hp: Array[int] = []
+	var warden_upgrades: Array = []
 	if _run_wardens.is_empty():
 		warden_defs = [bh, gr, mg]
 		warden_hp = [bh.max_hp, gr.max_hp, mg.max_hp]
+		warden_upgrades = [[], [], []]
 	else:
 		for w in _run_wardens:
 			if not bool(w.get("alive", false)):
@@ -117,8 +123,9 @@ func _start_slice_battle() -> void:
 			var battle_def := _runtime_warden_def(def, run_max_hp)
 			warden_defs.append(battle_def)
 			warden_hp.append(int(w.get("hp", battle_def.max_hp)))
-	var enemies := _build_enemies_for_variant(variant, carrion, archer, catalog_config)
-	var deploy_zone := BattleConfigCatalogScript.build_deploy_zone(catalog_config)
+			warden_upgrades.append(w.get("upgrades", []).duplicate())
+	var enemies := _build_enemies_for_variant(variant, carrion, archer, catalog_config, grid)
+	var deploy_zone := BattleConfigCatalogScript.build_deploy_zone(catalog_config, grid)
 
 	# Two rifts on the north half. Schedule (design §3.4): the golden "↑"
 	# marker appears during round N (predicting round N+1 spawns), the
@@ -130,15 +137,14 @@ func _start_slice_battle() -> void:
 	# Round 2 player turn shows: rift_a + rift_b will spawn next round.
 	# Round 3 player turn shows: rift_a will spawn next round.
 	# Round 4+: no more rift activity (let player clean up before round 5).
-	var rift_data := _build_rifts_for_variant(variant, carrion, catalog_config)
+	var rift_data := _build_rifts_for_variant(variant, carrion, catalog_config, grid)
 	var rift_positions: Array[Vector2i] = []
 	for p in rift_data.positions:
 		rift_positions.append(p)
 	var rift_schedule: Array = rift_data.schedule
-	var cracked_ground_schedule: Array = BattleConfigCatalogScript.build_cracked_ground_schedule(catalog_config, grid)
 	var abyss_edges: Dictionary = BattleConfigCatalogScript.build_abyss_edges(catalog_config)
 	var bell_wave_schedule: Array = BattleConfigCatalogScript.build_bell_wave_schedule(catalog_config, grid)
-	var scripted_spawn_schedule := _scripted_spawns_for_variant(catalog_config)
+	var scripted_spawn_schedule := _scripted_spawns_for_variant(catalog_config, grid)
 	var max_rounds := int(catalog_config.get("max_rounds", battle_ref.get("max_rounds", 5)))
 	var reward_tasks := _reward_tasks_for_variant(variant, catalog_config)
 	var boss_config := _boss_config_for_variant(variant, battle_ref, catalog_config)
@@ -156,9 +162,9 @@ func _start_slice_battle() -> void:
 		warden_hp,
 		boss_config,
 		scripted_spawn_schedule,
-		cracked_ground_schedule,
 		abyss_edges,
 		bell_wave_schedule,
+		warden_upgrades,
 	)
 	diamond_board_view.bind_state(engine.state)
 	hud.set_sanctuary(_sanctuary_integrity, _sanctuary_integrity_max)
@@ -214,9 +220,9 @@ func _build_grid_for_variant(grid: Grid, variant: String, catalog_config: Dictio
 			protected_targets = [Vector2i(2, 6), Vector2i(5, 6), Vector2i(4, 7)]
 	return protected_targets
 
-func _build_enemies_for_variant(variant: String, carrion: UnitDef, archer: UnitDef, catalog_config: Dictionary = {}) -> Array:
+func _build_enemies_for_variant(variant: String, carrion: UnitDef, archer: UnitDef, catalog_config: Dictionary = {}, grid: Grid = null) -> Array:
 	if not catalog_config.is_empty():
-		return BattleConfigCatalogScript.build_initial_enemies(catalog_config)
+		return BattleConfigCatalogScript.build_initial_enemies(catalog_config, grid)
 	match variant:
 		"intro":
 			return [
@@ -256,9 +262,9 @@ func _build_enemies_for_variant(variant: String, carrion: UnitDef, archer: UnitD
 		{"def": carrion, "pos": Vector2i(6, 0)},
 	]
 
-func _build_rifts_for_variant(variant: String, carrion: UnitDef, catalog_config: Dictionary = {}) -> Dictionary:
+func _build_rifts_for_variant(variant: String, carrion: UnitDef, catalog_config: Dictionary = {}, grid: Grid = null) -> Dictionary:
 	if not catalog_config.is_empty():
-		return BattleConfigCatalogScript.build_rifts(catalog_config)
+		return BattleConfigCatalogScript.build_rifts(catalog_config, grid)
 	var rift_a := Vector2i(2, 1)
 	var rift_b := Vector2i(5, 1)
 	var rift_c := Vector2i(4, 2)
@@ -307,10 +313,10 @@ func _build_rifts_for_variant(variant: String, carrion: UnitDef, catalog_config:
 		],
 	}
 
-func _scripted_spawns_for_variant(catalog_config: Dictionary = {}) -> Array:
+func _scripted_spawns_for_variant(catalog_config: Dictionary = {}, grid: Grid = null) -> Array:
 	if catalog_config.is_empty():
 		return []
-	return BattleConfigCatalogScript.build_scripted_spawns(catalog_config)
+	return BattleConfigCatalogScript.build_scripted_spawns(catalog_config, grid)
 
 func _boss_config_for_variant(variant: String, battle_ref: Dictionary, catalog_config: Dictionary = {}) -> Dictionary:
 	if variant != "boss" and String(catalog_config.get("boss_config_id", "")).is_empty():
@@ -403,6 +409,7 @@ func _on_warden_selected(unit_id: int) -> void:
 		return
 	if selected_warden_id != unit_id:
 		_armed_ability_id = ""  # switching wardens cancels any armed ability
+	_play_sfx(AudioManagerScript.SFX_UNIT_SELECT)
 	selected_warden_id = unit_id
 	_refresh_persistent_hud()
 	_refresh_selection_highlights()
@@ -421,20 +428,32 @@ func _on_ability_selected(ability_id: String) -> void:
 		return
 	if _armed_ability_id == ability_id:
 		_armed_ability_id = ""  # toggle off
+		_play_sfx(AudioManagerScript.SFX_UI_CANCEL)
 	else:
 		_armed_ability_id = ability_id
+		_play_sfx(AudioManagerScript.SFX_ABILITY_ARM)
 	_refresh_selection_highlights()
 	_refresh_ability_bar()
 	_refresh_hover_preview()
+
+func _on_ability_unavailable(_ability_id: String, reason: String) -> void:
+	_play_sfx(AudioManagerScript.SFX_ABILITY_UNAVAILABLE)
+	if hud == null:
+		return
+	hud.set_help(reason if reason != "" else "当前技能不可用")
 
 func _on_action_requested(action: BattleAction) -> void:
 	if _animating and action.kind != BattleAction.Kind.UNDO:
 		return
 	if action.kind == BattleAction.Kind.UNDO:
+		if not engine.can_undo():
+			_play_sfx(AudioManagerScript.SFX_UI_DISABLED)
+			return
 		_pending_player_attack_context.clear()
 		_event_unit_snapshots.clear()
 		if _attack_fx_presenter != null:
 			_attack_fx_presenter.clear()
+		_play_sfx(AudioManagerScript.SFX_UI_CANCEL)
 		engine.apply_action(action)
 		# After undo, do a full rebuild
 		_full_rebuild()
@@ -444,12 +463,13 @@ func _on_action_requested(action: BattleAction) -> void:
 	_defer_state_refresh_until_events = true
 	_defer_enemy_intent_refresh_until_events = true
 	var events := engine.apply_action(action)
-	# Any move / attack clears the armed ability so the ability bar refreshes
+	_play_action_sfx(action)
+	# Any move / skill clears the armed ability so the ability bar refreshes
 	# to reflect the warden's new available actions.
-	if action.kind == BattleAction.Kind.MOVE or action.kind == BattleAction.Kind.ATTACK:
+	if action.kind == BattleAction.Kind.MOVE or action.kind == BattleAction.Kind.ATTACK or action.kind == BattleAction.Kind.SKILL:
 		_armed_ability_id = ""
-	# Attacking / ending turn fully deselects the warden.
-	if action.kind == BattleAction.Kind.ATTACK or action.kind == BattleAction.Kind.END_TURN:
+	# Acting / ending turn fully deselects the warden.
+	if action.kind == BattleAction.Kind.ATTACK or action.kind == BattleAction.Kind.SKILL or action.kind == BattleAction.Kind.END_TURN:
 		deselect(not _animating)
 
 func _on_hover_changed(cell: Vector2i, inside: bool) -> void:
@@ -478,7 +498,7 @@ func _on_state_changed() -> void:
 
 func _refresh_state_presentation() -> void:
 	hud.set_sanctuary(_effective_sanctuary_integrity(), _sanctuary_integrity_max)
-	hud.update_status(engine.state)
+	hud.update_status(engine.state, engine.can_undo())
 	_refresh_diamond_board()
 	_refresh_persistent_hud()
 	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
@@ -506,6 +526,10 @@ func _set_diamond_board_selection_ranges(move_cells: Array, attack_cells: Array)
 	if diamond_board_view != null:
 		diamond_board_view.set_selection_ranges(move_cells, attack_cells)
 
+func _set_diamond_board_skill_targeting(range_cells: Array, target_cells: Array) -> void:
+	if diamond_board_view != null:
+		diamond_board_view.set_skill_targeting(range_cells, target_cells)
+
 func _set_diamond_board_enemy_intents(rows: Array) -> void:
 	if diamond_board_view != null:
 		diamond_board_view.set_enemy_intents(rows)
@@ -513,10 +537,6 @@ func _set_diamond_board_enemy_intents(rows: Array) -> void:
 func _set_diamond_board_predicted_rifts(cells: Array) -> void:
 	if diamond_board_view != null:
 		diamond_board_view.set_predicted_rifts(cells)
-
-func _set_diamond_board_predicted_cracked_ground(cells: Array) -> void:
-	if diamond_board_view != null:
-		diamond_board_view.set_predicted_cracked_ground(cells)
 
 func _set_diamond_board_predicted_bell_wave(cells: Array) -> void:
 	if diamond_board_view != null:
@@ -545,6 +565,9 @@ func _on_events(events: Array) -> void:
 	_defer_enemy_intent_refresh_until_events = false
 	_defer_state_refresh_until_events = false
 	if events.is_empty():
+		_pending_player_attack_context.clear()
+		if hud == null or engine == null or engine.state == null:
+			return
 		# Nothing to play; just refresh overlays.
 		_refresh_state_presentation()
 		_refresh_enemy_intent_overlay()
@@ -557,8 +580,8 @@ func _on_events(events: Array) -> void:
 	_executing_enemy_id = -1
 	_clear_diamond_board_preview()
 	_set_diamond_board_selection_ranges([], [])
+	_set_diamond_board_skill_targeting([], [])
 	_set_diamond_board_predicted_rifts([])
-	_set_diamond_board_predicted_cracked_ground([])
 	_set_diamond_board_predicted_bell_wave([])
 	_suppress_enemy_intents_until_events_done = _events_include_enemy_displacement(events)
 	if _suppress_enemy_intents_until_events_done:
@@ -571,15 +594,19 @@ func _on_events(events: Array) -> void:
 	_suppress_enemy_intents_until_events_done = false
 	_executing_enemy_id = -1
 	hud.set_enemy_stack_executing(-1)
+	_refresh_after_event_playback()
+	_emit_finish_if_ready()
+
+func _refresh_after_event_playback() -> void:
 	_refresh_state_presentation()
 	_refresh_enemy_intent_overlay()
 	_refresh_selection_highlights()
+	_refresh_ability_bar()
 	# After state changes (push, kill, etc.), re-render the info panel for the
 	# cell currently under the cursor.
 	_refresh_persistent_hud()
 	_refresh_info_panel()
 	_refresh_hover_preview()
-	_emit_finish_if_ready()
 
 func _emit_finish_if_ready() -> void:
 	if _finish_emitted:
@@ -589,7 +616,12 @@ func _emit_finish_if_ready() -> void:
 	if engine.state.outcome == BattleState.Outcome.UNDECIDED:
 		return
 	_finish_emitted = true
-	await get_tree().create_timer(0.55).timeout
+	_play_outcome_sfx(engine.state.outcome)
+	var tree := get_tree() if is_inside_tree() else null
+	if tree == null:
+		battle_finished.emit(_build_battle_summary())
+		return
+	await tree.create_timer(0.55).timeout
 	battle_finished.emit(_build_battle_summary())
 
 func _build_battle_summary() -> Dictionary:
@@ -639,6 +671,40 @@ func _play_events(events: Array) -> void:
 	_event_animator.set_unit_snapshots(_event_unit_snapshots)
 	await _event_animator.play_events(events)
 	_event_unit_snapshots.clear()
+	_pending_player_attack_context.clear()
+
+func _play_action_sfx(action: BattleAction) -> void:
+	if action == null:
+		return
+	match action.kind:
+		BattleAction.Kind.MOVE:
+			_play_sfx(AudioManagerScript.SFX_TILE_SELECT)
+		BattleAction.Kind.DEPLOY:
+			_play_sfx(AudioManagerScript.SFX_TILE_SELECT)
+		BattleAction.Kind.CONFIRM_DEPLOY:
+			_play_sfx(AudioManagerScript.SFX_DEPLOY_CONFIRM)
+		BattleAction.Kind.END_TURN:
+			_play_sfx(AudioManagerScript.SFX_END_TURN)
+		_:
+			pass
+
+func _play_outcome_sfx(outcome: int) -> void:
+	if outcome == BattleState.Outcome.VICTORY:
+		_play_sfx(AudioManagerScript.SFX_VICTORY_STINGER)
+	elif outcome == BattleState.Outcome.DEFEAT:
+		_play_sfx(AudioManagerScript.SFX_DEFEAT_STINGER)
+
+func _play_sfx(sound_id: StringName) -> void:
+	var manager = _audio if _audio != null else _default_audio_manager()
+	if manager == null or not manager.has_method(&"play_sfx"):
+		return
+	manager.play_sfx(sound_id)
+
+func _default_audio_manager():
+	var tree := get_tree() if is_inside_tree() else null
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("AudioManager")
 
 # ---------- per-event animations ----------
 
@@ -683,12 +749,18 @@ func _anim_unit_spawned(e: BattleEvent) -> void:
 
 func _capture_player_attack_context(action: BattleAction) -> void:
 	_pending_player_attack_context.clear()
-	if action.kind != BattleAction.Kind.ATTACK:
+	if action.kind != BattleAction.Kind.ATTACK and action.kind != BattleAction.Kind.SKILL:
 		return
 	if engine == null or engine.state == null:
 		return
 	var attacker := engine.state.find_unit(action.actor_id)
 	if attacker == null or not attacker.is_warden():
+		return
+	if action.kind == BattleAction.Kind.SKILL and action.skill_id in [
+		WardenSkillCatalogScript.GRAVEROBBER_RIFT_WEDGE,
+		WardenSkillCatalogScript.MAGE_WARD_FIRE,
+		WardenSkillCatalogScript.MAGE_SIGIL,
+	]:
 		return
 	_pending_player_attack_context = _build_attack_fx_request(attacker, action.target_pos, true)
 
@@ -699,7 +771,7 @@ func _capture_event_unit_snapshots() -> void:
 	for unit in engine.state.units:
 		_event_unit_snapshots[unit.id] = unit.clone()
 
-func _play_pending_player_attack_fx(e: BattleEvent, events: Array = []) -> void:
+func _play_pending_player_attack_fx(e: BattleEvent) -> void:
 	if _pending_player_attack_context.is_empty():
 		return
 	var target_pos: Vector2i = _pending_player_attack_context.get("to_cell", Vector2i(-1, -1))
@@ -747,6 +819,8 @@ func _event_has_target_pos(e: BattleEvent) -> bool:
 		or e.type == BattleEvent.Type.UNIT_PUSHED \
 		or e.type == BattleEvent.Type.UNIT_FELL \
 		or e.type == BattleEvent.Type.TILE_DAMAGED \
+		or e.type == BattleEvent.Type.TILE_REPAIRED \
+		or e.type == BattleEvent.Type.TILE_SHIELDED \
 		or e.type == BattleEvent.Type.TILE_DESTROYED \
 		or e.type == BattleEvent.Type.BUMP_WALL \
 		or e.type == BattleEvent.Type.BUMP_UNIT
@@ -778,8 +852,11 @@ func _anim_unit_damaged(_e: BattleEvent) -> void:
 	await get_tree().create_timer(0.10).timeout
 
 func _anim_unit_died(_e: BattleEvent) -> void:
+	_play_sfx(AudioManagerScript.SFX_UNIT_DEATH)
 	_refresh_diamond_board()
-	await get_tree().create_timer(0.08).timeout
+	var tree := get_tree() if is_inside_tree() else null
+	if tree != null:
+		await tree.create_timer(0.08).timeout
 
 func _anim_unit_removed(_e: BattleEvent) -> void:
 	_refresh_diamond_board()
@@ -801,9 +878,11 @@ func _refresh_selection_highlights() -> void:
 	_refresh_action_state_presentation()
 	if engine.state.phase == BattleState.Phase.GARRISON:
 		_set_diamond_board_selection_ranges([], [])
+		_set_diamond_board_skill_targeting([], [])
 		return
 	if selected_warden_id == -1 or engine.state.phase != BattleState.Phase.PLAYER_ACTION:
 		_set_diamond_board_selection_ranges([], [])
+		_set_diamond_board_skill_targeting([], [])
 		return
 	# Range display depends on whether an ability is armed:
 	#   - "attack" armed: only attack targets (red).
@@ -816,10 +895,19 @@ func _refresh_selection_highlights() -> void:
 			attack_cells = engine.get_legal_attack_targets(selected_warden_id)
 		"move":
 			move_cells = engine.get_legal_moves(selected_warden_id)
-		_:
+		"":
 			move_cells = engine.get_legal_moves(selected_warden_id)
 			attack_cells = engine.get_legal_attack_targets(selected_warden_id)
+		_:
+			var skill_id := StringName(_armed_ability_id)
+			_set_diamond_board_selection_ranges([], [])
+			_set_diamond_board_skill_targeting(
+				engine.get_skill_target_range(selected_warden_id, skill_id),
+				engine.get_legal_skill_targets(selected_warden_id, skill_id)
+			)
+			return
 	_set_diamond_board_selection_ranges(move_cells, attack_cells)
+	_set_diamond_board_skill_targeting([], [])
 
 func _refresh_action_state_presentation() -> void:
 	_refresh_diamond_board()
@@ -1048,7 +1136,6 @@ func _refresh_enemy_intent_overlay(rows_override: Array = [], preview_mode: bool
 	for entry in engine.state.pending_rift_spawns:
 		predicted.append(entry.pos)
 	_set_diamond_board_predicted_rifts(predicted)
-	_set_diamond_board_predicted_cracked_ground(engine.state.pending_cracked_ground)
 	_set_diamond_board_predicted_bell_wave(engine.state.pending_bell_wave)
 
 func _preview_protected_damage_from_events(events: Array) -> Dictionary:
@@ -1224,45 +1311,54 @@ func _refresh_ability_bar() -> void:
 			"name": skill.get("name", "?"),
 			"icon": skill.get("icon", ""),
 			"desc": skill.get("desc", ""),
+			"target_rule": skill.get("target_rule", ""),
 			"active": bool(skill.get("active", false)),
+			"disabled_reason": skill.get("disabled_reason", ""),
+			"disabled_reason_code": skill.get("disabled_reason_code", ""),
+			"cooldown_rounds": int(skill.get("cooldown_rounds", 0)),
+			"cooldown_remaining": int(skill.get("cooldown_remaining", 0)),
+			"uses_remaining": int(skill.get("uses_remaining", -1)),
+			"max_uses": int(skill.get("max_uses_per_battle", 0)),
+			"upgraded": bool(skill.get("upgraded", false)),
+			"upgrade_ids": skill.get("upgrade_ids", []),
+			"shield_amount": int(skill.get("shield_amount", 0)),
+			"duration_rounds": int(skill.get("duration_rounds", 0)),
+			"range": int(skill.get("range", 0)),
 			"is_default": i == 0,
 			"is_armed": _armed_ability_id == skill.get("id", ""),
 		})
 	hud.show_ability_bar(warden_data, abilities)
 
 func _warden_skill_slots(warden: Unit) -> Array:
-	var primary_desc := _attack_kind_text(warden.def)
-	var primary := {
+	var result: Array = []
+	var upgrades: Array = engine.state.upgrades_for_warden(warden.id) if engine != null and engine.state != null else []
+	for skill in WardenSkillCatalogScript.skills_for_warden(warden.def.def_id, upgrades):
+		var copy := skill.duplicate(true)
+		var skill_id: StringName = copy.get("id", &"")
+		var availability := engine.get_skill_availability(warden.id, skill_id)
+		copy["active"] = bool(availability.get("usable", false))
+		copy["disabled_reason"] = String(availability.get("reason", ""))
+		copy["disabled_reason_code"] = String(availability.get("reason_code", ""))
+		copy["cooldown_remaining"] = int(availability.get("cooldown_remaining", 0))
+		copy["uses_remaining"] = int(availability.get("uses_remaining", -1))
+		var max_uses := int(copy.get("max_uses_per_battle", 0))
+		if max_uses > 0:
+			copy["desc"] = "%s · %d/%d" % [
+				String(copy.get("desc", "")),
+				maxi(0, int(availability.get("uses_remaining", 0))),
+				max_uses,
+			]
+		result.append(copy)
+	if not result.is_empty():
+		return result
+	return [{
 		"id": "attack",
 		"name": _primary_skill_name(warden),
 		"icon": "⚔",
-		"desc": primary_desc,
+		"desc": _attack_kind_text(warden.def),
+		"target_rule": "",
 		"active": not warden.has_acted,
-	}
-	match String(warden.def.def_id):
-		"warden_bountyhunter":
-			return [
-				primary,
-				{"id": "guard_shoulder", "name": "护卫肩撞", "icon": "⛨", "desc": "换位 · 护建筑", "active": false},
-				{"id": "bounty_execute", "name": "悬赏处决", "icon": "◆", "desc": "击杀收益", "active": false},
-			]
-		"warden_graverobber":
-			return [
-				primary,
-				{"id": "rift_wedge", "name": "裂隙楔", "icon": "▰", "desc": "延迟地裂", "active": false},
-				{"id": "backhand_throw", "name": "反手抛", "icon": "↶", "desc": "拉近侧推", "active": false},
-			]
-		"warden_mage":
-			return [
-				primary,
-				{"id": "ward_fire", "name": "护火", "icon": "✚", "desc": "修复建筑", "active": false},
-				{"id": "sigil", "name": "法阵", "icon": "◇", "desc": "区域减速", "active": false},
-			]
-	return [
-		primary,
-		{"id": "skill_2", "name": "技能 2", "icon": "◆", "desc": "未接入", "active": false},
-		{"id": "skill_3", "name": "技能 3", "icon": "◇", "desc": "未接入", "active": false},
-	]
+	}]
 
 func _primary_skill_name(warden: Unit) -> String:
 	match String(warden.def.def_id):
@@ -1282,11 +1378,13 @@ func _refresh_hover_preview() -> void:
 	if engine.state.phase != BattleState.Phase.PLAYER_ACTION:
 		_refresh_enemy_intent_overlay()
 		return
-	var attack_targets: Array[Vector2i] = engine.get_legal_attack_targets(selected_warden_id)
+	var attack_targets: Array[Vector2i] = _current_armed_attack_targets()
 	var move_cells: Array[Vector2i] = engine.get_legal_moves(selected_warden_id)
 	var action: BattleAction = null
 	if _hover_cell in attack_targets:
 		action = BattleAction.attack(selected_warden_id, _hover_cell)
+		if _armed_ability_id != "" and _armed_ability_id != "attack" and _armed_ability_id != "move":
+			action = BattleAction.skill(selected_warden_id, StringName(_armed_ability_id), _hover_cell)
 	elif _hover_cell in move_cells:
 		action = BattleAction.move(selected_warden_id, _hover_cell)
 	if action == null:
@@ -1358,16 +1456,42 @@ func _refresh_hover_preview() -> void:
 			paths.append({"from": start_pos, "to": end_pos, "enemy": u.is_enemy()})
 	_set_diamond_board_preview_markers(markers, paths, protected_damage)
 
+func _current_armed_attack_targets() -> Array[Vector2i]:
+	if selected_warden_id == -1:
+		return []
+	if _armed_ability_id == "" or _armed_ability_id == "attack":
+		return engine.get_legal_attack_targets(selected_warden_id)
+	if _armed_ability_id == "move":
+		return []
+	return engine.get_legal_skill_targets(selected_warden_id, StringName(_armed_ability_id))
+
 # ---------- helpers exposed to children ----------
 
-## F1 toggle: swaps the info panel between "player view" (HP/move/attack) and
-## "debug view" (+ planning details, displacement state, damage preview).
+## F1 debug shortcut: wins immediately during player action. Outside states
+## where a debug win is valid, it falls back to toggling debug info display.
 func toggle_debug_mode() -> void:
+	if _try_debug_force_victory():
+		hud.set_help("调试模式：已直接胜利")
+		return
 	_debug_mode = not _debug_mode
 	# If the info panel is open, re-render with new mode.
 	_refresh_info_panel()
 	# Also flash a brief HUD hint about the mode change.
 	hud.set_help("调试模式：%s   ·   F1 切换" % ("开启" if _debug_mode else "关闭"))
+
+func _try_debug_force_victory() -> bool:
+	if _animating:
+		return false
+	if engine == null or engine.state == null:
+		return false
+	if engine.state.phase != BattleState.Phase.PLAYER_ACTION:
+		return false
+	if engine.state.outcome != BattleState.Outcome.UNDECIDED:
+		return false
+	deselect(false)
+	_clear_diamond_board_preview()
+	engine.debug_force_victory()
+	return true
 
 func deselect(refresh_now: bool = true) -> void:
 	selected_warden_id = -1

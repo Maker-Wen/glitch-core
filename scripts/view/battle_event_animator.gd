@@ -24,7 +24,7 @@ func play_events(events: Array) -> void:
 	for raw in events:
 		var event: BattleEvent = raw
 		if not player_attack_fx_played and _scene._event_starts_player_attack_fx(event):
-			await _scene._play_pending_player_attack_fx(event, events)
+			await _scene._play_pending_player_attack_fx(event)
 			player_attack_fx_played = true
 		match event.type:
 			BattleEvent.Type.UNIT_SPAWNED:
@@ -44,7 +44,7 @@ func play_events(events: Array) -> void:
 				await _play_unit_fell(event)
 			BattleEvent.Type.UNIT_REMOVED:
 				_scene._anim_unit_removed(event)
-			BattleEvent.Type.TILE_DAMAGED, BattleEvent.Type.TILE_DESTROYED:
+			BattleEvent.Type.TILE_DAMAGED, BattleEvent.Type.TILE_REPAIRED, BattleEvent.Type.TILE_SHIELDED, BattleEvent.Type.TILE_DESTROYED:
 				_scene._anim_tile_changed(event)
 				_scene._update_boss_event_feedback(event)
 			BattleEvent.Type.BUMP_WALL, BattleEvent.Type.BUMP_UNIT:

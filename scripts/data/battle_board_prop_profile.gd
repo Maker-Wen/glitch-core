@@ -13,6 +13,7 @@ class_name BattleBoardPropProfile extends Resource
 @export var board_foot_offset: Vector2 = Vector2(0, 10)
 @export var hp_offset: Vector2 = Vector2(-22, -23)
 @export var target_height: float = 64.0
+@export var min_draw_width: float = 0.0
 @export var max_draw_width: float = 72.0
 @export var footprint_scale: float = 0.7
 @export var foundation_scale: Vector2 = Vector2(0.78, 0.48)

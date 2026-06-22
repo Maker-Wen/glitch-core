@@ -1,30 +1,13 @@
 extends RefCounted
 ## Tests for Plague Archer ranged AI behavior.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_archer() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"archer"
-	d.display_name = "瘟疫弓手"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.RANGED_PUSH
-	d.attack_range = 3
-	d.attack_damage = 1
-	d.attack_force = 0
-	return d
+	return TestUnitDefs.plague_archer({"def_id": &"archer"})
 
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_damage = 1
-	d.attack_force = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)
@@ -55,7 +38,8 @@ static func _test_archer_moves_when_no_target(tr) -> void:
 	s.grid = Grid.new()
 	var bh := _add(s, _make_bh(), Vector2i(0, 7))
 	var archer := _add(s, _make_archer(), Vector2i(7, 0))
-	# Manhattan 14, archer move=2 + range=3 -- can't shoot this turn.
+	# With the current archer resource (move 2 + range 3), this cannot shoot
+	# in the same turn from Manhattan distance 14.
 	var plans := AIDecider.plan_enemy_turn(s)
 	var plan = plans[archer.id]
 	tr.assert_true("no attack (out of range)", not plan.has_attack())

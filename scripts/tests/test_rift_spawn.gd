@@ -4,30 +4,13 @@ extends RefCounted
 ##   - Actual spawning happens at the start of round N+1's warning phase.
 ##   - Round 1 has no spawns (no predictions made before battle starts).
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_carrion_def() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_damage = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.carrion_spawn({"move": 2})
 
 static func _make_bh_def() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "赏金猎人"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_damage = 1
-	d.attack_force = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func run(tr) -> void:
 	_test_predicted_then_spawn(tr)
@@ -61,8 +44,8 @@ static func _test_predicted_then_spawn(tr) -> void:
 	tr.assert_eq("1 enemy spawned from rift", engine.state.enemies().size(), 1)
 	var spawned := engine.state.enemies()[0]
 	# Newly-spawned enemies perform an immediate approach move toward the
-	# nearest warden. With move=2 and warden at (3,7), spawn at (3,2) moves 2
-	# cells south. Then the spawned enemy stops (still not adjacent to warden).
+		# nearest warden. This fixture explicitly fixes the spawn move to 2, so
+		# it advances 2 cells south and then stops short of adjacency.
 	tr.assert_eq("spawned + approached to (3, 4)", spawned.position, Vector2i(3, 4))
 	tr.assert_true("spawned south of rift", spawned.position.y > rift.y)
 	tr.assert_eq("pending cleared after spawn", engine.state.pending_rift_spawns.size(), 0)

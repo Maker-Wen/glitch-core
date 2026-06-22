@@ -18,11 +18,13 @@ static func best_step_toward(
 	unit: Unit,
 	goal: Vector2i,
 	blocked: Dictionary,
-	claimed: Dictionary
+	claimed: Dictionary,
+	move_override: int = -1
 ) -> Vector2i:
 	## Walk up to `unit.def.move` cells, choosing the reachable unclaimed cell
 	## that most reduces the remaining path length to `goal`.
-	var reachable := state.grid.reachable_cells(unit.position, unit.def.move, blocked)
+	var move_steps := unit.def.move if move_override < 0 else move_override
+	var reachable := state.grid.reachable_cells(unit.position, move_steps, blocked)
 	if reachable.is_empty():
 		return unit.position
 	var origin_remaining := path_length_from_cell(state, unit.position, goal, blocked)

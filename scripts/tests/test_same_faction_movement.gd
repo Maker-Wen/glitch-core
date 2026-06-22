@@ -2,16 +2,12 @@ extends RefCounted
 ## Same-faction units may be crossed during movement, but occupied cells remain
 ## invalid destinations.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_def(faction: int, move: int = 2) -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"warden" if faction == UnitDef.Faction.WARDEN else &"enemy"
-	d.faction = faction
-	d.max_hp = 2
-	d.move = move
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_range = 1
-	d.attack_damage = 1
-	return d
+	if faction == UnitDef.Faction.WARDEN:
+		return TestUnitDefs.generic_warden({"def_id": &"warden", "max_hp": 2, "move": move, "attack_kind": UnitDef.AttackKind.MELEE_BUMP})
+	return TestUnitDefs.generic_enemy({"def_id": &"enemy", "max_hp": 2, "move": move, "attack_kind": UnitDef.AttackKind.MELEE_BUMP})
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)

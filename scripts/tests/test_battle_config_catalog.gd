@@ -7,12 +7,14 @@ const RunStateScript := preload("res://scripts/run/run_state.gd")
 static func run(tr) -> void:
 	_test_catalog_contains_fixed_route_configs(tr)
 	_test_fixed_route_nodes_reference_catalog_configs(tr)
+	_test_expedition_map_pools_reference_catalog_configs(tr)
 	_test_protected_targets_and_rounds_match_runtime_config(tr)
 	_test_catalog_constructs_grid_enemies_and_rifts(tr)
 	_test_catalog_deploy_zones_cover_configured_spawns(tr)
+	_test_void_cells_are_filtered_from_runtime_entry_points(tr)
 	_test_runtime_reward_tasks_match_map_design(tr)
 	_test_map_feature_metadata_available_for_preview(tr)
-	_test_map_feature_metadata_does_not_change_runtime_tiles(tr)
+	_test_map_feature_metadata_only_changes_authored_runtime_tiles(tr)
 	_test_enemy_ids_resolve_to_distinct_runtime_defs(tr)
 	_test_outer_bell_scripted_boss_spawns_keep_source(tr)
 	_test_outer_bell_boss_objects_map_to_runtime_boss_config(tr)
@@ -75,6 +77,29 @@ static func _test_fixed_route_nodes_reference_catalog_configs(tr) -> void:
 		tr.assert_true("%s resolves config" % node_id, not config.is_empty())
 		tr.assert_eq("%s node map matches config" % node_id, battle.get("map_id", ""), config.get("map_id", ""))
 
+static func _test_expedition_map_pools_reference_catalog_configs(tr) -> void:
+	var run = RunStateScript.new()
+	var referenced := {}
+	for expedition_id in [
+		RunStateScript.EXPEDITION_BROKEN_WALL,
+		RunStateScript.EXPEDITION_RIFT_CORRIDOR,
+		RunStateScript.EXPEDITION_SUPPLY_LINE,
+	]:
+		for pool_key in [
+			RunStateScript.MAP_POOL_START,
+			RunStateScript.MAP_POOL_NORMAL,
+			RunStateScript.MAP_POOL_ELITE,
+			RunStateScript.MAP_POOL_BOSS,
+		]:
+			var config_ids := run.expedition_map_pool_config_ids(expedition_id, pool_key)
+			tr.assert_true("%s %s map pool is not empty" % [expedition_id, pool_key], not config_ids.is_empty())
+			for config_id in config_ids:
+				var config := BattleConfigCatalogScript.get_config(config_id)
+				tr.assert_true("%s %s map pool config exists %s" % [expedition_id, pool_key, config_id], not config.is_empty())
+				referenced[config_id] = true
+	for config_id in BattleConfigCatalogScript.config_ids():
+		tr.assert_true("%s is reachable from an expedition map pool" % config_id, referenced.has(config_id))
+
 static func _test_protected_targets_and_rounds_match_runtime_config(tr) -> void:
 	var expectations := {
 		BattleConfigCatalogScript.CONFIG_OUTER_WALL: {"rounds": 5, "targets": 3},
@@ -111,8 +136,6 @@ static func _test_catalog_constructs_grid_enemies_and_rifts(tr) -> void:
 		tr.assert_eq("%s initial enemy count" % config_id, runtime.get("initial_enemies", []).size(), expected.get("enemies", 0))
 		tr.assert_eq("%s rift count" % config_id, runtime.get("rift_positions", []).size(), expected.get("rifts", 0))
 		tr.assert_eq("%s rift schedule count" % config_id, runtime.get("rift_schedule", []).size(), expected.get("schedule", 0))
-		var expected_cracks := 2 if config_id == BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD else 0
-		tr.assert_eq("%s cracked ground schedule count" % config_id, runtime.get("cracked_ground_schedule", []).size(), expected_cracks)
 		var expected_bell_waves := 2 if config_id == BattleConfigCatalogScript.CONFIG_OUTER_BELL else 0
 		tr.assert_eq("%s bell wave schedule count" % config_id, runtime.get("bell_wave_schedule", []).size(), expected_bell_waves)
 		tr.assert_eq("%s scripted spawn count" % config_id, runtime.get("scripted_spawn_schedule", []).size(), expected.get("scripted", 0))
@@ -125,11 +148,8 @@ static func _test_catalog_constructs_grid_enemies_and_rifts(tr) -> void:
 		for entry in runtime.get("scripted_spawn_schedule", []):
 			tr.assert_true("%s scripted spawn has def" % config_id, entry.get("def", null) != null)
 			tr.assert_true("%s scripted spawn position in bounds" % config_id, runtime.get("grid").in_bounds(entry.get("pos", Vector2i(-1, -1))))
+			tr.assert_true("%s scripted spawn avoids void %s" % [config_id, str(entry.get("pos", Vector2i(-1, -1)))], runtime.get("grid").get_tile(entry.get("pos", Vector2i(-1, -1))) != Grid.TileType.VOID)
 			tr.assert_true("%s scripted spawn has positive round" % config_id, int(entry.get("round", 0)) > 0)
-		for entry in runtime.get("cracked_ground_schedule", []):
-			tr.assert_true("%s cracked ground has positive round" % config_id, int(entry.get("round", 0)) > 0)
-			for cell in entry.get("cells", []):
-				tr.assert_true("%s cracked ground in bounds %s" % [config_id, str(cell)], runtime.get("grid").in_bounds(cell))
 		for entry in runtime.get("bell_wave_schedule", []):
 			tr.assert_eq("%s bell wave hazard type" % config_id, entry.get("hazard_type", ""), BattleEngine.HAZARD_BELL_WAVE)
 			tr.assert_true("%s bell wave has positive round" % config_id, int(entry.get("round", 0)) > 0)
@@ -148,6 +168,7 @@ static func _test_catalog_deploy_zones_cover_configured_spawns(tr) -> void:
 		for spawn in config.get("warden_spawns", []):
 			tr.assert_true("%s warden spawn in deploy zone %s" % [config_id, str(spawn)], spawn in deploy_zone)
 			tr.assert_true("%s warden spawn is not blocked %s" % [config_id, str(spawn)], grid != null and not grid.blocks_movement(spawn))
+			tr.assert_true("%s warden spawn is not void %s" % [config_id, str(spawn)], grid != null and grid.get_tile(spawn) != Grid.TileType.VOID)
 	var custom_deploy_expectations := {
 		BattleConfigCatalogScript.CONFIG_OUTER_WALL: [Vector2i(2, 4), Vector2i(3, 4), Vector2i(2, 5)],
 		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD: [Vector2i(2, 4), Vector2i(6, 4), Vector2i(5, 5)],
@@ -161,6 +182,68 @@ static func _test_catalog_deploy_zones_cover_configured_spawns(tr) -> void:
 		tr.assert_eq("%s configured warden spawns" % config_id, config.get("warden_spawns", []), custom_deploy_expectations[config_id])
 		for cell in custom_deploy_expectations[config_id]:
 			tr.assert_true("%s custom deploy includes %s" % [config_id, str(cell)], cell in runtime.get("deploy_zone", []))
+
+static func _test_void_cells_are_filtered_from_runtime_entry_points(tr) -> void:
+	var config := {
+		"config_id": "test_void_filter",
+		"max_rounds": 3,
+		"void_cells": [Vector2i(3, 3)],
+		"deploy_zone": [Vector2i(3, 3), Vector2i(3, 4)],
+		"protected_targets": [
+			{"id": "bad_building", "pos": Vector2i(3, 3), "hp": 2},
+			{"id": "good_building", "pos": Vector2i(4, 4), "hp": 2},
+		],
+		"pillars": [
+			{"id": "bad_pillar", "pos": Vector2i(3, 3)},
+			{"id": "good_pillar", "pos": Vector2i(2, 2)},
+		],
+		"rifts": [
+			{"id": "bad_rift", "pos": Vector2i(3, 3)},
+			{"id": "good_rift", "pos": Vector2i(5, 5)},
+		],
+		"initial_enemies": [
+			{"id": "bad_enemy", "enemy_id": "rot_beast", "pos": Vector2i(3, 3)},
+			{"id": "good_enemy", "enemy_id": "rot_beast", "pos": Vector2i(1, 1)},
+		],
+		"scripted_spawns": [
+			{"round": 2, "enemy_id": "rot_beast", "pos": Vector2i(3, 3)},
+			{"round": 2, "enemy_id": "rot_beast", "pos": Vector2i(1, 2)},
+		],
+		"rift_schedule": [
+			{"round": 2, "rift_id": "bad_rift", "enemy_id": "rot_beast"},
+			{"round": 2, "rift_id": "good_rift", "enemy_id": "rot_beast"},
+		],
+		"spawn_pools": {
+			"void_filter_pool": {
+				"cells": [Vector2i(3, 3), Vector2i(6, 6)],
+				"rift_ids": ["bad_rift", "good_rift"],
+				"enemy_weights": {"rot_beast": 1},
+				"rounds": [1],
+				"max_per_round": 1,
+			},
+		},
+		"reward_tasks": [],
+	}
+	var runtime := BattleConfigCatalogScript.build_runtime_config(config)
+	var grid: Grid = runtime.get("grid", null)
+	tr.assert_eq("void filter keeps authored void terrain", grid.get_tile(Vector2i(3, 3)), Grid.TileType.VOID)
+	tr.assert_true("void filter omits protected target on void", not (Vector2i(3, 3) in runtime.get("protected_targets", [])))
+	tr.assert_true("void filter keeps non-void protected target", Vector2i(4, 4) in runtime.get("protected_targets", []))
+	tr.assert_true("void filter omits deploy cell on void", not (Vector2i(3, 3) in runtime.get("deploy_zone", [])))
+	tr.assert_true("void filter keeps non-void deploy cell", Vector2i(3, 4) in runtime.get("deploy_zone", []))
+	tr.assert_true("void filter omits initial enemy on void", _runtime_positions(runtime.get("initial_enemies", [])).find(Vector2i(3, 3)) == -1)
+	tr.assert_true("void filter keeps non-void initial enemy", Vector2i(1, 1) in _runtime_positions(runtime.get("initial_enemies", [])))
+	tr.assert_true("void filter omits scripted spawn on void", _runtime_positions(runtime.get("scripted_spawn_schedule", [])).find(Vector2i(3, 3)) == -1)
+	tr.assert_true("void filter keeps non-void scripted spawn", Vector2i(1, 2) in _runtime_positions(runtime.get("scripted_spawn_schedule", [])))
+	tr.assert_true("void filter omits rift position on void", not (Vector2i(3, 3) in runtime.get("rift_positions", [])))
+	tr.assert_true("void filter keeps non-void rift position", Vector2i(5, 5) in runtime.get("rift_positions", []))
+	tr.assert_true("void filter omits rift spawn on void", _runtime_positions(runtime.get("rift_schedule", [])).find(Vector2i(3, 3)) == -1)
+	tr.assert_true("void filter keeps non-void rift spawn", Vector2i(5, 5) in _runtime_positions(runtime.get("rift_schedule", [])))
+	var spawn_pool: Dictionary = runtime.get("spawn_pools", {}).get("void_filter_pool", {})
+	tr.assert_true("void filter removes spawn-pool void cell", not (Vector2i(3, 3) in spawn_pool.get("cells", [])))
+	tr.assert_true("void filter keeps spawn-pool non-void cell", Vector2i(6, 6) in spawn_pool.get("cells", []))
+	tr.assert_true("void filter removes spawn-pool void rift id", not ("bad_rift" in spawn_pool.get("rift_ids", [])))
+	tr.assert_true("void filter keeps spawn-pool non-void rift id", "good_rift" in spawn_pool.get("rift_ids", []))
 
 static func _test_outer_bell_scripted_boss_spawns_keep_source(tr) -> void:
 	var config := BattleConfigCatalogScript.get_config(BattleConfigCatalogScript.CONFIG_OUTER_BELL)
@@ -242,7 +325,7 @@ static func _test_map_feature_metadata_available_for_preview(tr) -> void:
 	tr.assert_true("broken bridge has abyss preview role", _has_role(bridge_runtime.get("terrain_roles", []), "hazard_preview"))
 	tr.assert_true("broken bridge has element pools", not bridge_runtime.get("element_pools", {}).is_empty())
 
-static func _test_map_feature_metadata_does_not_change_runtime_tiles(tr) -> void:
+static func _test_map_feature_metadata_only_changes_authored_runtime_tiles(tr) -> void:
 	for config_id in BattleConfigCatalogScript.config_ids():
 		var config := BattleConfigCatalogScript.get_config(config_id)
 		var runtime := BattleConfigCatalogScript.build_runtime_config(config)
@@ -255,6 +338,7 @@ static func _test_map_feature_metadata_does_not_change_runtime_tiles(tr) -> void
 					var is_real_tile: bool = cell in runtime.get("protected_targets", [])
 					is_real_tile = is_real_tile or cell in runtime.get("rift_positions", [])
 					is_real_tile = is_real_tile or _cell_in_entries(cell, config.get("pillars", []))
+					is_real_tile = is_real_tile or cell in config.get("void_cells", [])
 					if is_real_tile:
 						continue
 					tr.assert_eq("%s metadata role leaves runtime tile empty %s" % [config_id, str(cell)], grid.get_tile(cell), Grid.TileType.EMPTY)
@@ -264,6 +348,12 @@ static func _has_role(roles: Array, role_id: String) -> bool:
 		if String(role.get("role", "")) == role_id:
 			return true
 	return false
+
+static func _runtime_positions(entries: Array) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for entry in entries:
+		result.append(entry.get("pos", Vector2i(-1, -1)))
+	return result
 
 static func _cell_in_entries(cell: Vector2i, entries: Array) -> bool:
 	for entry in entries:
@@ -411,7 +501,8 @@ static func _test_candidate_map_configs_are_available_but_not_on_fixed_route(tr)
 	var bridge_runtime := BattleConfigCatalogScript.build_runtime_config(bridge)
 	var grid: Grid = bridge_runtime.get("grid", null)
 	for cell in bridge.get("void_cells", []):
-		tr.assert_eq("broken bridge void metadata does not alter runtime grid %s" % str(cell), grid.get_tile(cell), Grid.TileType.EMPTY)
+		tr.assert_eq("broken bridge void becomes runtime terrain %s" % str(cell), grid.get_tile(cell), Grid.TileType.VOID)
+		tr.assert_true("broken bridge void blocks movement %s" % str(cell), grid.blocks_movement(cell))
 	var abyss_edges: Dictionary = bridge_runtime.get("abyss_edges", {})
 	tr.assert_true("broken bridge runtime has abyss edges", not abyss_edges.is_empty())
 	tr.assert_true("broken bridge left edge is abyss", bool(abyss_edges.get(Vector2i(0, 3), {}).get(Vector2i(-1, 0), false)))

@@ -133,8 +133,23 @@ static func _advance_push(
 			# (for hp>0 units pushed off board)
 			# Simplest: mark dead; UNIT_FELL implies death.
 			return
-		# 2) Pillar / building -> wall bump (truth table §2.1)
+		# 2) Void -> fell into a missing board cell.
 		var tile := state.grid.get_tile(to)
+		if tile == Grid.TileType.VOID:
+			var was_alive_void := subject.alive
+			subject.alive = false
+			if was_alive_void and subject.is_enemy():
+				state.record_enemy_kill(&"fall", subject.def.def_id if subject.def != null else &"")
+			elif was_alive_void and subject.is_warden():
+				state.record_warden_death()
+			var ev := BattleEvent.make(BattleEvent.Type.UNIT_FELL)
+			ev.unit_id = subject.id
+			ev.from_pos = from
+			ev.to_pos = to
+			ev.extra = {"void_tile": true}
+			events.append(ev)
+			return
+		# 3) Pillar / building -> wall bump (truth table §2.1)
 		if tile == Grid.TileType.PILLAR or tile == Grid.TileType.BUILDING:
 			# Wall damage 1, push force voided
 			_apply_damage(state, subject, 1, events, &"wall")
@@ -146,7 +161,7 @@ static func _advance_push(
 			ew.to_pos = to
 			events.append(ew)
 			return
-		# 3) Another unit U -> relay (truth table §2.1 / §3.5)
+		# 4) Another unit U -> relay (truth table §2.1 / §3.5)
 		var other := state.get_unit_at(to)
 		if other != null and other.id != subject.id:
 			# Subject stops at U's previous cell; emit BUMP_UNIT
@@ -217,7 +232,7 @@ static func _advance_push(
 			heart_bump.to_pos = to
 			events.append(heart_bump)
 			return
-		# 4) Empty -> slide
+		# 5) Empty -> slide
 		subject.position = to
 		var ep2 := BattleEvent.make(BattleEvent.Type.UNIT_PUSHED)
 		ep2.unit_id = subject.id

@@ -1,28 +1,20 @@
 extends RefCounted
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_warden() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"warden_test"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 3
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.generic_warden({"max_hp": 3, "move": 2})
 
 static func _enemy(def_id: StringName, move: int, attack_kind: int, attack_range: int = 1) -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = def_id
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = move
-	d.attack_kind = attack_kind
-	d.attack_range = attack_range
-	d.attack_damage = 1
-	d.attack_force = 0
-	return d
+	return TestUnitDefs.generic_enemy({
+		"def_id": def_id,
+		"max_hp": 2,
+		"move": move,
+		"attack_kind": attack_kind,
+		"attack_range": attack_range,
+		"attack_damage": 1,
+		"attack_force": 0,
+	})
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)

@@ -2,40 +2,16 @@ extends RefCounted
 ## Verify: when battle starts with the production setup (archer at (3,0),
 ## carrions adjacent), the archer DOES move south in round 1.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_archer() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"archer"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.RANGED_PUSH
-	d.attack_range = 3
-	d.attack_damage = 1
-	d.attack_force = 0
-	return d
+	return TestUnitDefs.plague_archer({"def_id": &"archer"})
 
 static func _make_carrion() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 3
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_damage = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.carrion_spawn()
 
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func run(tr) -> void:
 	_test_archer_moves_in_round_1(tr)

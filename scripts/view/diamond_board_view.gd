@@ -26,10 +26,24 @@ const COLOR_TILE_EDGE_LIT := Color(0.78, 0.88, 0.82, 0.18)
 const COLOR_TILE_EDGE_DARK := Color(0.0, 0.0, 0.0, 0.34)
 const COLOR_TILE_DECAL_LIGHT := Color(0.86, 0.96, 0.82, 0.085)
 const COLOR_TILE_DECAL_DARK := Color(0.0, 0.0, 0.0, 0.145)
+const COLOR_TILE_DECAL_RUBBLE := Color(0.58, 0.62, 0.52, 0.115)
+const COLOR_TILE_DECAL_MOSS := Color(0.28, 0.42, 0.24, 0.130)
+const COLOR_TILE_DECAL_SCORCH := Color(0.035, 0.025, 0.018, 0.170)
+const COLOR_TILE_DECAL_RUNE := Color(0.38, 0.66, 0.68, 0.105)
+const COLOR_EDGE_CHIP_DARK := Color(0.0, 0.0, 0.0, 0.235)
+const COLOR_EDGE_CHIP_LIGHT := Color(0.56, 0.64, 0.56, 0.145)
+const COLOR_EDGE_SEEP := Color(0.14, 0.42, 0.43, 0.150)
+const COLOR_VOID_CORE := Color(0.004, 0.005, 0.006, 0.94)
+const COLOR_VOID_WALL := Color(0.040, 0.048, 0.046, 0.88)
+const COLOR_VOID_RIM_DARK := Color(0.0, 0.0, 0.0, 0.58)
+const COLOR_VOID_RIM_LIGHT := Color(0.56, 0.64, 0.56, 0.22)
+const COLOR_VOID_DEPTH_GLOW := Color(0.06, 0.48, 0.50, 0.18)
 const COLOR_GRID_LINE := Color(0.82, 0.90, 0.82, 0.014)
 const COLOR_GRID_GROUT := Color(0.0, 0.0, 0.0, 0.030)
 const COLOR_MOVE := Color(0.26, 0.64, 0.62, 0.22)
 const COLOR_ATTACK := Color(0.95, 0.28, 0.34, 0.40)
+const COLOR_SKILL_RANGE := Color(0.35, 0.62, 0.95, 0.16)
+const COLOR_SKILL_TARGET := Color(1.0, 0.74, 0.24, 0.46)
 const COLOR_HOVER := Color(1.0, 0.83, 0.30, 0.34)
 const COLOR_DEPLOY := Color(0.13, 0.54, 0.52, 0.12)
 const COLOR_DEPLOY_FRAME := Color(0.38, 0.96, 0.86, 0.72)
@@ -42,14 +56,18 @@ const COLOR_INTENT_TARGET_FILL := Color(0.55, 0.03, 0.02, 0.16)
 const COLOR_INTENT_TARGET_FRAME := Color(1.0, 0.18, 0.12, 0.95)
 const COLOR_INTENT_SOURCE := Color(1.0, 0.74, 0.28, 0.95)
 const COLOR_INTENT_UNDERSTROKE := Color(0.030, 0.006, 0.004, 0.82)
-const COLOR_CHARGE_LANE := Color(1.0, 0.46, 0.12, 0.34)
-const COLOR_CHARGE_LANE_FRAME := Color(1.0, 0.67, 0.20, 0.88)
 const COLOR_EXECUTE_CONFIRM := Color(1.0, 0.82, 0.30, 0.96)
-const COLOR_RIFT_WARN := Color(1.0, 0.78, 0.20, 0.46)
-const COLOR_CRACKED_GROUND := Color(1.0, 0.24, 0.12, 0.34)
-const COLOR_CRACKED_GROUND_FRAME := Color(1.0, 0.66, 0.22, 0.88)
-const COLOR_BELL_WAVE := Color(0.56, 0.72, 1.0, 0.30)
-const COLOR_BELL_WAVE_FRAME := Color(0.74, 0.88, 1.0, 0.86)
+const HAZARD_RIFT_WARNING := "rift_spawn_warning"
+const COLOR_HAZARD_UNDERLAY := Color(0.030, 0.008, 0.004, 0.58)
+const COLOR_HAZARD_RIFT_FILL := Color(1.0, 0.64, 0.18, 0.30)
+const COLOR_HAZARD_RIFT_FRAME := Color(1.0, 0.82, 0.28, 0.92)
+const COLOR_HAZARD_BELL_FILL := Color(0.56, 0.72, 1.0, 0.22)
+const COLOR_HAZARD_BELL_FRAME := Color(0.74, 0.88, 1.0, 0.80)
+const COLOR_HAZARD_CHARGE_FILL := Color(1.0, 0.46, 0.12, 0.24)
+const COLOR_HAZARD_CHARGE_FRAME := Color(1.0, 0.67, 0.20, 0.82)
+const COLOR_SIGIL := Color(0.38, 0.72, 1.0, 0.26)
+const COLOR_SIGIL_FRAME := Color(0.72, 0.92, 1.0, 0.82)
+const COLOR_BUILDING_SHIELD := Color(0.52, 0.82, 1.0, 0.88)
 const COLOR_ABYSS_EDGE := Color(0.98, 0.18, 0.10, 0.74)
 const COLOR_ABYSS_EDGE_SHADOW := Color(0.0, 0.0, 0.0, 0.62)
 const COLOR_PREVIEW_GHOST := Color(0.55, 0.82, 1.0, 0.46)
@@ -83,6 +101,9 @@ const PROP_FLOOR_OCCLUSION := Color(0.0, 0.0, 0.0, 0.34)
 const PROP_FOUNDATION_FILL := Color(0.128, 0.142, 0.130, 0.22)
 const PROP_FOUNDATION_LIT := Color(0.62, 0.70, 0.62, 0.28)
 const PROP_FOUNDATION_DARK := Color(0.0, 0.0, 0.0, 0.34)
+const RUIN_CELL_FILL := Color(0.080, 0.088, 0.082, 0.30)
+const RUIN_CELL_LIT := Color(0.54, 0.58, 0.50, 0.22)
+const RUIN_CELL_DARK := Color(0.0, 0.0, 0.0, 0.30)
 const PROP_RUBBLE_DARK := Color(0.030, 0.034, 0.032, 0.48)
 const PROP_RUBBLE_LIGHT := Color(0.48, 0.52, 0.46, 0.34)
 const DRAW_UNIT_HP_PIPS := false
@@ -107,6 +128,15 @@ const FLOOR_VARIANTS_PATH := "res://art/tiles/tilemap/battle_floor_tile_variants
 const FLOOR_VARIANT_COUNT := 12
 const FLOOR_VARIANT_COLUMNS := 4
 const FLOOR_VARIANT_ROWS := 3
+const EMPTY_TILE_ENV_DECAL_VARIANTS := 6
+const EDGE_DETAIL_VARIANTS := 5
+const HAZARD_DECAL_ATLAS_PATH := "res://art/effects/battle_hazard_decals.png"
+const HAZARD_DECAL_FRAME_SIZE := Vector2(TILE_W, TILE_H)
+const HAZARD_DECAL_RIFT := 0
+const HAZARD_DECAL_BELL := 1
+const HAZARD_DECAL_CHARGE := 2
+const HAZARD_DECAL_ALPHA := 0.52
+const HAZARD_DECAL_FOCUSED_ALPHA := 0.58
 const ATTACK_VFX_SHEET_PATH := "res://art/effects/battle_attack_vfx_sheet.png"
 const ATTACK_VFX_FRAME_SIZE := Vector2(96, 96)
 const ATTACK_VFX_COLUMNS := 6
@@ -137,8 +167,9 @@ const BattleBoardAssetProfilesScript := preload("res://scripts/data/battle_board
 var _state: BattleState = null
 var _move_cells: Array = []
 var _attack_cells: Array = []
+var _skill_range_cells: Array = []
+var _skill_target_cells: Array = []
 var _predicted_rifts: Array = []
-var _predicted_cracked_ground: Array = []
 var _predicted_bell_wave: Array = []
 var _enemy_intents: Array = []
 var _attack_fx_suppresses_intents := false
@@ -155,18 +186,20 @@ var _unit_display_overrides: Dictionary = {}
 var _pulse_t: float = 0.0
 var _floor_variants_texture: Texture2D = null
 var _floor_map_texture: Texture2D = null
+var _hazard_decal_texture: Texture2D = null
 var _attack_vfx_sheet_texture: Texture2D = null
 var _board_asset_profiles: Dictionary = {}
 
 func _ready() -> void:
 	_floor_variants_texture = _load_png_texture(FLOOR_VARIANTS_PATH)
 	_floor_map_texture = _load_floor_map_texture()
+	_hazard_decal_texture = _load_png_texture(HAZARD_DECAL_ATLAS_PATH)
 	_attack_vfx_sheet_texture = _load_png_texture(ATTACK_VFX_SHEET_PATH)
 	_board_asset_profiles = BattleBoardAssetProfilesScript.load_runtime_profiles()
 	set_process(true)
 
 func _process(delta: float) -> void:
-	if _predicted_rifts.is_empty() and _predicted_cracked_ground.is_empty() and _predicted_bell_wave.is_empty() and _attack_fx_layers.is_empty() and _preview_protected_damage.is_empty() and not _has_visible_deploy_overlay():
+	if _predicted_rifts.is_empty() and _predicted_bell_wave.is_empty() and _attack_fx_layers.is_empty() and _preview_protected_damage.is_empty() and _skill_target_cells.is_empty() and not _has_visible_deploy_overlay() and not _has_active_skill_markers() and not _has_visible_hazard_intents():
 		return
 	_pulse_t += delta
 	queue_redraw()
@@ -178,6 +211,11 @@ func bind_state(state: BattleState) -> void:
 func set_selection_ranges(move_cells: Array, attack_cells: Array) -> void:
 	_move_cells = move_cells.duplicate()
 	_attack_cells = attack_cells.duplicate()
+	queue_redraw()
+
+func set_skill_targeting(range_cells: Array, target_cells: Array) -> void:
+	_skill_range_cells = range_cells.duplicate()
+	_skill_target_cells = target_cells.duplicate()
 	queue_redraw()
 
 func set_hover_cell(cell: Vector2i) -> void:
@@ -228,10 +266,6 @@ func set_enemy_intents(rows: Array) -> void:
 
 func set_predicted_rifts(cells: Array) -> void:
 	_predicted_rifts = cells.duplicate()
-	queue_redraw()
-
-func set_predicted_cracked_ground(cells: Array) -> void:
-	_predicted_cracked_ground = cells.duplicate()
 	queue_redraw()
 
 func set_predicted_bell_wave(cells: Array) -> void:
@@ -287,6 +321,18 @@ func get_enemy_intents() -> Array:
 func get_focused_enemy() -> int:
 	return _focused_enemy_id
 
+func get_move_cells() -> Array:
+	return _move_cells.duplicate()
+
+func get_attack_cells() -> Array:
+	return _attack_cells.duplicate()
+
+func get_skill_range_cells() -> Array:
+	return _skill_range_cells.duplicate()
+
+func get_skill_target_cells() -> Array:
+	return _skill_target_cells.duplicate()
+
 func get_preview_markers() -> Array:
 	return _preview_markers.duplicate(true)
 
@@ -296,8 +342,8 @@ func get_preview_paths() -> Array:
 func get_preview_protected_damage() -> Dictionary:
 	return _preview_protected_damage.duplicate(true)
 
-func get_predicted_cracked_ground() -> Array:
-	return _predicted_cracked_ground.duplicate()
+func get_predicted_rifts() -> Array:
+	return _predicted_rifts.duplicate()
 
 func get_predicted_bell_wave() -> Array:
 	return _predicted_bell_wave.duplicate()
@@ -388,6 +434,7 @@ func _draw_edge_faces() -> void:
 		)
 		draw_line(right[1] + down, right[2] + down, Color(0, 0, 0, 0.26), 1.0)
 		draw_line(right[2], right[2] + down, Color(0, 0, 0, 0.32), 1.0)
+		_draw_edge_face_detail(Vector2i(Grid.SIZE - 1, y), right[1], right[2], down, true)
 	for x in Grid.SIZE:
 		var front := _diamond(cell_to_pixel(Vector2i(x, Grid.SIZE - 1)))
 		var tint := 0.05 * float(x % 2)
@@ -397,6 +444,36 @@ func _draw_edge_faces() -> void:
 		)
 		draw_line(front[3] + down, front[2] + down, Color(0, 0, 0, 0.26), 1.0)
 		draw_line(front[3], front[3] + down, Color(0, 0, 0, 0.34), 1.0)
+		_draw_edge_face_detail(Vector2i(x, Grid.SIZE - 1), front[3], front[2], down, false)
+
+func _draw_edge_face_detail(cell: Vector2i, a: Vector2, b: Vector2, down: Vector2, right_face: bool) -> void:
+	var variant := _edge_detail_variant_for_cell(cell, right_face)
+	if variant == 0:
+		return
+	var edge := b - a
+	var vertical := down
+	var t := 0.24 + 0.46 * _cell_noise(cell, 719 if right_face else 743)
+	var top := a + edge * t
+	var bottom := top + vertical * (0.32 + 0.36 * _cell_noise(cell, 751 if right_face else 761))
+	match variant:
+		1:
+			draw_line(top, bottom, COLOR_EDGE_CHIP_DARK, 1.2)
+			draw_line(top + edge.normalized() * 5.0, bottom + edge.normalized() * 2.0, COLOR_EDGE_CHIP_DARK, 0.8)
+		2:
+			var chip := PackedVector2Array([
+				top,
+				top + edge * 0.14,
+				top + edge * 0.10 + vertical * 0.30,
+				top - edge * 0.03 + vertical * 0.22,
+			])
+			draw_colored_polygon(chip, COLOR_EDGE_CHIP_DARK)
+			draw_line(top + edge * 0.02, top + edge * 0.13, COLOR_EDGE_CHIP_LIGHT, 0.8)
+		3:
+			draw_line(top, top + vertical * 0.42, COLOR_EDGE_SEEP, 1.4)
+			_draw_ellipse(top + vertical * 0.48, Vector2(3.4, 1.3), COLOR_EDGE_SEEP)
+		4:
+			draw_line(top - edge * 0.05, top + edge * 0.10, COLOR_EDGE_CHIP_LIGHT, 0.8)
+			draw_line(bottom - edge * 0.02, bottom + edge * 0.08, COLOR_EDGE_CHIP_DARK, 1.0)
 
 func _draw_tiles() -> void:
 	_draw_floor_tiles()
@@ -409,6 +486,9 @@ func _draw_tiles() -> void:
 		var center := cell_to_pixel(cell)
 		var top := _diamond(center)
 		var deploy := deploy_lookup.has(cell)
+		if _display_tile(cell) == Grid.TileType.VOID:
+			_draw_void_tile(cell)
+			continue
 		if _display_tile(cell) == Grid.TileType.RIFT or deploy:
 			_draw_tile_surface(cell, deploy)
 		_draw_tile_decals(cell)
@@ -423,6 +503,8 @@ func _draw_floor_tiles() -> void:
 		_draw_floor_variant(cell)
 
 func _draw_floor_variant(cell: Vector2i) -> void:
+	if _display_tile(cell) == Grid.TileType.VOID:
+		return
 	var variant := _floor_variant_for_cell(cell)
 	var source := Rect2(
 		Vector2(float(variant % FLOOR_VARIANT_COLUMNS) * TILE_W, float(variant / FLOOR_VARIANT_COLUMNS) * TILE_H),
@@ -463,6 +545,36 @@ func _draw_tile_surface(cell: Vector2i, deploy: bool) -> void:
 	_draw_tile_texture(top, cell, tile, deploy, base)
 	if tile == Grid.TileType.RIFT:
 		_draw_rift_tile_detail(center)
+
+func _draw_void_tile(cell: Vector2i) -> void:
+	var center := cell_to_pixel(cell)
+	var outer := _diamond_scaled(center, 0.98, 0.98)
+	var core := _diamond_scaled(center + Vector2(0, 4), 0.72, 0.62)
+	var lower_wall := PackedVector2Array([outer[1], outer[2], outer[3], core[2], core[1]])
+	var upper_wall := PackedVector2Array([outer[3], outer[0], outer[1], core[1], core[3]])
+	draw_colored_polygon(outer, COLOR_VOID_RIM_DARK)
+	draw_colored_polygon(lower_wall, COLOR_VOID_WALL)
+	draw_colored_polygon(upper_wall, COLOR_VOID_WALL.darkened(0.20))
+	draw_colored_polygon(core, COLOR_VOID_CORE)
+	_draw_ellipse(center + Vector2(0, 9), Vector2(22, 5), COLOR_VOID_DEPTH_GLOW)
+	var rim_dark := COLOR_VOID_RIM_DARK
+	var rim_light := COLOR_VOID_RIM_LIGHT
+	draw_polyline(PackedVector2Array([outer[0], outer[1], outer[2], outer[3], outer[0]]), rim_dark, 3.0)
+	draw_polyline(PackedVector2Array([outer[3], outer[0], outer[1]]), rim_light, 1.2)
+	draw_polyline(PackedVector2Array([core[0], core[1], core[2], core[3], core[0]]), Color(0.0, 0.0, 0.0, 0.46), 1.3)
+	_draw_void_rubble_edges(cell, center)
+
+func _draw_void_rubble_edges(cell: Vector2i, center: Vector2) -> void:
+	for i in 7:
+		var p := center + _tile_decal_offset(cell, i, 991, Vector2(43, 20))
+		var normalized := Vector2((p.x - center.x) / TILE_HALF.x, (p.y - center.y) / TILE_HALF.y)
+		if absf(normalized.x) + absf(normalized.y) < 0.68:
+			continue
+		var scale := 0.050 + _cell_noise(cell + Vector2i(i, i * 2), 997) * 0.040
+		var chip := _diamond_scaled(p, scale, scale * 0.82)
+		draw_colored_polygon(chip, COLOR_TILE_DECAL_RUBBLE)
+		if i % 2 == 0:
+			draw_line(p + Vector2(-3, -1), p + Vector2(4, -2), COLOR_VOID_RIM_LIGHT, 0.7)
 
 func _draw_tile_texture(top: PackedVector2Array, cell: Vector2i, tile: int, deploy: bool, fallback: Color) -> void:
 	draw_colored_polygon(top, fallback)
@@ -511,6 +623,8 @@ func _draw_rift_tile_detail(center: Vector2) -> void:
 
 func _draw_tile_decals(cell: Vector2i) -> void:
 	var center := cell_to_pixel(cell)
+	if _display_tile(cell) == Grid.TileType.EMPTY:
+		_draw_empty_tile_environment_decal(cell, center)
 	var noise := _cell_noise(cell, 509)
 	if noise < 0.34:
 		draw_line(center + Vector2(-27, -3), center + Vector2(-10, -12), COLOR_TILE_DECAL_LIGHT, 1.0)
@@ -526,12 +640,79 @@ func _draw_tile_decals(cell: Vector2i) -> void:
 		draw_line(center + Vector2(-22, 0), center + Vector2(-9, 7), COLOR_TILE_DECAL_LIGHT, 1.0)
 		draw_line(center + Vector2(-15, 9), center + Vector2(1, 15), COLOR_TILE_DECAL_LIGHT, 1.0)
 
+func _draw_empty_tile_environment_decal(cell: Vector2i, center: Vector2) -> void:
+	match _empty_tile_env_decal_variant_for_cell(cell):
+		0:
+			return
+		1:
+			_draw_floor_hairline_cracks(center, cell)
+		2:
+			_draw_floor_rubble_scatter(center, cell)
+		3:
+			_draw_floor_moss_smear(center, cell)
+		4:
+			_draw_floor_old_rune_scars(center, cell)
+		5:
+			_draw_floor_scorch_mark(center, cell)
+
+func _draw_floor_hairline_cracks(center: Vector2, cell: Vector2i) -> void:
+	var offset := Vector2(_cell_noise(cell, 811) * 14.0 - 7.0, _cell_noise(cell, 823) * 8.0 - 4.0)
+	var a := center + offset + Vector2(-22, -2)
+	var b := center + offset + Vector2(-7, 3)
+	var c := center + offset + Vector2(8, -4)
+	var d := center + offset + Vector2(23, 1)
+	draw_polyline(PackedVector2Array([a, b, c, d]), COLOR_TILE_DECAL_DARK, 0.9)
+	draw_line(b, b + Vector2(-7, 7), COLOR_TILE_DECAL_DARK, 0.7)
+	draw_line(c, c + Vector2(6, 6), COLOR_TILE_DECAL_LIGHT, 0.7)
+
+func _draw_floor_rubble_scatter(center: Vector2, cell: Vector2i) -> void:
+	for i in 5:
+		var p := center + _tile_decal_offset(cell, i, 839, Vector2(30, 13))
+		var scale := 0.055 + _cell_noise(cell + Vector2i(i, i * 2), 853) * 0.035
+		var chip := _diamond_scaled(p, scale, scale * 0.78)
+		draw_colored_polygon(chip, COLOR_TILE_DECAL_SCORCH if i == 0 else COLOR_TILE_DECAL_RUBBLE)
+		if i % 2 == 0:
+			draw_line(p + Vector2(-3, -1), p + Vector2(4, -2), COLOR_TILE_DECAL_LIGHT, 0.65)
+
+func _draw_floor_moss_smear(center: Vector2, cell: Vector2i) -> void:
+	var p := center + _tile_decal_offset(cell, 0, 877, Vector2(20, 9))
+	_draw_ellipse(p, Vector2(14, 3.0), COLOR_TILE_DECAL_MOSS)
+	_draw_ellipse(p + Vector2(9, -3), Vector2(7, 2.0), COLOR_TILE_DECAL_MOSS)
+	draw_line(p + Vector2(-16, 4), p + Vector2(12, -2), COLOR_TILE_DECAL_LIGHT, 0.7)
+
+func _draw_floor_old_rune_scars(center: Vector2, cell: Vector2i) -> void:
+	var p := center + _tile_decal_offset(cell, 0, 907, Vector2(14, 8))
+	var ring := _diamond_scaled(p, 0.30, 0.30)
+	draw_polyline(PackedVector2Array([ring[0], ring[1], ring[2], ring[3], ring[0]]), COLOR_TILE_DECAL_RUNE, 0.8)
+	draw_line(p + Vector2(-9, 0), p + Vector2(9, 0), COLOR_TILE_DECAL_RUNE, 0.65)
+	draw_line(p + Vector2(0, -5), p + Vector2(0, 6), COLOR_TILE_DECAL_RUNE, 0.65)
+
+func _draw_floor_scorch_mark(center: Vector2, cell: Vector2i) -> void:
+	var p := center + _tile_decal_offset(cell, 0, 941, Vector2(16, 8))
+	_draw_ellipse(p, Vector2(16, 4.5), COLOR_TILE_DECAL_SCORCH)
+	_draw_ellipse(p + Vector2(5, 1), Vector2(8, 2.4), Color(0.0, 0.0, 0.0, 0.085))
+	draw_line(p + Vector2(-15, -2), p + Vector2(11, 3), COLOR_TILE_DECAL_DARK, 0.75)
+
 func _cell_noise(cell: Vector2i, salt: int) -> float:
 	var value := sin(float(cell.x * 37 + cell.y * 71 + salt * 113)) * 43758.5453
 	return value - floor(value)
 
 func _floor_variant_for_cell(cell: Vector2i) -> int:
 	return int(floor(_cell_noise(cell, 211) * float(FLOOR_VARIANT_COUNT))) % FLOOR_VARIANT_COUNT
+
+func _empty_tile_env_decal_variant_for_cell(cell: Vector2i) -> int:
+	return int(floor(_cell_noise(cell, 631) * float(EMPTY_TILE_ENV_DECAL_VARIANTS))) % EMPTY_TILE_ENV_DECAL_VARIANTS
+
+func _edge_detail_variant_for_cell(cell: Vector2i, right_face: bool) -> int:
+	var salt := 673 if right_face else 691
+	return int(floor(_cell_noise(cell, salt) * float(EDGE_DETAIL_VARIANTS))) % EDGE_DETAIL_VARIANTS
+
+func _tile_decal_offset(cell: Vector2i, index: int, salt: int, radius: Vector2) -> Vector2:
+	var offset_cell := cell + Vector2i(index * 3 + 1, index * 5 + 2)
+	return Vector2(
+		(_cell_noise(offset_cell, salt) * 2.0 - 1.0) * radius.x,
+		(_cell_noise(offset_cell, salt + 17) * 2.0 - 1.0) * radius.y
+	)
 
 func _draw_overlays() -> void:
 	if _state.phase == BattleState.Phase.GARRISON:
@@ -542,16 +723,22 @@ func _draw_overlays() -> void:
 		_fill_diamond(cell, COLOR_MOVE, true, 1.1)
 	for cell in _attack_cells:
 		_fill_diamond(cell, COLOR_ATTACK, true, 2.0)
-	for cell in _predicted_rifts:
-		var pulse := 0.72 + 0.28 * sin(_pulse_t * 4.0)
-		var color := COLOR_RIFT_WARN
+	for cell in _skill_range_cells:
+		if cell in _skill_target_cells:
+			continue
+		_fill_diamond(cell, COLOR_SKILL_RANGE, true, 1.0)
+	for cell in _skill_target_cells:
+		var pulse := 0.78 + 0.22 * sin(_pulse_t * 5.0)
+		var color := COLOR_SKILL_TARGET
 		color.a *= pulse
-		_fill_diamond(cell, color)
-		_draw_label_at(cell_to_pixel(cell) + Vector2(0, 6), "!", 22, Color(1, 0.92, 0.52, pulse))
-	for cell in _predicted_cracked_ground:
-		_draw_cracked_ground_warning(cell)
+		_fill_diamond(cell, color, true, 2.1)
+	for cell in _predicted_rifts:
+		_draw_hazard_warning_cell(cell, HAZARD_RIFT_WARNING)
 	for cell in _predicted_bell_wave:
-		_draw_bell_wave_warning(cell)
+		_draw_hazard_warning_cell(cell, BattleEngine.HAZARD_BELL_WAVE)
+	if _state != null:
+		for cell in _state.active_sigil_cells():
+			_draw_sigil_marker(cell)
 	_draw_abyss_edges()
 	if not _attack_fx_suppresses_intents:
 		var order_index := _enemy_order_index()
@@ -560,51 +747,188 @@ func _draw_overlays() -> void:
 	if _cell_in_bounds(_hover_cell):
 		_fill_diamond(_hover_cell, COLOR_HOVER, false, 2.5)
 
-func _draw_cracked_ground_warning(cell: Vector2i) -> void:
-	if not _cell_in_bounds(cell):
-		return
-	var pulse := 0.70 + 0.30 * sin(_pulse_t * 5.4)
-	var fill := COLOR_CRACKED_GROUND
-	fill.a *= pulse
-	_fill_diamond(cell, fill, true, 1.4)
-	var center := cell_to_pixel(cell)
-	var frame := COLOR_CRACKED_GROUND_FRAME
-	frame.a *= pulse
-	var crack_dark := COLOR_INTENT_UNDERSTROKE
-	crack_dark.a = 0.74 * pulse
-	var crack_hot := COLOR_CRACKED_GROUND_FRAME
-	crack_hot.a = 0.92 * pulse
-	var points := [
-		[center + Vector2(-25, -3), center + Vector2(-10, 2), center + Vector2(1, -7), center + Vector2(18, -2)],
-		[center + Vector2(-14, 13), center + Vector2(-3, 5), center + Vector2(11, 10), center + Vector2(26, 3)],
-		[center + Vector2(-2, -17), center + Vector2(3, -6), center + Vector2(-4, 4), center + Vector2(4, 17)],
-	]
-	for path in points:
-		draw_polyline(PackedVector2Array(path), crack_dark, 3.2)
-		draw_polyline(PackedVector2Array(path), crack_hot, 1.3)
-	var inner := _diamond_scaled(center, 0.72, 0.72)
-	draw_polyline(PackedVector2Array([inner[0], inner[1], inner[2], inner[3], inner[0]]), frame, 1.5)
-
 func _draw_bell_wave_warning(cell: Vector2i) -> void:
+	_draw_hazard_warning_cell(cell, BattleEngine.HAZARD_BELL_WAVE)
+
+func _draw_hazard_warning_cell(cell: Vector2i, hazard_type: String, focused: bool = true, explicitly_focused: bool = false) -> void:
 	if not _cell_in_bounds(cell):
 		return
-	var pulse := 0.68 + 0.32 * sin(_pulse_t * 4.8)
-	var fill := COLOR_BELL_WAVE
+	var profile := _hazard_visual_profile(hazard_type)
+	var pulse := float(profile.get("base_pulse", 0.72)) + float(profile.get("pulse_amp", 0.28)) * sin(_pulse_t * float(profile.get("pulse_rate", 5.0)))
+	var fill: Color = profile.get("fill", COLOR_HAZARD_RIFT_FILL)
+	var frame: Color = profile.get("frame", COLOR_HAZARD_RIFT_FRAME)
+	var line_width := float(profile.get("line_width", 1.4))
+	if explicitly_focused:
+		fill = COLOR_EXECUTE_CONFIRM
+		fill.a = 0.34
+		frame = COLOR_EXECUTE_CONFIRM
+		frame.a = 0.92
+	elif not focused:
+		fill.a *= 0.34
+		frame.a *= 0.42
 	fill.a *= pulse
-	_fill_diamond(cell, fill, true, 1.3)
-	var center := cell_to_pixel(cell)
-	var frame := COLOR_BELL_WAVE_FRAME
 	frame.a *= pulse
-	var ring_a := _diamond_scaled(center, 0.84, 0.84)
-	var ring_b := _diamond_scaled(center, 0.54, 0.54)
-	draw_polyline(PackedVector2Array([ring_a[0], ring_a[1], ring_a[2], ring_a[3], ring_a[0]]), COLOR_INTENT_UNDERSTROKE, 3.0)
-	draw_polyline(PackedVector2Array([ring_a[0], ring_a[1], ring_a[2], ring_a[3], ring_a[0]]), frame, 1.4)
-	frame.a *= 0.72
-	draw_polyline(PackedVector2Array([ring_b[0], ring_b[1], ring_b[2], ring_b[3], ring_b[0]]), frame, 1.1)
-	var chime := COLOR_BELL_WAVE_FRAME
+	var center := cell_to_pixel(cell)
+	_fill_diamond(cell, fill, true, line_width)
+	var used_decal := _draw_hazard_decal(center, hazard_type, pulse, focused, explicitly_focused)
+	_draw_hazard_common_frame(center, frame, pulse)
+	if _hazard_always_draws_glyph(hazard_type):
+		_draw_hazard_rift_glyph(center, frame, pulse)
+	elif not used_decal:
+		_draw_hazard_fallback_glyph(center, hazard_type, frame, pulse)
+
+func _draw_hazard_decal(center: Vector2, hazard_type: String, pulse: float, focused: bool, explicitly_focused: bool) -> bool:
+	if _hazard_decal_texture == null:
+		return false
+	var frame_index := _hazard_decal_index(hazard_type)
+	if frame_index < 0:
+		return false
+	var alpha := HAZARD_DECAL_ALPHA * pulse
+	if explicitly_focused:
+		alpha = HAZARD_DECAL_FOCUSED_ALPHA * pulse
+	elif not focused:
+		alpha *= 0.38
+	var source := _hazard_decal_region(frame_index)
+	var rect := Rect2(center - HAZARD_DECAL_FRAME_SIZE * 0.5, HAZARD_DECAL_FRAME_SIZE)
+	draw_texture_rect_region(_hazard_decal_texture, rect, source, Color(1, 1, 1, alpha))
+	return true
+
+func _draw_hazard_fallback_glyph(center: Vector2, hazard_type: String, frame: Color, pulse: float) -> void:
+	match hazard_type:
+		HAZARD_RIFT_WARNING:
+			_draw_hazard_rift_glyph(center, frame, pulse)
+		BattleEngine.HAZARD_BELL_WAVE:
+			_draw_hazard_bell_glyph(center, frame, pulse)
+		BattleEngine.HAZARD_CHARGE_LANE:
+			_draw_hazard_charge_glyph(center, frame, pulse)
+		_:
+			_draw_hazard_rift_glyph(center, frame, pulse)
+
+func _hazard_decal_index(hazard_type: String) -> int:
+	match hazard_type:
+		HAZARD_RIFT_WARNING:
+			return HAZARD_DECAL_RIFT
+		BattleEngine.HAZARD_BELL_WAVE:
+			return HAZARD_DECAL_BELL
+		BattleEngine.HAZARD_CHARGE_LANE:
+			return HAZARD_DECAL_CHARGE
+	return -1
+
+func _hazard_decal_region(frame_index: int) -> Rect2:
+	return Rect2(Vector2(float(frame_index) * HAZARD_DECAL_FRAME_SIZE.x, 0.0), HAZARD_DECAL_FRAME_SIZE)
+
+func _hazard_always_draws_glyph(hazard_type: String) -> bool:
+	return hazard_type == HAZARD_RIFT_WARNING
+
+func _hazard_visual_profile(hazard_type: String) -> Dictionary:
+	match hazard_type:
+		HAZARD_RIFT_WARNING:
+			return {
+				"fill": COLOR_HAZARD_RIFT_FILL,
+				"frame": COLOR_HAZARD_RIFT_FRAME,
+				"base_pulse": 0.72,
+				"pulse_amp": 0.28,
+				"pulse_rate": 4.0,
+				"line_width": 1.4,
+			}
+		BattleEngine.HAZARD_BELL_WAVE:
+			return {
+				"fill": COLOR_HAZARD_BELL_FILL,
+				"frame": COLOR_HAZARD_BELL_FRAME,
+				"base_pulse": 0.68,
+				"pulse_amp": 0.32,
+				"pulse_rate": 4.8,
+				"line_width": 1.3,
+			}
+		BattleEngine.HAZARD_CHARGE_LANE:
+			return {
+				"fill": COLOR_HAZARD_CHARGE_FILL,
+				"frame": COLOR_HAZARD_CHARGE_FRAME,
+				"base_pulse": 0.78,
+				"pulse_amp": 0.22,
+				"pulse_rate": 5.0,
+				"line_width": 1.3,
+			}
+		_:
+			return {
+				"fill": COLOR_HAZARD_RIFT_FILL,
+				"frame": COLOR_HAZARD_RIFT_FRAME,
+				"base_pulse": 0.70,
+				"pulse_amp": 0.30,
+				"pulse_rate": 5.4,
+				"line_width": 1.4,
+			}
+
+func _draw_hazard_common_frame(center: Vector2, frame: Color, pulse: float) -> void:
+	var outer := _diamond_scaled(center, 0.84, 0.84)
+	var inner := _diamond_scaled(center, 0.56, 0.56)
+	var under := COLOR_HAZARD_UNDERLAY
+	under.a *= pulse
+	draw_polyline(PackedVector2Array([outer[0], outer[1], outer[2], outer[3], outer[0]]), under, 3.4)
+	draw_polyline(PackedVector2Array([outer[0], outer[1], outer[2], outer[3], outer[0]]), frame, 1.6)
+	var inner_frame := frame
+	inner_frame.a *= 0.56
+	draw_polyline(PackedVector2Array([inner[0], inner[1], inner[2], inner[3], inner[0]]), inner_frame, 1.0)
+
+func _draw_hazard_rift_glyph(center: Vector2, color: Color, pulse: float) -> void:
+	var dark := COLOR_HAZARD_UNDERLAY
+	dark.a = 0.92 * pulse
+	var hot := color
+	hot.a = maxf(hot.a, 0.90 * pulse)
+	var core := Color(1.0, 0.44, 0.10, 0.92 * pulse)
+	var paths := [
+		[center + Vector2(-18, 1), center + Vector2(-7, -4), center + Vector2(2, 2), center + Vector2(17, -5)],
+		[center + Vector2(-9, 12), center + Vector2(0, 3), center + Vector2(8, 12)],
+		[center + Vector2(0, -18), center + Vector2(2, -5), center + Vector2(-2, 7), center + Vector2(1, 18)],
+	]
+	for path in paths:
+		draw_polyline(PackedVector2Array(path), dark, 4.4)
+		draw_polyline(PackedVector2Array(path), core, 2.0)
+	draw_line(center + Vector2(0, -18), center + Vector2(0, -7), dark, 5.0)
+	draw_line(center + Vector2(0, -18), center + Vector2(0, -7), hot, 2.2)
+	draw_circle(center + Vector2(0, -1), 3.0, hot)
+
+func _draw_hazard_bell_glyph(center: Vector2, color: Color, pulse: float) -> void:
+	var chime := color
 	chime.a = 0.66 * pulse
 	draw_line(center + Vector2(-18, 0), center + Vector2(18, 0), chime, 1.2)
 	draw_line(center + Vector2(0, -12), center + Vector2(0, 13), chime, 1.2)
+	var ring := color
+	ring.a = 0.46 * pulse
+	_draw_ellipse(center + Vector2(0, 2), Vector2(19, 6), ring)
+	_draw_ellipse(center + Vector2(0, 2), Vector2(10, 3), COLOR_HAZARD_UNDERLAY)
+
+func _draw_hazard_charge_glyph(center: Vector2, color: Color, pulse: float) -> void:
+	var dark := COLOR_HAZARD_UNDERLAY
+	dark.a = 0.78 * pulse
+	var hot := color
+	hot.a = 0.88 * pulse
+	var left := center + Vector2(-18, -5)
+	var mid := center + Vector2(3, 0)
+	var right := center + Vector2(-18, 5)
+	var tip := center + Vector2(22, 0)
+	draw_polyline(PackedVector2Array([left, mid, right]), dark, 4.0)
+	draw_line(mid, tip, dark, 4.0)
+	draw_polyline(PackedVector2Array([left, mid, right]), hot, 1.6)
+	draw_line(mid, tip, hot, 1.6)
+
+func _draw_sigil_marker(cell: Vector2i) -> void:
+	if not _cell_in_bounds(cell):
+		return
+	var pulse := 0.72 + 0.28 * sin(_pulse_t * 3.8)
+	var fill := COLOR_SIGIL
+	fill.a *= pulse
+	_fill_diamond(cell, fill, true, 1.2)
+	var center := cell_to_pixel(cell)
+	var frame := COLOR_SIGIL_FRAME
+	frame.a *= pulse
+	var outer := _diamond_scaled(center, 0.78, 0.78)
+	var inner := _diamond_scaled(center, 0.44, 0.44)
+	draw_polyline(PackedVector2Array([outer[0], outer[1], outer[2], outer[3], outer[0]]), COLOR_INTENT_UNDERSTROKE, 3.0)
+	draw_polyline(PackedVector2Array([outer[0], outer[1], outer[2], outer[3], outer[0]]), frame, 1.5)
+	draw_polyline(PackedVector2Array([inner[0], inner[1], inner[2], inner[3], inner[0]]), frame, 1.0)
+	draw_line(center + Vector2(-13, 0), center + Vector2(13, 0), frame, 1.0)
+	draw_line(center + Vector2(0, -8), center + Vector2(0, 9), frame, 1.0)
 
 func _is_available_deploy_cell(cell: Vector2i) -> bool:
 	if _state == null or _state.grid == null:
@@ -644,6 +968,22 @@ func _has_visible_deploy_overlay() -> bool:
 		return false
 	for raw_cell in _state.deploy_zone.keys():
 		if _is_available_deploy_cell(raw_cell):
+			return true
+	return false
+
+func _has_active_skill_markers() -> bool:
+	return _state != null and (not _state.sigils.is_empty() or not _state.protected_shields.is_empty())
+
+func _has_visible_hazard_intents() -> bool:
+	if _attack_fx_suppresses_intents:
+		return false
+	for row in _enemy_intents:
+		if String(row.get("hazard_type", "")).is_empty():
+			continue
+		if row.get("hazard_cells", []).is_empty():
+			continue
+		var status := String(row.get("status", BattleEngine.INTENT_STATUS_HIT))
+		if status != BattleEngine.INTENT_STATUS_REMOVED and status != BattleEngine.INTENT_STATUS_NO_ATTACK:
 			return true
 	return false
 
@@ -884,6 +1224,7 @@ func _draw_entities() -> void:
 					"kind": "building_hp",
 					"sort_y": float(prop.sort_y) + 0.02,
 					"sequence": int(prop.sequence),
+					"cell": cell,
 					"origin": prop.get("hp_origin", cell_to_pixel(cell) + BUILDING_HP_BAR_OFFSET),
 					"hp": int(prop.hp),
 					"preview_damage": int(prop.preview_damage),
@@ -902,6 +1243,21 @@ func _draw_entities() -> void:
 	for drawable in overlay_drawables:
 		if String(drawable.get("kind", "")) == "building_hp":
 			_draw_segmented_hp_bar(drawable.origin, int(drawable.hp), BUILDING_HP_MAX_SEGMENTS, COLOR_BUILDING_HP_FILL, int(drawable.preview_damage))
+			var cell: Vector2i = drawable.get("cell", INVALID_CELL)
+			if _state != null and _state.has_protected_shield(cell):
+				_draw_building_shield_marker(cell, drawable.origin)
+
+func _draw_building_shield_marker(cell: Vector2i, hp_origin: Vector2) -> void:
+	if not _cell_in_bounds(cell):
+		return
+	var pulse := 0.74 + 0.26 * sin(_pulse_t * 4.2)
+	var color := COLOR_BUILDING_SHIELD
+	color.a *= pulse
+	var center := cell_to_pixel(cell)
+	var ring := _diamond_scaled(center + Vector2(0, -6), 0.76, 0.76)
+	draw_polyline(PackedVector2Array([ring[0], ring[1], ring[2], ring[3], ring[0]]), COLOR_INTENT_UNDERSTROKE, 3.4)
+	draw_polyline(PackedVector2Array([ring[0], ring[1], ring[2], ring[3], ring[0]]), color, 1.7)
+	draw_line(hp_origin + Vector2(-2, -5), hp_origin + Vector2(BUILDING_HP_MAX_SEGMENTS * (BUILDING_HP_SEGMENT_SIZE.x + BUILDING_HP_SEGMENT_GAP), -5), color, 1.3)
 
 func _sort_entity_drawables(a: Dictionary, b: Dictionary) -> bool:
 	var ay := float(a.get("sort_y", 0.0))
@@ -968,7 +1324,8 @@ func _prop_drawable(cell: Vector2i) -> Dictionary:
 
 func _unit_drawable(unit: Unit, cell: Vector2i) -> Dictionary:
 	var unit_pixel: Vector2 = _unit_visual_positions.get(unit.id, cell_to_pixel(unit.position))
-	var foot := unit_pixel + Vector2(0, UNIT_GROUND_Y) + UNIT_TOKEN_OFFSET
+	var token_offset := unit.def.token_board_offset if unit.def != null else Vector2.ZERO
+	var foot := unit_pixel + Vector2(0, UNIT_GROUND_Y) + UNIT_TOKEN_OFFSET + token_offset
 	return {
 		"kind": "unit",
 		"cell": cell,
@@ -990,6 +1347,8 @@ func _draw_prop_footprint_at_cell(cell: Vector2i) -> void:
 	var tile: int = _display_tile(cell)
 	var profile := BattleBoardAssetProfilesScript.prop_profile_for_tile(tile, _board_asset_profiles)
 	if not profile.is_empty():
+		if tile == Grid.TileType.RUIN:
+			_draw_ruin_cell_base(cell)
 		_draw_prop_foundation(cell, profile)
 
 func _draw_prop_drawable(drawable: Dictionary) -> void:
@@ -1012,6 +1371,20 @@ func _prop_texture_for_tile(tile: int) -> Texture2D:
 		Grid.TileType.RUIN:
 			return TEX_RUIN
 	return null
+
+func _draw_ruin_cell_base(cell: Vector2i) -> void:
+	var center := cell_to_pixel(cell)
+	var base := _diamond_scaled(center + Vector2(0, 1), 0.96, 0.92)
+	draw_colored_polygon(base, RUIN_CELL_FILL)
+	draw_line(base[3], base[0], RUIN_CELL_LIT, 1.1)
+	draw_line(base[0], base[1], RUIN_CELL_LIT, 0.8)
+	draw_line(base[1], base[2], RUIN_CELL_DARK, 1.2)
+	draw_line(base[2], base[3], RUIN_CELL_DARK, 1.2)
+	for i in range(3):
+		var n := _cell_noise(cell, 1051 + i * 17)
+		var start := center + Vector2(-TILE_HALF.x * (0.44 - n * 0.18), TILE_HALF.y * (-0.06 + n * 0.20))
+		var end := start + Vector2(TILE_HALF.x * (0.22 + _cell_noise(cell, 1093 + i * 11) * 0.22), TILE_HALF.y * (0.12 + _cell_noise(cell, 1129 + i * 13) * 0.18))
+		draw_line(start, end, Color(0.0, 0.0, 0.0, 0.10), 1.0)
 
 func _draw_props() -> void:
 	for cell in _sorted_cells():
@@ -1127,7 +1500,8 @@ func _draw_units() -> void:
 
 func _draw_unit(unit: Unit, order_badge: int) -> void:
 	var unit_pixel: Vector2 = _unit_visual_positions.get(unit.id, cell_to_pixel(unit.position))
-	var foot := unit_pixel + Vector2(0, UNIT_GROUND_Y) + UNIT_TOKEN_OFFSET
+	var token_offset := unit.def.token_board_offset if unit.def != null else Vector2.ZERO
+	var foot := unit_pixel + Vector2(0, UNIT_GROUND_Y) + UNIT_TOKEN_OFFSET + token_offset
 	_draw_unit_at_foot(unit, foot, order_badge)
 
 func _draw_unit_drawable(drawable: Dictionary) -> void:
@@ -1341,27 +1715,9 @@ func _draw_intent_hazard_cells(row: Dictionary, focused: bool, explicitly_focuse
 	var cells: Array = row.get("hazard_cells", [])
 	if cells.is_empty():
 		return
-	var pulse := 0.78 + 0.22 * sin(_pulse_t * 5.0)
-	var fill := COLOR_CHARGE_LANE
-	fill.a *= pulse
-	var frame := COLOR_CHARGE_LANE_FRAME
-	frame.a *= pulse
-	if explicitly_focused:
-		fill = COLOR_EXECUTE_CONFIRM
-		fill.a = 0.34 * pulse
-		frame = COLOR_EXECUTE_CONFIRM
-		frame.a = 0.92 * pulse
-	elif not focused:
-		fill.a *= 0.34
-		frame.a *= 0.42
 	for raw in cells:
 		var cell: Vector2i = raw
-		if not _cell_in_bounds(cell):
-			continue
-		_fill_diamond(cell, fill, true, 1.3)
-		var center := cell_to_pixel(cell)
-		var lane_poly := _diamond_scaled(center, 0.72, 0.72)
-		draw_polyline(PackedVector2Array([lane_poly[0], lane_poly[1], lane_poly[2], lane_poly[3], lane_poly[0]]), frame, 1.8)
+		_draw_hazard_warning_cell(cell, BattleEngine.HAZARD_CHARGE_LANE, focused, explicitly_focused)
 
 func _draw_intent_threat_line(from_cell: Vector2i, to_cell: Vector2i, color: Color, width: float) -> void:
 	if from_cell == to_cell:

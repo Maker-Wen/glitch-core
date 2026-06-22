@@ -1,31 +1,13 @@
 extends RefCounted
 ## Demo Boss regression tests: doom script, anchors, no early victory, summary fields.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"warden_bountyhunter"
-	d.display_name = "BH"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 3
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.bountyhunter({"move": 3})
 
 static func _make_carrion(hp: int = 1) -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = hp
-	d.move = 1
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 0
-	return d
+	return TestUnitDefs.carrion_spawn({"max_hp": hp, "move": 1})
 
 static func _boss_config(doom_initial: int = 0) -> Dictionary:
 	return {

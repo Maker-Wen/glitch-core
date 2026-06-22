@@ -2,6 +2,8 @@ extends RefCounted
 ## End-to-end tests for warden attack actions through BattleEngine.
 ## Verifies that knockback/pull effects actually fire in the action pipeline.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_state_with(engine: BattleEngine, grid: Grid, units: Array) -> void:
 	engine.state = BattleState.new()
 	engine.state.grid = grid
@@ -14,62 +16,23 @@ static func _make_state_with(engine: BattleEngine, grid: Grid, units: Array) -> 
 	engine.state.phase = BattleState.Phase.PLAYER_ACTION
 
 static func _make_carrion_def() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_damage = 1
-	d.attack_force = 0
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.carrion_spawn()
 
 static func _make_bh_def() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "赏金猎人"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_damage = 1
-	d.attack_force = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func _make_gr_def() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"gr"
-	d.display_name = "盗墓人"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.RANGED_PULL
-	d.attack_damage = 1
-	d.attack_force = 1
-	d.attack_range = 3
-	return d
+	return TestUnitDefs.graverobber()
 
 static func _make_mage_def() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"mage"
-	d.display_name = "大魔法师"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.RANGED_PUSH
-	d.attack_damage = 1
-	d.attack_force = 1
-	d.attack_range = 3
-	return d
+	return TestUnitDefs.mage()
 
 static func run(tr) -> void:
 	_test_bountyhunter_pushes_target(tr)
 	_test_bountyhunter_push_off_board(tr)
 	_test_graverobber_pulls_target(tr)
 	_test_mage_pushes_at_range(tr)
+	_test_mage_pushes_beyond_three_cells(tr)
 
 static func _test_bountyhunter_pushes_target(tr) -> void:
 	var engine := BattleEngine.new()
@@ -153,3 +116,21 @@ static func _test_mage_pushes_at_range(tr) -> void:
 	engine.apply_action(BattleAction.attack(mage_unit.id, Vector2i(3, 3)))
 	tr.assert_eq("carrion pushed north 1 to (3,2)", carrion_unit.position, Vector2i(3, 2))
 	tr.assert_eq("carrion damaged", carrion_unit.hp, 1)
+
+static func _test_mage_pushes_beyond_three_cells(tr) -> void:
+	var engine := BattleEngine.new()
+	var grid := Grid.new()
+	var mage := _make_mage_def()
+	var carrion := _make_carrion_def()
+	var bh := _make_bh_def()
+	# Mage attack aliases to Repulsion Bolt, which ignores distance on clear lines.
+	_make_state_with(engine, grid, [
+		{"def": mage, "pos": Vector2i(3, 7)},
+		{"def": bh, "pos": Vector2i(0, 0)},  # decoy
+		{"def": carrion, "pos": Vector2i(3, 2)},
+	])
+	var mage_unit: Unit = engine.state.units[0]
+	var carrion_unit: Unit = engine.state.units[2]
+	engine.apply_action(BattleAction.attack(mage_unit.id, Vector2i(3, 2)))
+	tr.assert_eq("distant carrion pushed north 1 to (3,1)", carrion_unit.position, Vector2i(3, 1))
+	tr.assert_eq("distant carrion damaged", carrion_unit.hp, 1)

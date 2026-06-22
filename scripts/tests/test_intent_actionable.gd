@@ -2,30 +2,16 @@ extends RefCounted
 ## Regression: enemy intent (warning) is direction-locked. Pushing an enemy
 ## moves its attack line; only killing/removing the enemy clears the slot.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "BH"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func _make_carrion() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_range = 1
-	d.attack_damage = 1
-	return d
+	return TestUnitDefs.carrion_spawn()
+
+static func _make_carrion_with_stats(overrides: Dictionary) -> UnitDef:
+	return TestUnitDefs.carrion_spawn(overrides)
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)
@@ -73,8 +59,7 @@ static func _test_killed_enemy_intent_falls_flat(tr) -> void:
 	engine.state.phase = BattleState.Phase.PLAYER_ACTION
 	var bh := _add(engine.state, _make_bh(), Vector2i(3, 5))
 	var decoy := _add(engine.state, _make_bh(), Vector2i(0, 0))
-	var weak_def := _make_carrion()
-	weak_def.max_hp = 1
+	var weak_def := _make_carrion_with_stats({"max_hp": 1})
 	var carrion := _add(engine.state, weak_def, Vector2i(3, 4))
 	carrion.hp = 1
 	var plan := AIDecider.EnemyPlan.new()

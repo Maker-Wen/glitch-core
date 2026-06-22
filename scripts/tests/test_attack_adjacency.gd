@@ -4,30 +4,15 @@ extends RefCounted
 ## In particular: a non-collinear enemy that cannot reach adjacency in one
 ## move must NOT receive an attack plan.
 
-static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "BH"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
 
-static func _make_carrion(move: int = 3) -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = move
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_damage = 1
-	d.attack_range = 1
-	return d
+static func _make_bh() -> UnitDef:
+	return TestUnitDefs.bountyhunter()
+
+static func _make_carrion(move: int = -1) -> UnitDef:
+	if move < 0:
+		return TestUnitDefs.carrion_spawn()
+	return TestUnitDefs.carrion_spawn({"move": move})
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)

@@ -149,6 +149,13 @@ static func _empty_diagnostics_summary() -> Dictionary:
 		"opening_pressure_types": {},
 		"unguarded_count": 0,
 		"element_pool_counts": {},
+		"max_feature_score": 0,
+		"feature_core_counts": {},
+		"feature_support_counts": {},
+		"feature_risk_counts": {},
+		"hazard_type_counts": {},
+		"spawn_pressure_type_counts": {},
+		"selected_element_counts": {},
 	}
 
 static func _add_record_to_diagnostics_summary(summary: Dictionary, record: Dictionary) -> void:
@@ -173,6 +180,18 @@ static func _add_record_to_diagnostics_summary(summary: Dictionary, record: Dict
 	var coverage: Dictionary = diagnostics.get("element_coverage", {})
 	for pool_id in coverage.keys():
 		_increment(element_counts, String(pool_id))
+	var feature_profile: Dictionary = diagnostics.get("feature_profile", {})
+	var feature_coverage: Dictionary = feature_profile.get("coverage", {})
+	summary["max_feature_score"] = maxi(
+		int(summary.get("max_feature_score", 0)),
+		int(feature_coverage.get("score", 0))
+	)
+	_add_counts(summary.get("feature_core_counts", {}), feature_profile.get("core_features", []))
+	_add_counts(summary.get("feature_support_counts", {}), feature_profile.get("support_features", []))
+	_add_counts(summary.get("feature_risk_counts", {}), feature_profile.get("risk_sources", []))
+	_add_counts_from_dict(summary.get("hazard_type_counts", {}), feature_profile.get("hazard_types", {}))
+	_add_counts_from_dict(summary.get("spawn_pressure_type_counts", {}), feature_profile.get("spawn_pressure_types", {}))
+	_add_counts(summary.get("selected_element_counts", {}), feature_profile.get("selected_element_ids", []))
 
 static func _add_record_to_pool_risks(pool_risks: Dictionary, record: Dictionary) -> void:
 	for pool_id in record.get("source_pools", []):
@@ -272,6 +291,14 @@ static func _increment(bucket: Dictionary, key: String) -> void:
 	if key.is_empty():
 		key = "unknown"
 	bucket[key] = int(bucket.get(key, 0)) + 1
+
+static func _add_counts(bucket: Dictionary, values: Array) -> void:
+	for value in values:
+		_increment(bucket, String(value))
+
+static func _add_counts_from_dict(bucket: Dictionary, counts: Dictionary) -> void:
+	for key in counts.keys():
+		bucket[String(key)] = int(bucket.get(String(key), 0)) + int(counts.get(key, 0))
 
 static func _add_global_issue(summary: Dictionary, issue: String) -> void:
 	summary["global_issues"].append(issue)

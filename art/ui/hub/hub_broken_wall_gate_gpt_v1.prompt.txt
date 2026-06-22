@@ -1,0 +1,12 @@
+Use case: stylized-concept.
+Asset type: 16:9 Godot game hub background for a dark tactical roguelite main hub.
+Primary request: a formal finished key art background of a ruined gothic broken-wall stronghold interior, used as the first screen after entering the game.
+Scene/backdrop: wide ruined fortress hall at night, broken stone walls, distant black sky, ash haze, cold moon rim light, central low brazier glow, and a monumental broken expedition gate on the right side.
+Subject: the broken-wall expedition gate is the main focal point, readable as a clickable destination, with orange firelight around the gate frame; the left upper area must remain visually quiet for UI title text, and the bottom-left area must remain dark and uncluttered for a back button.
+Style/medium: hand-painted dark gothic fantasy concept art, game-ready background, painterly but readable, not photorealistic, not anime, not cartoon.
+Composition/framing: 16:9 landscape, camera straight-on with slight depth, no extreme perspective, large negative space in the upper left and lower left, right-side gate framed clearly, foreground walkway leading to the gate.
+Lighting/mood: oppressive, elegant, tactical, ember orange accents against cold blue-black shadows.
+Color palette: near-black charcoal, burnt umber, tarnished brass, muted amber fire, small cold blue rim light; avoid one-note orange or purple palettes.
+Materials/textures: cracked basalt, worn bronze, scorched banners, soot, stone dust, subtle ash particles.
+Text: no text, no lettering, no symbols that look like text.
+Constraints: no UI panels, no buttons, no characters, no logos, no watermark, no readable text, no modern objects, no bright saturated fantasy colors, no centered portal; keep the gate on the right and preserve quiet UI-safe space on the left.

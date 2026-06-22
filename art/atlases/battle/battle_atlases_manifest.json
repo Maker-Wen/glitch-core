@@ -126,6 +126,54 @@
 					"w": 1024,
 					"h": 1024
 				}
+			},
+			"enemy_bone_grub_token": {
+				"id": "enemy_bone_grub_token",
+				"source": "res://art/units/enemies/enemy_bone_grub_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_bone_grub_token.tres",
+				"region": {
+					"x": 1028,
+					"y": 3084,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_ironhorn_token": {
+				"id": "enemy_ironhorn_token",
+				"source": "res://art/units/enemies/enemy_ironhorn_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_ironhorn_token.tres",
+				"region": {
+					"x": 2056,
+					"y": 3084,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_shell_beetle_token": {
+				"id": "enemy_shell_beetle_token",
+				"source": "res://art/units/enemies/enemy_shell_beetle_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_shell_beetle_token.tres",
+				"region": {
+					"x": 0,
+					"y": 4112,
+					"w": 1024,
+					"h": 1024
+				}
+			},
+			"enemy_bell_thrall_token": {
+				"id": "enemy_bell_thrall_token",
+				"source": "res://art/units/enemies/enemy_bell_thrall_token.png",
+				"atlas": "res://art/atlases/battle/battle_units.png",
+				"texture": "res://art/atlases/battle/battle_units.enemy_bell_thrall_token.tres",
+				"region": {
+					"x": 1028,
+					"y": 4112,
+					"w": 1024,
+					"h": 1024
+				}
 			}
 		}
 	},

@@ -58,6 +58,7 @@ static func profile_resource_to_dict(resource: BattleBoardPropProfile) -> Dictio
 		"floor_occlusion_strength": resource.floor_occlusion_strength,
 		"contact_shadow_strength": resource.contact_shadow_strength,
 		"sort_bias": resource.sort_bias,
+		"min_draw_width": resource.min_draw_width,
 		"max_draw_width": resource.max_draw_width,
 		"tint": resource.tint,
 		"min_edge_margin": resource.min_edge_margin,
@@ -113,7 +114,7 @@ static func load_runtime_profiles() -> Dictionary:
 		base["anchor_px"] = vector2_from_dict(serialized.get("anchor_px", {}), base.get("anchor_px", _fallback_anchor(base)))
 		base["alpha_bbox"] = rect2_from_dict(serialized.get("alpha_bbox", {}), base["crop"])
 		base["atlas_region"] = rect2_from_dict(serialized.get("atlas_region", {}), Rect2())
-		for key in ["target_height", "foot_offset", "hp_offset", "footprint_scale", "foundation_scale", "foundation_offset", "floor_occlusion_strength", "contact_shadow_strength", "sort_bias", "max_draw_width", "tint"]:
+		for key in ["target_height", "foot_offset", "hp_offset", "footprint_scale", "foundation_scale", "foundation_offset", "floor_occlusion_strength", "contact_shadow_strength", "sort_bias", "min_draw_width", "max_draw_width", "tint"]:
 			if not serialized.has(key):
 				continue
 			match key:
@@ -169,6 +170,7 @@ static func serialized_profile(profile_data: Dictionary, alpha_bbox: Rect2i = Re
 		"floor_occlusion_strength": float(profile_data.get("floor_occlusion_strength", 0.0)),
 		"contact_shadow_strength": float(profile_data.get("contact_shadow_strength", 0.0)),
 		"sort_bias": float(profile_data.get("sort_bias", 0.0)),
+		"min_draw_width": float(profile_data.get("min_draw_width", 0.0)),
 		"max_draw_width": float(profile_data.get("max_draw_width", 0.0)),
 		"tint": color_to_dict(profile_data.get("tint", Color.WHITE)),
 		"issues": issues,
@@ -221,6 +223,9 @@ static func validate_profile_image(profile_data: Dictionary, image_size: Vector2
 	var max_draw_width := float(profile_data.get("max_draw_width", 0.0))
 	if max_draw_width > 0.0 and drawn_size.x > max_draw_width + 0.01:
 		issues.append("%s draws %.1f px wide, over max %.1f px" % [id, drawn_size.x, max_draw_width])
+	var min_draw_width := float(profile_data.get("min_draw_width", 0.0))
+	if min_draw_width > 0.0 and drawn_size.x < min_draw_width - 0.01:
+		issues.append("%s draws %.1f px wide, below one-cell minimum %.1f px" % [id, drawn_size.x, min_draw_width])
 	var foot_offset: Vector2 = profile_data.get("foot_offset", Vector2.ZERO)
 	if foot_offset.y < 0.0 or foot_offset.y >= 26.0:
 		issues.append("%s board_foot_offset.y must sit on the lower diamond face" % id)

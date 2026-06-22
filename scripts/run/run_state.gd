@@ -3,6 +3,8 @@ class_name RunState extends RefCounted
 
 const RelicCatalogScript := preload("res://scripts/data/relic_catalog.gd")
 const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
+const RunExpeditionCatalogScript := preload("res://scripts/data/run_expedition_catalog.gd")
+const WardenSkillCatalogScript := preload("res://scripts/battle/warden_skill_catalog.gd")
 const WardenBountyhunterDef := preload("res://scripts/data/defs/warden_bountyhunter.tres")
 const WardenGraverobberDef := preload("res://scripts/data/defs/warden_graverobber.tres")
 const WardenMageDef := preload("res://scripts/data/defs/warden_mage.tres")
@@ -29,6 +31,10 @@ const RUN_MODE_ROUTE := "route"
 const EXPEDITION_BROKEN_WALL := "broken_wall"
 const EXPEDITION_RIFT_CORRIDOR := "rift_corridor"
 const EXPEDITION_SUPPLY_LINE := "supply_line"
+const MAP_POOL_START := "start"
+const MAP_POOL_NORMAL := "normal"
+const MAP_POOL_ELITE := "elite"
+const MAP_POOL_BOSS := "boss"
 const DEFAULT_SANCTUARY_INTEGRITY := 12
 const COMMISSION_BOARD_SIZE := 3
 const COMMISSION_BOSS_UNLOCK_COUNT := 5
@@ -54,6 +60,8 @@ var embers: int = 0
 var corruption: int = 0
 var wardens: Array[Dictionary] = []
 var relics: Array[Dictionary] = []
+## Internal commission candidates for the current expedition.
+## Kept as route_nodes for save/test compatibility; this is not a player-facing node graph.
 var route_nodes: Array[Dictionary] = []
 var active_commission_ids: Array[String] = []
 var visited_nodes: Array[String] = []
@@ -118,13 +126,16 @@ func setup_new_random_route(seed: int = 0, selected_expedition_id: String = EXPE
 	route_nodes = _build_random_route(run_seed, expedition_id)
 	_initialize_commission_board()
 
-func next_unvisited_node() -> Dictionary:
-	var available := available_route_nodes()
+func current_commission() -> Dictionary:
+	var available := available_commissions()
 	if not available.is_empty():
 		return available[0]
 	return {}
 
-func available_route_nodes() -> Array[Dictionary]:
+func next_unvisited_node() -> Dictionary:
+	return current_commission()
+
+func available_commissions() -> Array[Dictionary]:
 	_refill_commission_board()
 	var result: Array[Dictionary] = []
 	for node_id in active_commission_ids:
@@ -134,11 +145,17 @@ func available_route_nodes() -> Array[Dictionary]:
 		result.append(node)
 	return result
 
-func is_route_node_available(node_id: String) -> bool:
-	for node in available_route_nodes():
+func available_route_nodes() -> Array[Dictionary]:
+	return available_commissions()
+
+func is_commission_available(node_id: String) -> bool:
+	for node in available_commissions():
 		if String(node.get("node_id", "")) == node_id:
 			return true
 	return false
+
+func is_route_node_available(node_id: String) -> bool:
+	return is_commission_available(node_id)
 
 func node_by_id(node_id: String) -> Dictionary:
 	for node in route_nodes:
@@ -148,7 +165,7 @@ func node_by_id(node_id: String) -> Dictionary:
 
 func current_node() -> Dictionary:
 	if current_node_id.is_empty():
-		return next_unvisited_node()
+		return current_commission()
 	return node_by_id(current_node_id)
 
 func alive_wardens() -> Array[Dictionary]:
@@ -253,7 +270,7 @@ func is_route_complete() -> bool:
 	for node in route_nodes:
 		if String(node.get("node_type", "")) == NODE_BOSS and bool(node.get("visited", false)):
 			return true
-	return not route_nodes.is_empty() and available_route_nodes().is_empty()
+	return not route_nodes.is_empty() and available_commissions().is_empty()
 
 func is_battle_node(node: Dictionary) -> bool:
 	var node_type := String(node.get("node_type", ""))
@@ -272,9 +289,12 @@ func _initialize_commission_board() -> void:
 
 func _refill_commission_board() -> void:
 	_trim_active_commission_ids()
+	var boss := _boss_node()
+	if not boss.is_empty() and bool(boss.get("visited", false)):
+		active_commission_ids.clear()
+		return
 	if _boss_commission_should_unlock():
 		active_commission_ids.clear()
-		var boss := _boss_node()
 		if not boss.is_empty():
 			active_commission_ids.append(String(boss.get("node_id", "")))
 		return
@@ -304,7 +324,7 @@ func _commission_refill_candidates() -> Array[Dictionary]:
 			continue
 		if String(node.get("node_type", "")) == NODE_BOSS:
 			continue
-		if _route_node_is_reachable(node):
+		if _commission_node_is_reachable(node):
 			result.append(node)
 	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var layer_a := int(a.get("layer", 0))
@@ -421,25 +441,17 @@ func build_pending_reward(node: Dictionary, resolution: Dictionary) -> Dictionar
 	}
 	if bonus_embers > 0:
 		reward.fixed_rewards.append({"reward_type": "embers", "amount": bonus_embers, "reason": "完成 %d 个奖励任务" % completed, "visible_order": 20})
-	if completed >= 2:
-		reward.modifiers.append({"modifier_id": "reward_option_plus_1", "description": "完成 2 个奖励任务：奖励选项 +1。"})
-	if completed >= 3 and (node_type == NODE_ELITE or node_type == NODE_BOSS):
-		reward.modifiers.append({"modifier_id": "rare_weight_up", "description": "完成 3 个奖励任务：稀有遗物权重提高。"})
 	var boss_heart_hits := int(resolution.get("boss_heart_hits", 0)) if node_type == NODE_BOSS else 0
 	var boss_heart_bonus := _boss_heart_bonus_embers(boss_heart_hits)
 	if boss_heart_bonus > 0:
 		reward.fixed_rewards.append({"reward_type": "embers", "amount": boss_heart_bonus, "reason": "心脏钟命中 %d 次" % clampi(boss_heart_hits, 0, 3), "visible_order": 25})
 		reward.modifiers.append({"modifier_id": "boss_heart_bell_bonus", "description": "Boss 心脏钟命中：额外 +%d 余烬。" % boss_heart_bonus})
-	var options := _reward_options_for(node_type, completed)
 	if _should_offer_guardian_recovery(node_type, completed):
-		options.append({"option_id": "repair_sanctuary", "option_type": "recovery", "rarity": "普通", "target_type": "sanctuary_integrity", "target_id": "", "title": "修复防线", "description": "守护值 +1。本章奖励任务恢复只可触发一次。", "preview_delta": {"sanctuary_integrity": 1}, "tags": ["恢复", "防线"]})
-		reward.modifiers.append({"modifier_id": "guardian_recovery_available", "description": "完成 3 个奖励任务：生成守护值恢复机会。"})
+		reward.fixed_rewards.append({"reward_type": "sanctuary_integrity", "amount": 1, "reason": "本章首次完美守住防线", "visible_order": 30})
+		reward.modifiers.append({"modifier_id": "guardian_recovery_fixed", "description": "完成 3 个奖励任务：守护值恢复 +1。"})
 	elif _should_convert_guardian_recovery_to_embers(node_type, completed):
 		reward.fixed_rewards.append({"reward_type": "embers", "amount": 3, "reason": "守护值已满，恢复机会转化", "visible_order": 30})
 		reward.modifiers.append({"modifier_id": "guardian_recovery_converted", "description": "完成 3 个奖励任务，但守护值已满：改为 +3 余烬。"})
-	if not options.is_empty():
-		reward.reward_phase = "chapter_choice" if node_type == NODE_BOSS else "choice"
-		reward.choice_groups.append({"group_id": "main_choice", "group_type": _choice_group_type(node_type), "choose_count": 1, "display_count": options.size(), "options": options, "can_skip": true, "skip_reward": {"reward_type": "embers", "amount": 3, "reason": "跳过奖励"}})
 	return reward
 
 func claim_pending_reward(option_id: String = "") -> void:
@@ -472,7 +484,7 @@ func claim_pending_reward(option_id: String = "") -> void:
 		for reward in pending_reward.get("fixed_rewards", []):
 			_apply_fixed_reward(reward)
 		claim_state["fixed_claimed"] = true
-		if _pending_reward_has_modifier("guardian_recovery_converted"):
+		if _pending_reward_has_modifier("guardian_recovery_converted") or _pending_reward_has_modifier("guardian_recovery_fixed"):
 			chapter_guardian_reward_used = true
 	if not bool(claim_state.get("choice_claimed", false)):
 		if selected_option.is_empty() and skip_selected:
@@ -542,28 +554,6 @@ func _next_route_layer() -> int:
 			best = layer
 	return best
 
-func _route_node_is_reachable(node: Dictionary) -> bool:
-	if _uses_commission_board():
-		return _commission_node_is_reachable(node)
-	var incoming := _incoming_route_edges(String(node.get("node_id", "")))
-	if incoming.is_empty():
-		return visited_nodes.is_empty()
-	for source_id in incoming:
-		if source_id in visited_nodes:
-			return true
-	return false
-
-func _incoming_route_edges(node_id: String) -> Array[String]:
-	var result: Array[String] = []
-	for node in route_nodes:
-		for target_id in node.get("outgoing_edges", []):
-			if String(target_id) == node_id:
-				result.append(String(node.get("node_id", "")))
-	return result
-
-func _uses_commission_board() -> bool:
-	return not active_commission_ids.is_empty() or not route_nodes.is_empty()
-
 func _commission_node_is_reachable(node: Dictionary) -> bool:
 	var node_id := String(node.get("node_id", ""))
 	if node_id.is_empty() or bool(node.get("visited", false)):
@@ -572,10 +562,24 @@ func _commission_node_is_reachable(node: Dictionary) -> bool:
 		return _boss_commission_should_unlock()
 	if visited_nodes.is_empty():
 		return int(node.get("layer", 0)) <= 2
+	var layer_limit := _commission_refill_layer_limit()
+	return layer_limit > 0 and int(node.get("layer", 0)) <= layer_limit
+
+func _commission_refill_layer_limit() -> int:
+	if visited_nodes.is_empty():
+		return 2
+	var limit := 0
+	for node_id in active_commission_ids:
+		var node := node_by_id(node_id)
+		if node.is_empty() or bool(node.get("visited", false)):
+			continue
+		if String(node.get("node_type", "")) == NODE_BOSS:
+			continue
+		limit = maxi(limit, int(node.get("layer", 0)) + 1)
+	if limit > 0:
+		return limit
 	var earliest_unvisited_layer := _earliest_unvisited_non_boss_layer()
-	if earliest_unvisited_layer <= 0:
-		return false
-	return int(node.get("layer", 0)) <= earliest_unvisited_layer + 1
+	return earliest_unvisited_layer + 1 if earliest_unvisited_layer > 0 else 0
 
 func _earliest_unvisited_non_boss_layer() -> int:
 	var best := 0
@@ -641,13 +645,17 @@ func _apply_reward_option(option: Dictionary) -> void:
 			for i in range(wardens.size()):
 				if String(wardens[i].get("warden_id", "")) == target_id and bool(wardens[i].get("alive", false)):
 					var upgrades: Array = wardens[i].get("upgrades", [])
-					upgrades.append(option.get("option_id", "upgrade"))
+					var option_id := String(option.get("option_id", "upgrade"))
+					if not (option_id in upgrades):
+						upgrades.append(option_id)
 					wardens[i]["upgrades"] = upgrades
-					var hp_max_gain := int(option.get("preview_delta", {}).get("warden_hp_max", 1))
-					var hp_gain := int(option.get("preview_delta", {}).get("warden_hp", 1))
-					var current_max := int(wardens[i].get("hp_max", _current_max_hp_for_warden(wardens[i])))
-					wardens[i]["hp_max"] = current_max + hp_max_gain
-					wardens[i]["hp"] = mini(int(wardens[i].get("hp_max", current_max)), int(wardens[i].get("hp", 1)) + hp_gain)
+					var preview_delta: Dictionary = option.get("preview_delta", {})
+					var hp_max_gain := int(preview_delta.get("warden_hp_max", 0))
+					var hp_gain := int(preview_delta.get("warden_hp", 0))
+					if hp_max_gain > 0 or hp_gain > 0:
+						var current_max := int(wardens[i].get("hp_max", _current_max_hp_for_warden(wardens[i])))
+						wardens[i]["hp_max"] = current_max + hp_max_gain
+						wardens[i]["hp"] = mini(int(wardens[i].get("hp_max", current_max)), int(wardens[i].get("hp", 1)) + hp_gain)
 					break
 		"recovery":
 			sanctuary_integrity = mini(sanctuary_integrity_max, sanctuary_integrity + int(option.get("preview_delta", {}).get("sanctuary_integrity", 1)))
@@ -745,7 +753,11 @@ func _upgrade_options(display_count: int) -> Array[Dictionary]:
 		if result.size() >= display_count:
 			break
 		var warden_id := String(w.get("warden_id", ""))
-		if _warden_already_upgraded(w):
+		var skill_options := WardenSkillCatalogScript.upgrade_options_for_warden(warden_id, w.get("upgrades", []))
+		if not skill_options.is_empty():
+			result.append(skill_options[0])
+			continue
+		if _warden_has_hp_upgrade(w):
 			continue
 		match warden_id:
 			"warden_bountyhunter":
@@ -829,22 +841,21 @@ func _alive_warden_ids() -> Array[String]:
 		result.append(String(w.get("warden_id", "")))
 	return result
 
-func _warden_already_upgraded(warden: Dictionary) -> bool:
-	return not warden.get("upgrades", []).is_empty()
+func _warden_has_hp_upgrade(warden: Dictionary) -> bool:
+	for upgrade_id in warden.get("upgrades", []):
+		if WARDEN_HP_UPGRADE_IDS.has(String(upgrade_id)):
+			return true
+	return false
 
 func _expedition_display_name(selected_expedition_id: String) -> String:
-	match selected_expedition_id:
-		EXPEDITION_RIFT_CORRIDOR:
-			return "裂隙回廊"
-		EXPEDITION_SUPPLY_LINE:
-			return "废弃军需线"
-	return "断墙外环"
+	return RunExpeditionCatalogScript.display_name(selected_expedition_id)
 
 func _build_random_route(seed: int, selected_expedition_id: String = EXPEDITION_BROKEN_WALL) -> Array[Dictionary]:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 	var layers: Array = []
-	var pools := _expedition_route_pools(selected_expedition_id)
+	var expedition_config := RunExpeditionCatalogScript.get_config(selected_expedition_id)
+	var pools: Dictionary = expedition_config.get("node_pools", {})
 	layers.append([_random_route_node_from_demo(String(pools.get("start", "outer_wall_01")), "random_outer_wall_01", 1, 1)])
 	layers.append(_random_route_layer(pools.get("early", []), 2, rng))
 	layers.append(_random_route_layer(_random_route_pick(pools.get("middle", []), 3, rng), 3, rng))
@@ -854,40 +865,216 @@ func _build_random_route(seed: int, selected_expedition_id: String = EXPEDITION_
 	layers.append(_random_route_layer(pools.get("prep", []), 5, rng))
 	layers.append([_random_route_node_from_demo("boss_outer_bell_01", "random_boss_outer_bell_01", 6, 1)])
 	_connect_random_route_layers(layers, rng)
+	_assign_random_route_battle_maps(layers, expedition_config, rng)
 	var result: Array[Dictionary] = []
 	for layer_nodes in layers:
 		for node in layer_nodes:
 			result.append(node)
 	return result
 
+func expedition_map_pool_config_ids(selected_expedition_id: String, pool_key: String) -> Array[String]:
+	return RunExpeditionCatalogScript.map_pool_config_ids(selected_expedition_id, pool_key)
+
+func battle_map_assignment_debug_rows() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for node in route_nodes:
+		if not is_battle_node(node):
+			continue
+		var battle: Dictionary = node.get("battle", {})
+		result.append({
+			"run_seed": run_seed,
+			"expedition_id": expedition_id,
+			"expedition_name": expedition_name,
+			"node_id": String(node.get("node_id", "")),
+			"layer": int(node.get("layer", 0)),
+			"lane": int(node.get("lane", 0)),
+			"node_type": String(node.get("node_type", "")),
+			"pool_key": String(battle.get("map_pool_key", "")),
+			"config_id": String(battle.get("config_id", "")),
+			"map_id": String(battle.get("map_id", "")),
+			"archetype": String(battle.get("map_archetype", "")),
+			"variant": String(battle.get("variant", "")),
+			"pressure_cost": int(battle.get("map_pressure_cost", 0)),
+			"repeat_group": String(battle.get("map_no_repeat_group", "")),
+			"enemy_family_hint": String(battle.get("map_enemy_family_hint", "")),
+			"assignment_relaxed": String(battle.get("map_assignment_relaxed", "")),
+		})
+	return result
+
+func battle_map_assignment_debug_text() -> String:
+	var rows := battle_map_assignment_debug_rows()
+	var lines: Array[String] = [
+		"seed=%d expedition=%s rows=%d" % [run_seed, expedition_id, rows.size()],
+	]
+	for row in rows:
+		var relaxed := String(row.get("assignment_relaxed", ""))
+		if relaxed.is_empty():
+			relaxed = "strict"
+		lines.append("L%d/%s %s pool=%s config=%s archetype=%s pressure=%d repeat=%s relaxed=%s" % [
+			int(row.get("layer", 0)),
+			String(row.get("node_type", "")),
+			String(row.get("node_id", "")),
+			String(row.get("pool_key", "")),
+			String(row.get("config_id", "")),
+			String(row.get("archetype", "")),
+			int(row.get("pressure_cost", 0)),
+			String(row.get("repeat_group", "")),
+			relaxed,
+		])
+	return "\n".join(lines)
+
 func _expedition_route_pools(selected_expedition_id: String) -> Dictionary:
-	match selected_expedition_id:
-		EXPEDITION_RIFT_CORRIDOR:
-			return {
-				"start": "outer_wall_01",
-				"early": ["crack_courtyard_03", "extinguished_beacon_02", "quartermaster_cache_02"],
-				"middle": ["pillar_graveyard_03", "broken_bridge_edge", "scout_ritual_03", "crack_courtyard_03"],
-				"elite": ["iron_gate_04", "broken_bridge_edge"],
-				"extra_elite": ["pillar_graveyard_03", "crack_courtyard_03"],
-				"prep": ["ember_camp_05", "last_watch_event_05", "quartermaster_cache_05"],
-			}
-		EXPEDITION_SUPPLY_LINE:
-			return {
-				"start": "outer_wall_01",
-				"early": ["quartermaster_cache_02", "extinguished_beacon_02", "crack_courtyard_03"],
-				"middle": ["ember_camp_03", "scout_ritual_03", "pillar_graveyard_03", "quartermaster_cache_02"],
-				"elite": ["iron_gate_04"],
-				"extra_elite": ["ember_camp_03", "pillar_graveyard_03"],
-				"prep": ["quartermaster_cache_05", "ember_camp_05", "last_watch_event_05"],
-			}
-	return {
-		"start": "outer_wall_01",
-		"early": ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"],
-		"middle": ["pillar_graveyard_03", "ember_camp_03", "scout_ritual_03", "broken_bridge_edge"],
-		"elite": ["iron_gate_04"],
-		"extra_elite": ["pillar_graveyard_03", "broken_bridge_edge"],
-		"prep": ["ember_camp_05", "quartermaster_cache_05", "last_watch_event_05"],
-	}
+	return RunExpeditionCatalogScript.route_pools(selected_expedition_id)
+
+func _assign_random_route_battle_maps(layers: Array, expedition_config: Dictionary, rng: RandomNumberGenerator) -> void:
+	var map_pool: Dictionary = expedition_config.get("map_pool", {})
+	if map_pool.is_empty():
+		return
+	var used_repeat_groups := {}
+	for layer_nodes in layers:
+		for node in layer_nodes:
+			if not is_battle_node(node):
+				continue
+			var pool_key := _map_pool_key_for_node(node)
+			var candidates: Array = map_pool.get(pool_key, [])
+			if candidates.is_empty() and pool_key != MAP_POOL_NORMAL:
+				candidates = map_pool.get(MAP_POOL_NORMAL, [])
+			if candidates.is_empty():
+				continue
+			var pick := _pick_map_pool_entry_for_node(candidates, node, pool_key, expedition_config, used_repeat_groups, rng)
+			if pick.is_empty():
+				continue
+			_apply_battle_map_entry(node, pick, pool_key)
+			var repeat_group := String(pick.get("no_repeat_group", ""))
+			if not repeat_group.is_empty():
+				used_repeat_groups[repeat_group] = true
+
+func _pick_map_pool_entry_for_node(candidates: Array, node: Dictionary, pool_key: String, expedition_config: Dictionary, used_repeat_groups: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var filtered := _filtered_map_pool_candidates(candidates, node, pool_key, expedition_config, used_repeat_groups, false, false)
+	if not filtered.is_empty():
+		var result := _weighted_map_pool_pick(filtered, rng)
+		result["map_assignment_relaxed"] = ""
+		return result
+	filtered = _filtered_map_pool_candidates(candidates, node, pool_key, expedition_config, used_repeat_groups, true, false)
+	if not filtered.is_empty():
+		var result := _weighted_map_pool_pick(filtered, rng)
+		result["map_assignment_relaxed"] = "repeat"
+		return result
+	filtered = _filtered_map_pool_candidates(candidates, node, pool_key, expedition_config, used_repeat_groups, true, true)
+	if not filtered.is_empty():
+		var result := _weighted_map_pool_pick(filtered, rng)
+		result["map_assignment_relaxed"] = "pressure"
+		return result
+	if candidates.is_empty():
+		return {}
+	var result := _weighted_map_pool_pick(candidates, rng)
+	result["map_assignment_relaxed"] = "unfiltered"
+	return result
+
+func _filtered_map_pool_candidates(candidates: Array, node: Dictionary, pool_key: String, expedition_config: Dictionary, used_repeat_groups: Dictionary, relax_repeat: bool, relax_pressure: bool) -> Array:
+	var result: Array = []
+	for entry in candidates:
+		var candidate: Dictionary = entry
+		if not _map_entry_matches_node(candidate, node):
+			continue
+		if not relax_pressure and not _map_entry_within_pressure_budget(candidate, pool_key, expedition_config):
+			continue
+		var repeat_group := String(candidate.get("no_repeat_group", ""))
+		if not relax_repeat and not repeat_group.is_empty() and used_repeat_groups.has(repeat_group):
+			continue
+		result.append(candidate)
+	return result
+
+func _map_entry_matches_node(entry: Dictionary, node: Dictionary) -> bool:
+	var config_id := String(entry.get("config_id", ""))
+	if BattleConfigCatalogScript.get_config(config_id).is_empty():
+		return false
+	var node_type := String(node.get("node_type", ""))
+	var allowed_node_types: Array = entry.get("allowed_node_types", [])
+	if not allowed_node_types.is_empty() and not (node_type in allowed_node_types):
+		return false
+	var layer := int(node.get("layer", 0))
+	var min_layer := int(entry.get("min_layer", 1))
+	var max_layer := int(entry.get("max_layer", 99))
+	return layer >= min_layer and layer <= max_layer
+
+func _map_entry_within_pressure_budget(entry: Dictionary, pool_key: String, expedition_config: Dictionary) -> bool:
+	var budget: Dictionary = expedition_config.get("pressure_budget", {})
+	var max_pressure := int(budget.get(pool_key, 0))
+	if max_pressure <= 0:
+		return true
+	return int(entry.get("pressure_cost", 0)) <= max_pressure
+
+func _map_pool_key_for_node(node: Dictionary) -> String:
+	var node_type := String(node.get("node_type", ""))
+	match node_type:
+		NODE_BOSS:
+			return MAP_POOL_BOSS
+		NODE_ELITE:
+			return MAP_POOL_ELITE
+	if int(node.get("layer", 0)) <= 1:
+		return MAP_POOL_START
+	return MAP_POOL_NORMAL
+
+func _weighted_map_pool_pick(candidates: Array, rng: RandomNumberGenerator) -> Dictionary:
+	var total_weight := 0
+	for entry in candidates:
+		total_weight += maxi(1, int(entry.get("weight", 1)))
+	if total_weight <= 0:
+		return candidates[0].duplicate(true)
+	var roll := rng.randi_range(1, total_weight)
+	var cursor := 0
+	for entry in candidates:
+		cursor += maxi(1, int(entry.get("weight", 1)))
+		if roll <= cursor:
+			return entry.duplicate(true)
+	return candidates[0].duplicate(true)
+
+func _apply_battle_map_entry(node: Dictionary, map_entry: Dictionary, pool_key: String) -> void:
+	var config_id := String(map_entry.get("config_id", ""))
+	var config := BattleConfigCatalogScript.get_config(config_id)
+	if config.is_empty():
+		return
+	node["title"] = String(config.get("display_name", node.get("title", "")))
+	node["pressure_tags"] = map_entry.get("pressure_tags", config.get("pressure_tags", [])).duplicate()
+	node["rift_strength"] = int(config.get("rift_strength", node.get("rift_strength", 0)))
+	node["risk_level"] = int(map_entry.get("risk_level", node.get("risk_level", 1)))
+	node["base_embers"] = int(map_entry.get("base_embers", node.get("base_embers", 7)))
+	node["summary"] = String(map_entry.get("summary", node.get("summary", "")))
+	var battle: Dictionary = node.get("battle", {}).duplicate(true)
+	battle["config_id"] = config_id
+	battle["map_id"] = String(config.get("map_id", battle.get("map_id", "")))
+	battle["variant"] = String(map_entry.get("variant", battle.get("variant", _variant_for_config_id(config_id))))
+	battle["max_rounds"] = int(config.get("max_rounds", battle.get("max_rounds", 5)))
+	battle["map_pool_key"] = pool_key
+	battle["map_archetype"] = String(map_entry.get("archetype", battle.get("variant", "")))
+	battle["map_no_repeat_group"] = String(map_entry.get("no_repeat_group", config_id))
+	battle["map_pressure_cost"] = int(map_entry.get("pressure_cost", config.get("pressure_tags", []).size()))
+	battle["map_enemy_family_hint"] = String(map_entry.get("enemy_family_hint", "mixed"))
+	battle["map_assignment_relaxed"] = String(map_entry.get("map_assignment_relaxed", ""))
+	battle["map_preview_flags"] = map_entry.get("preview_flags", []).duplicate()
+	var boss_config_id := String(config.get("boss_config_id", ""))
+	if boss_config_id.is_empty():
+		battle.erase("boss_config_id")
+	else:
+		battle["boss_config_id"] = boss_config_id
+	node["battle"] = battle
+
+func _variant_for_config_id(config_id: String) -> String:
+	match config_id:
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL:
+			return "intro"
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD:
+			return "archer"
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD:
+			return "pillar"
+		BattleConfigCatalogScript.CONFIG_IRON_GATE:
+			return "elite"
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL:
+			return "boss"
+		BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE:
+			return "bridge"
+	return "pillars"
 
 func _random_route_layer(source_ids: Array, layer: int, rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var ordered := source_ids.duplicate()
@@ -920,6 +1107,8 @@ func _shuffle_array(values: Array, rng: RandomNumberGenerator) -> void:
 		values[j] = tmp
 
 func _connect_random_route_layers(layers: Array, rng: RandomNumberGenerator) -> void:
+	# Legacy route edges are retained for debug/save compatibility. The player-facing
+	# flow is driven by the commission board, not by a visible node graph.
 	for layer_index in range(layers.size() - 1):
 		var current: Array = layers[layer_index]
 		var next: Array = layers[layer_index + 1]

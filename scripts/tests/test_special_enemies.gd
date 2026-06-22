@@ -1,31 +1,22 @@
 extends RefCounted
 ## Regression tests for Demo-specific enemy behavior.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_warden() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"warden_test"
-	d.display_name = "守卫者"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 3
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 2
-	return d
+	return TestUnitDefs.generic_warden({"max_hp": 3, "move": 2, "attack_force": 2})
 
 static func _enemy(def_id: StringName, hp: int, move: int, attack_kind: int, attack_range: int = 1, force: int = 0) -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = def_id
-	d.display_name = str(def_id)
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = hp
-	d.move = move
-	d.attack_kind = attack_kind
-	d.attack_range = attack_range
-	d.attack_damage = 1
-	d.attack_force = force
-	return d
+	return TestUnitDefs.generic_enemy({
+		"def_id": def_id,
+		"display_name": str(def_id),
+		"max_hp": hp,
+		"move": move,
+		"attack_kind": attack_kind,
+		"attack_range": attack_range,
+		"attack_damage": 1,
+		"attack_force": force,
+	})
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)
@@ -41,9 +32,6 @@ static func run(tr) -> void:
 	_test_ironhorn_uses_charge_line_pressure(tr)
 	_test_ironhorn_intent_exports_charge_lane_hazard(tr)
 	_test_ironhorn_charge_lane_preview_updates_after_push(tr)
-	_test_cracked_ground_warns_then_damages_unit(tr)
-	_test_cracked_ground_can_damage_pushed_enemy(tr)
-	_test_cracked_ground_does_not_damage_buildings(tr)
 	_test_bell_wave_warns_then_damages_unit(tr)
 	_test_bell_wave_does_not_damage_buildings(tr)
 
@@ -162,92 +150,6 @@ static func _test_ironhorn_charge_lane_preview_updates_after_push(tr) -> void:
 	tr.assert_eq("preview pushed charge misses building", rows[0].status, BattleEngine.INTENT_STATUS_MISS)
 	tr.assert_eq("real ironhorn did not move during preview", ironhorn.position, Vector2i(2, 0))
 
-static func _test_cracked_ground_warns_then_damages_unit(tr) -> void:
-	var engine := BattleEngine.new()
-	var grid := Grid.new()
-	var hazard := Vector2i(3, 4)
-	engine.start_battle(
-		grid,
-		[_make_warden()],
-		[],
-		[hazard],
-		[],
-		[],
-		3,
-		[],
-		[],
-		[],
-		{},
-		[],
-		[{"round": 1, "cells": [hazard]}]
-	)
-	engine.apply_action(BattleAction.deploy(hazard))
-	var warden := engine.state.wardens()[0]
-	engine.apply_action(BattleAction.confirm_deploy())
-	tr.assert_eq("cracked ground warning visible in round 1", engine.state.pending_cracked_ground, [hazard])
-	tr.assert_eq("cracked ground warning does not damage immediately", warden.hp, warden.def.max_hp)
-	var events := engine.apply_action(BattleAction.end_turn())
-	tr.assert_eq("cracked ground warning clears after resolving", engine.state.pending_cracked_ground.size(), 0)
-	tr.assert_eq("cracked ground damages standing warden by 1", warden.hp, warden.def.max_hp - 1)
-	tr.assert_true("cracked ground emits unit damage event", _has_unit_damage_event(events, warden.id))
-
-static func _test_cracked_ground_can_damage_pushed_enemy(tr) -> void:
-	var engine := BattleEngine.new()
-	var grid := Grid.new()
-	var hazard := Vector2i(5, 4)
-	var enemy_def := _enemy(&"cracked_target", 3, 0, UnitDef.AttackKind.MELEE_BUMP)
-	engine.start_battle(
-		grid,
-		[_make_warden(), _make_warden()],
-		[{"def": enemy_def, "pos": Vector2i(3, 4)}],
-		[Vector2i(2, 4), Vector2i(7, 7)],
-		[],
-		[],
-		3,
-		[],
-		[],
-		[],
-		{},
-		[],
-		[{"round": 1, "cells": [hazard]}]
-	)
-	engine.apply_action(BattleAction.deploy(Vector2i(2, 4)))
-	engine.apply_action(BattleAction.deploy(Vector2i(7, 7)))
-	engine.apply_action(BattleAction.confirm_deploy())
-	var enemy := engine.state.enemies()[0]
-	var warden := engine.state.wardens()[0]
-	engine.apply_action(BattleAction.attack(warden.id, enemy.position))
-	tr.assert_eq("enemy pushed into cracked warning", enemy.position, hazard)
-	engine.apply_action(BattleAction.end_turn())
-	tr.assert_eq("cracked ground damages pushed enemy", enemy.hp, 1)
-
-static func _test_cracked_ground_does_not_damage_buildings(tr) -> void:
-	var engine := BattleEngine.new()
-	var grid := Grid.new()
-	var building := Vector2i(3, 4)
-	var safe_deploy := Vector2i(7, 7)
-	grid.set_tile(building, Grid.TileType.BUILDING, 2)
-	engine.start_battle(
-		grid,
-		[_make_warden()],
-		[],
-		[safe_deploy],
-		[],
-		[],
-		3,
-		[building],
-		[],
-		[],
-		{},
-		[],
-		[{"round": 1, "cells": [building]}]
-	)
-	engine.apply_action(BattleAction.deploy(safe_deploy))
-	engine.apply_action(BattleAction.confirm_deploy())
-	tr.assert_eq("blocked cracked ground schedule filtered", engine.state.pending_cracked_ground.size(), 0)
-	engine.apply_action(BattleAction.end_turn())
-	tr.assert_eq("cracked ground does not damage buildings", int(engine.state.grid.tile_hp.get(building, 0)), 2)
-
 static func _test_bell_wave_warns_then_damages_unit(tr) -> void:
 	var engine := BattleEngine.new()
 	var grid := Grid.new()
@@ -264,7 +166,6 @@ static func _test_bell_wave_warns_then_damages_unit(tr) -> void:
 		[],
 		[],
 		{},
-		[],
 		[],
 		{},
 		[{"round": 1, "cells": [hazard]}]
@@ -297,7 +198,6 @@ static func _test_bell_wave_does_not_damage_buildings(tr) -> void:
 		[],
 		[],
 		{},
-		[],
 		[],
 		{},
 		[{"round": 1, "cells": [building]}]

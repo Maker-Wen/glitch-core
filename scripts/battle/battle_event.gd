@@ -10,10 +10,11 @@ enum Type {
 	UNIT_DIED,         # alive = false (still occupies cell until UNIT_REMOVED)
 	UNIT_REMOVED,      # Cleared from grid at chain end (Tend)
 	UNIT_FELL,         # Pushed off board (instant kill)
-	UNIT_CRACKED,      # Reserved
 	BUMP_WALL,         # Hit pillar / building / boundary -> wall damage
 	BUMP_UNIT,         # Hit another unit -> relay
 	TILE_DAMAGED,      # Pillar / building HP -1 (reserved for later phases)
+	TILE_REPAIRED,     # Building HP restored
+	TILE_SHIELDED,     # Building received temporary shield
 	TILE_DESTROYED,    # Reserved
 	PHASE_CHANGED,
 	ROUND_STARTED,

@@ -3,10 +3,13 @@ extends Node2D
 
 const BATTLE_SCENE := preload("res://Scenes/battle/BattleScene.tscn")
 const RunStateScript := preload("res://scripts/run/run_state.gd")
+const RewardListItemScript := preload("res://scripts/view/reward_list_item.gd")
+const AudioManagerScript := preload("res://scripts/core/audio_manager.gd")
 const MAIN_MENU_BACKGROUND_PATH := "res://art/ui/main_menu/main_menu_background_final_v2.jpg"
 const MAIN_MENU_BACKGROUND_REGION := Rect2(1210, 0, 1542, 1536)
 const BATTLE_DEBRIEF_PANEL_PATH := "res://art/ui/battle_result/battle_result_debrief_panel_gpt-image-2.png"
-const HUB_BACKGROUND_PATH := "res://art/ui/hub/hub_broken_wall_gate_gpt_v1_16x9.png"
+const HUB_BACKGROUND_PATH := "res://art/ui/hub/main_hub_multi_node_gpt_v1.png"
+const EXPEDITION_MAP_BACKGROUND_PATH := "res://art/ui/expedition/expedition_tactical_map_gpt.png"
 
 const COLOR_BG := Color(0.035, 0.032, 0.040, 1.0)
 const COLOR_PANEL := Color(0.070, 0.060, 0.066, 0.96)
@@ -21,27 +24,35 @@ const COLOR_PARCHMENT := Color(0.78, 0.67, 0.48, 1.0)
 const UI_SAFE_MARGIN := 56.0
 const UI_BUTTON_MIN_HEIGHT := 48.0
 const HUB_NODE_BROKEN_WALL_GATE := "broken_wall_gate"
+const HUB_NODE_WARDEN_CAMP := "warden_camp"
+const HUB_NODE_WORKSHOP := "workshop"
+const HUB_NODE_ARCHIVE := "archive"
+const HUB_NODE_WAR_REPORT := "war_report"
 const HUB_TITLE := "断墙据点"
 const HUB_TITLE_RECT := Rect2(UI_SAFE_MARGIN + 6.0, 96, 360, 42)
 const HUB_SUBTITLE_RECT := Rect2(UI_SAFE_MARGIN + 8.0, 140, 520, 28)
 const HUB_SUMMARY_RECT := Rect2(UI_SAFE_MARGIN, 24, 1168, 56)
 const HUB_RETURN_BUTTON_RECT := Rect2(UI_SAFE_MARGIN, 612, 144, UI_BUTTON_MIN_HEIGHT)
 const HUB_RESULT_BUTTON_RECT := Rect2(220, 612, 156, UI_BUTTON_MIN_HEIGHT)
-const HUB_GATE_HOTSPOT_RECT := Rect2(786, 340, 350, 116)
+const HUB_GATE_HOTSPOT_RECT := Rect2(944, 358, 224, 86)
+const HUB_CAMP_HOTSPOT_RECT := Rect2(74, 342, 196, 78)
+const HUB_REPORT_HOTSPOT_RECT := Rect2(480, 436, 230, 82)
+const HUB_WORKSHOP_HOTSPOT_RECT := Rect2(338, 268, 178, 70)
+const HUB_ARCHIVE_HOTSPOT_RECT := Rect2(694, 248, 178, 70)
+const HUB_SETTINGS_BUTTON_RECT := Rect2(1036, 612, 96, UI_BUTTON_MIN_HEIGHT)
 const HUB_VIEWPORT_RECT := Rect2(0, 0, 1280, 720)
 const HUB_SILHOUETTE_RECT := Rect2(110, 210, 1040, 310)
 const HUB_GROUND_RECT := Rect2(0, 520, 1280, 200)
 const HUB_SKY_COLOR := Color(0.040, 0.032, 0.030, 1.0)
 const HUB_WALL_COLOR := Color(0.075, 0.060, 0.052, 0.70)
 const HUB_GROUND_COLOR := Color(0.025, 0.020, 0.018, 0.92)
-const HUB_GATE_BUTTON_FILL := Color(0.105, 0.076, 0.052, 0.94)
+const HUB_GATE_BUTTON_FILL := Color(0.070, 0.046, 0.030, 0.72)
 const HUB_ART_GRADE_COLOR := Color(0.020, 0.016, 0.014, 0.30)
 
 var _run = null
 var _pending_overwrite_run = null
 var _ui: Control = null
 var _battle: BattleScene = null
-var _selected_reward_option_id: String = ""
 var _selecting_new_run_map: bool = false
 
 func _ready() -> void:
@@ -80,6 +91,7 @@ func _ui_viewport_size() -> Vector2:
 	)
 
 func _show_main_menu() -> void:
+	_play_menu_bgm()
 	var root := _make_root()
 	_run = null if _run != null and _run.result_outcome != "" else _run
 	if _pending_overwrite_run != null:
@@ -137,19 +149,36 @@ func _continue_run_pressed() -> void:
 		RunStateScript.Phase.REWARD:
 			_show_reward()
 		RunStateScript.Phase.NODE_PREVIEW:
-			if not _run.current_node_id.is_empty():
-				_show_mission_detail(_run.current_node_id)
-			else:
-				_show_hub()
+			_cancel_current_node_and_show_mission_board()
 		RunStateScript.Phase.BATTLE:
 			if not _run.current_node_id.is_empty():
 				_execute_current_node()
 			else:
-				_show_hub()
+				_show_mission_board()
 		_:
-			_show_hub()
+			_show_mission_board()
+
+func _continue_run_from_hub_status() -> void:
+	if _run == null:
+		_show_hub()
+		return
+	match _run.phase:
+		RunStateScript.Phase.NODE_RESOLUTION:
+			_show_battle_debrief_or_recover()
+		RunStateScript.Phase.REWARD:
+			_show_reward()
+		RunStateScript.Phase.BATTLE:
+			if not _run.current_node_id.is_empty():
+				_execute_current_node()
+			else:
+				_show_mission_board()
+		RunStateScript.Phase.NODE_PREVIEW:
+			_cancel_current_node_and_show_mission_board()
+		_:
+			_show_mission_board()
 
 func _show_new_run_confirm() -> void:
+	_play_menu_bgm()
 	var root := _make_root()
 	_add_main_menu_background(root)
 	var panel := _panel(root, Rect2(360, 188, 560, 310), COLOR_PANEL)
@@ -160,30 +189,29 @@ func _show_new_run_confirm() -> void:
 	_button(panel, "返回主菜单", Rect2(220, 238, 150, UI_BUTTON_MIN_HEIGHT), _show_main_menu)
 
 func _show_expedition_table() -> void:
+	_play_menu_bgm()
 	var root := _make_root()
 	_add_hub_backdrop(root)
-	var map_panel := _panel(root, Rect2(72, 96, 760, 500), Color(0.108, 0.082, 0.058, 0.98))
-	_label(map_panel, "断墙外远征地图", Rect2(28, 24, 360, 38), 31, COLOR_AMBER)
-	_label(map_panel, "选择这一局 Run 的目的地。确认后会生成本局委托榜。", Rect2(30, 68, 620, 28), 17, COLOR_MUTED)
-	_add_expedition_map_region(map_panel, "断墙外环", "标准 / 均衡", Rect2(110, 238, 170, 92), Color(0.33, 0.43, 0.22, 0.96), func(): _start_new_run_with_expedition(RunStateScript.EXPEDITION_BROKEN_WALL))
-	_add_expedition_map_region(map_panel, "裂隙回廊", "高压 / 成长", Rect2(384, 156, 180, 96), Color(0.50, 0.22, 0.19, 0.96), func(): _start_new_run_with_expedition(RunStateScript.EXPEDITION_RIFT_CORRIDOR))
-	_add_expedition_map_region(map_panel, "废弃军需线", "资源 / 补给", Rect2(420, 358, 200, 96), Color(0.23, 0.34, 0.48, 0.96), func(): _start_new_run_with_expedition(RunStateScript.EXPEDITION_SUPPLY_LINE))
-	_label(map_panel, "裂谷", Rect2(248, 334, 120, 22), 15, Color(0.20, 0.12, 0.08, 0.80))
-	_label(map_panel, "断墙", Rect2(118, 176, 120, 22), 15, Color(0.20, 0.12, 0.08, 0.80))
-	_label(map_panel, "旧道", Rect2(584, 294, 120, 22), 15, Color(0.20, 0.12, 0.08, 0.80))
-
-	var detail := _panel(root, Rect2(864, 126, 332, 410), COLOR_PANEL)
-	_label(detail, "地图说明", Rect2(26, 28, 240, 32), 27, COLOR_AMBER)
-	_label(detail, "断墙外环：默认路线，战斗、事件和整备均衡。", Rect2(28, 82, 270, 58), 17, COLOR_TEXT)
-	_label(detail, "裂隙回廊：战斗密度更高，裂隙压力更明显，成长机会更多。", Rect2(28, 158, 270, 66), 17, COLOR_TEXT)
-	_label(detail, "废弃军需线：商店和事件更多，更考验余烬规划。", Rect2(28, 242, 270, 58), 17, COLOR_TEXT)
-	_label(detail, "选中地图后会直接打开本局委托榜。", Rect2(28, 330, 270, 42), 16, COLOR_MUTED)
+	_decor_rect(root, HUB_VIEWPORT_RECT, Color(0.010, 0.008, 0.007, 0.44))
+	var map_panel := _panel(root, Rect2(38, 58, 1204, 552), Color(0.040, 0.034, 0.030, 0.97))
+	_add_expedition_title_plate(map_panel, Rect2(34, 22, 390, 46))
+	var sand_table := _add_expedition_map_backdrop(map_panel, Rect2(28, 74, 1148, 438))
+	_add_expedition_route_path(sand_table, [Vector2(92, 316), Vector2(146, 300)])
+	_add_expedition_route_path(sand_table, [Vector2(438, 236), Vector2(486, 158)])
+	_add_expedition_route_path(sand_table, [Vector2(734, 328), Vector2(808, 328)])
+	_add_expedition_map_region(sand_table, "断墙外环", "标准 / 均衡", Rect2(146, 252, 208, 92), Color(0.18, 0.27, 0.15, 0.97), "balanced", func(): _start_new_run_with_expedition(RunStateScript.EXPEDITION_BROKEN_WALL))
+	_add_expedition_map_region(sand_table, "裂隙回廊", "高压 / 成长", Rect2(486, 78, 214, 94), Color(0.34, 0.13, 0.11, 0.97), "rift", func(): _start_new_run_with_expedition(RunStateScript.EXPEDITION_RIFT_CORRIDOR))
+	_add_expedition_map_region(sand_table, "废弃军需线", "资源 / 补给", Rect2(808, 286, 236, 94), Color(0.13, 0.24, 0.34, 0.97), "supply", func(): _start_new_run_with_expedition(RunStateScript.EXPEDITION_SUPPLY_LINE))
+	_label(sand_table, "断墙", Rect2(134, 162, 96, 22), 14, Color(0.84, 0.60, 0.34, 0.50))
+	_label(sand_table, "裂谷", Rect2(564, 250, 96, 22), 14, Color(0.52, 0.78, 0.88, 0.48))
+	_label(sand_table, "旧道", Rect2(934, 190, 96, 22), 14, Color(0.84, 0.60, 0.34, 0.46))
 	_button(root, "返回据点", Rect2(72, 622, 160, UI_BUTTON_MIN_HEIGHT), _show_hub)
 
 func _show_hub() -> void:
 	if not _can_show_hub():
 		_show_main_menu()
 		return
+	_play_menu_bgm()
 	_prepare_hub_state()
 	var root := _make_root()
 	_build_hub_scene(root)
@@ -199,7 +227,6 @@ func _prepare_hub_state() -> void:
 
 func _build_hub_scene(root: Control) -> void:
 	_add_hub_backdrop(root)
-	_add_hub_summary(root)
 	_add_hub_header(root)
 	_add_hub_hotspots(root)
 	_add_hub_footer_actions(root)
@@ -210,7 +237,7 @@ func _add_hub_header(root: Control) -> void:
 
 func _hub_subtitle() -> String:
 	if _run == null:
-		return "选择关卡地图，确认下一次远征。"
+		return "选择远征区域，确认下一次远征。"
 	return "整队，确认下一次远征。"
 
 func _add_hub_hotspots(root: Control) -> void:
@@ -219,27 +246,38 @@ func _add_hub_hotspots(root: Control) -> void:
 
 func _add_hub_footer_actions(root: Control) -> void:
 	_button(root, "返回", HUB_RETURN_BUTTON_RECT, _show_hub_return_panel)
+	_button(root, "设置", HUB_SETTINGS_BUTTON_RECT, func(): _show_settings_placeholder(true))
 	if _hub_should_show_result_button():
 		_button(root, "查看结算", HUB_RESULT_BUTTON_RECT, _show_run_result)
 
 func _hub_should_show_result_button() -> bool:
-	return _run != null and _run.available_route_nodes().is_empty()
+	return _run != null and _run.available_commissions().is_empty()
 
 func _hub_nodes() -> Array[Dictionary]:
-	if _run == null:
-		return [_hub_gate_node("选择关卡地图", _show_expedition_table)]
-	return [_hub_gate_node("布告板 / 任务选择", _show_mission_board)]
+	return [
+		_hub_node(HUB_NODE_WARDEN_CAMP, "守卫者营帐", "队伍名册", HUB_CAMP_HOTSPOT_RECT, _show_warden_camp),
+		_hub_node(HUB_NODE_WAR_REPORT, "篝火 / 战报台", _hub_report_subtitle(), HUB_REPORT_HOTSPOT_RECT, _show_hub_status_panel),
+		_hub_node(HUB_NODE_BROKEN_WALL_GATE, "断墙远征门", "选择远征", HUB_GATE_HOTSPOT_RECT, _show_expedition_table),
+		_hub_node(HUB_NODE_WORKSHOP, "工坊", "图纸与遗物", HUB_WORKSHOP_HOTSPOT_RECT, _show_workshop_placeholder),
+		_hub_node(HUB_NODE_ARCHIVE, "档案馆", "敌人与规则", HUB_ARCHIVE_HOTSPOT_RECT, _show_archive_placeholder),
+	]
 
-func _hub_gate_node(subtitle: String, action: Callable) -> Dictionary:
+func _hub_node(id: String, title: String, subtitle: String, rect: Rect2, action: Callable) -> Dictionary:
 	return {
-		"id": HUB_NODE_BROKEN_WALL_GATE,
-		"title": "断墙远征门",
+		"id": id,
+		"title": title,
 		"subtitle": subtitle,
-		"rect": HUB_GATE_HOTSPOT_RECT,
+		"rect": rect,
 		"action": action,
 	}
 
+func _hub_report_subtitle() -> String:
+	if _run == null:
+		return "最近战报"
+	return "继续远征"
+
 func _show_hub_return_panel() -> void:
+	_play_menu_bgm()
 	var root := _make_root()
 	_add_hub_backdrop(root)
 	_add_hub_summary(root)
@@ -249,7 +287,65 @@ func _show_hub_return_panel() -> void:
 	_button(panel, "返回标题", Rect2(32, 158, 140, UI_BUTTON_MIN_HEIGHT), _show_main_menu)
 	_button(panel, "留在据点", Rect2(196, 158, 140, UI_BUTTON_MIN_HEIGHT), _show_hub)
 
+func _show_hub_status_panel() -> void:
+	_play_menu_bgm()
+	if _run == null:
+		_show_future_development_dialog("篝火 / 战报台")
+		return
+	var root := _make_root()
+	_add_hub_backdrop(root)
+	_add_hub_summary(root)
+	var panel := _panel(root, Rect2(392, 180, 496, 318), COLOR_PANEL)
+	_label(panel, "篝火 / 战报台", Rect2(30, 28, 300, 34), 29, COLOR_AMBER)
+	_label(panel, _run_summary_line(), Rect2(32, 84, 420, 100), 18, COLOR_TEXT)
+	_button(panel, "继续远征", Rect2(32, 226, 150, UI_BUTTON_MIN_HEIGHT), _continue_run_from_hub_status)
+	_button(panel, "返回据点", Rect2(206, 226, 144, UI_BUTTON_MIN_HEIGHT), _show_hub)
+
+func _show_warden_camp() -> void:
+	_show_future_development_dialog("守卫者营帐")
+
+func _show_workshop_placeholder() -> void:
+	_show_future_development_dialog("工坊")
+
+func _show_archive_placeholder() -> void:
+	_show_future_development_dialog("档案馆")
+
+func _show_future_development_dialog(title: String) -> void:
+	_play_menu_bgm()
+	if _ui == null:
+		return
+	_close_future_development_dialog()
+	var dialog := Control.new()
+	dialog.name = "FutureDevelopmentDialog"
+	dialog.anchor_right = 1.0
+	dialog.anchor_bottom = 1.0
+	dialog.mouse_filter = Control.MOUSE_FILTER_STOP
+	_ui.add_child(dialog)
+	var scrim := ColorRect.new()
+	scrim.name = "FutureDevelopmentScrim"
+	scrim.anchor_right = 1.0
+	scrim.anchor_bottom = 1.0
+	scrim.color = Color(0.0, 0.0, 0.0, 0.42)
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dialog.add_child(scrim)
+	var window := _panel(dialog, Rect2(454, 246, 372, 194), Color(0.040, 0.034, 0.032, 0.96))
+	window.name = "FutureDevelopmentWindow"
+	_label(window, title, Rect2(30, 26, 230, 30), 25, COLOR_AMBER)
+	_label(window, "未来开发中", Rect2(32, 78, 240, 30), 20, COLOR_TEXT)
+	var close_button := _button(window, "确定", Rect2(32, 124, 132, UI_BUTTON_MIN_HEIGHT), _close_future_development_dialog)
+	close_button.name = "FutureDevelopmentClose"
+
+func _close_future_development_dialog() -> void:
+	if _ui == null:
+		return
+	var dialog := _ui.get_node_or_null("FutureDevelopmentDialog")
+	if dialog == null:
+		return
+	_ui.remove_child(dialog)
+	dialog.queue_free()
+
 func _show_mission_board() -> void:
+	_play_menu_bgm()
 	if _run == null:
 		_show_expedition_table()
 		return
@@ -257,76 +353,37 @@ func _show_mission_board() -> void:
 	_run.phase = RunStateScript.Phase.ROUTE
 	var root := _make_root()
 	_add_hub_backdrop(root)
-	_add_hub_summary(root)
-	var panel := _panel(root, Rect2(96, 118, 1040, 470), Color(0.070, 0.056, 0.048, 0.97))
+	_add_mission_board_summary(root)
+	var panel := _panel(root, Rect2(96, 112, 1040, 500), Color(0.070, 0.056, 0.048, 0.97))
 	_label(panel, "任务委托", Rect2(28, 24, 260, 34), 29, COLOR_AMBER)
-	_label(panel, "%s 正在等待不同委托。完成一个委托后，榜单会补入新的可接任务。" % _run.expedition_name, Rect2(30, 64, 820, 26), 17, COLOR_MUTED)
-	var cards_y := 118.0
+	_label(panel, "%s · 选择下一次行动" % _run.expedition_name, Rect2(30, 64, 520, 26), 17, COLOR_MUTED)
+	var cards_y := 134.0
 	if not _run.last_route_notice.is_empty():
-		_add_route_notice(panel, Rect2(30, 102, 980, 58), _run.last_route_notice)
-		cards_y = 178.0
-	var available: Array[Dictionary] = _run.available_route_nodes()
+		_add_route_notice(panel, Rect2(30, 98, 980, 58), _run.last_route_notice)
+		cards_y = 172.0
+	var available: Array[Dictionary] = _run.available_commissions()
 	if available.is_empty():
 		_label(panel, "本章路线已完成。", Rect2(360, 214, 260, 30), 22, COLOR_TEXT)
 		_button(panel, "查看 Run 结算", Rect2(392, 270, 180, UI_BUTTON_MIN_HEIGHT), _show_run_result)
 	else:
-		var card_w := 300.0
-		var card_h := 136.0 if not _run.last_route_notice.is_empty() else 156.0
+		var card_w := 306.0
+		var card_h := 250.0
 		for i in range(available.size()):
 			var node: Dictionary = available[i]
 			var col := i % 3
 			var row := int(i / 3)
-			_add_mission_card(panel, node, Rect2(30 + col * 326, cards_y + row * 154, card_w, card_h))
-	_button(root, "返回据点", Rect2(96, 612, 150, UI_BUTTON_MIN_HEIGHT), _show_hub)
+			_add_mission_card(panel, node, Rect2(30 + col * 326, cards_y + row * 268, card_w, card_h))
 
-func _show_mission_detail(node_id: String) -> void:
-	if _run == null:
-		_show_main_menu()
-		return
-	_sync_run_warden_base_stats()
-	var node: Dictionary = _run.node_by_id(node_id)
-	if node.is_empty() or not _run.is_route_node_available(node_id):
-		_show_mission_board()
-		return
-	_run.phase = RunStateScript.Phase.NODE_PREVIEW
-	var root := _make_root()
-	_add_hub_backdrop(root)
-	_add_hub_summary(root)
-	var panel := _panel(root, Rect2(120, 112, 1000, 500), Color(0.075, 0.057, 0.045, 0.98))
-	_label(panel, "委托确认", Rect2(34, 26, 300, 36), 30, COLOR_AMBER)
-	_label(panel, String(node.get("title", "")), Rect2(36, 78, 430, 44), 34, COLOR_TEXT)
-	_label(panel, _mission_type_title(node), Rect2(488, 86, 220, 28), 20, _mission_accent(String(node.get("node_type", ""))))
-	_label(panel, _mission_summary_text(node), Rect2(38, 146, 560, 142), 18, COLOR_TEXT)
-	var risk_panel := _panel(panel, Rect2(644, 76, 306, 240), Color(0.048, 0.040, 0.038, 0.98))
-	_label(risk_panel, "风险刻度  %s" % _risk_marks(int(node.get("risk_level", 1))), Rect2(22, 22, 260, 28), 20, COLOR_AMBER)
-	_label(risk_panel, "队伍状态  %d / 3\n守护值  %d / %d\n余烬  %d\n腐化  %d" % [
-		_run.alive_warden_count(),
-		_run.sanctuary_integrity,
-		_run.sanctuary_integrity_max,
-		_run.embers,
-		_run.corruption,
-	], Rect2(22, 68, 250, 128), 18, COLOR_TEXT)
-	if _mission_is_high_risk(node):
-		_label(risk_panel, "警告：当前战力进入高风险任务。", Rect2(22, 194, 254, 30), 16, COLOR_DANGER)
-	_label(panel, "守卫者", Rect2(38, 314, 240, 28), 22, COLOR_AMBER)
-	var y := 354.0
-	for w in _run.wardens:
-		_label(panel, _warden_status_text(w), Rect2(42, y, 500, 28), 17, COLOR_TEXT if bool(w.get("alive", false)) else COLOR_DANGER)
-		y += 34.0
-	_button(panel, "开始任务", Rect2(646, 386, 164, UI_BUTTON_MIN_HEIGHT), func(id := node_id): _confirm_mission(id))
-	_button(panel, "返回据点", Rect2(832, 386, 140, UI_BUTTON_MIN_HEIGHT), func(id := node_id): _cancel_mission_and_show_hub(id))
-	_button(root, "返回任务布告", Rect2(120, 628, 174, UI_BUTTON_MIN_HEIGHT), _show_mission_board)
-
-func _cancel_mission_and_show_hub(node_id: String) -> void:
-	if _run != null and _run.current_node_id == node_id:
+func _cancel_current_node_and_show_mission_board() -> void:
+	if _run != null:
 		_run.current_node_id = ""
-	_show_hub()
+	_show_mission_board()
 
-func _confirm_mission(node_id: String) -> void:
+func _start_mission_from_board(node_id: String) -> void:
 	if _run == null:
 		_show_main_menu()
 		return
-	if not _run.is_route_node_available(node_id):
+	if not _run.is_commission_available(node_id):
 		_show_mission_board()
 		return
 	_run.current_node_id = node_id
@@ -335,7 +392,7 @@ func _confirm_mission(node_id: String) -> void:
 func _execute_current_node() -> void:
 	var node: Dictionary = _run.current_node()
 	if node.is_empty():
-		_show_hub()
+		_show_mission_board()
 		return
 	if _run.is_battle_node(node):
 		_start_battle_for_current_node()
@@ -349,18 +406,19 @@ func _execute_current_node() -> void:
 			_show_shop_node()
 		_:
 			_run.mark_current_node_visited()
-			_show_hub()
+			_show_mission_board()
 
 func _start_battle_for_current_node() -> void:
 	var node: Dictionary = _run.current_node()
 	if node.is_empty():
-		_show_hub()
+		_show_mission_board()
 		return
 	if not _run.is_battle_node(node):
 		_execute_current_node()
 		return
 	_sync_run_warden_base_stats()
 	_run.phase = RunStateScript.Phase.BATTLE
+	_play_battle_bgm()
 	_clear_screen()
 	_battle = BATTLE_SCENE.instantiate()
 	_battle.configure_battle(node, _run.wardens, _run.sanctuary_integrity, _run.sanctuary_integrity_max)
@@ -368,9 +426,10 @@ func _start_battle_for_current_node() -> void:
 	add_child(_battle)
 
 func _show_event_node() -> void:
+	_play_menu_bgm()
 	var node: Dictionary = _run.current_node()
 	if node.is_empty():
-		_show_hub()
+		_show_mission_board()
 		return
 	var root := _make_root()
 	_add_top_bar(root)
@@ -396,16 +455,17 @@ func _show_event_node() -> void:
 		var option_id := String(option.get("option_id", ""))
 		_button(card, "确认", Rect2(468, 56, 78, 30), func(id := option_id): _resolve_event_choice(id))
 		y += 112.0
-	_button(root, "返回任务详情", Rect2(72, 610, 150, 48), _return_to_current_mission_detail)
+	_button(root, "返回任务布告", Rect2(72, 610, 150, 48), _cancel_current_node_and_show_mission_board)
 
 func _resolve_event_choice(option_id: String) -> void:
 	_run.resolve_event_node(option_id)
-	_show_hub()
+	_show_mission_board()
 
 func _show_camp_node() -> void:
+	_play_menu_bgm()
 	var node: Dictionary = _run.current_node()
 	if node.is_empty():
-		_show_hub()
+		_show_mission_board()
 		return
 	var root := _make_root()
 	_add_top_bar(root)
@@ -430,53 +490,214 @@ func _show_camp_node() -> void:
 		var option_id := String(option.get("option_id", ""))
 		_button(card, "确认", Rect2(468, 72, 78, 30), func(id := option_id): _resolve_camp_choice(id))
 		y += 132.0
-	_button(root, "返回任务详情", Rect2(72, 610, 150, 48), _return_to_current_mission_detail)
+	_button(root, "返回任务布告", Rect2(72, 610, 150, 48), _cancel_current_node_and_show_mission_board)
 
 func _resolve_camp_choice(option_id: String) -> void:
 	_run.resolve_camp_node(option_id)
-	_show_hub()
+	_show_mission_board()
 
 func _show_shop_node() -> void:
+	_play_menu_bgm()
 	var node: Dictionary = _run.current_node()
 	if node.is_empty():
-		_show_hub()
+		_show_mission_board()
 		return
 	var root := _make_root()
+	_add_hub_backdrop(root)
+	_decor_rect(root, HUB_VIEWPORT_RECT, Color(0.010, 0.007, 0.005, 0.48))
 	_add_top_bar(root)
 	_label(root, "商店行动", Rect2(72, 92, 420, 38), 28, COLOR_AMBER)
-	var panel := _panel(root, Rect2(72, 150, 470, 430), COLOR_PANEL)
-	_label(panel, String(node.get("title", "")), Rect2(28, 26, 390, 36), 28, COLOR_TEXT)
-	_label(panel, String(node.get("summary", "")), Rect2(30, 80, 390, 86), 17, COLOR_MUTED)
-	_label(panel, "商店会消耗 1 个战略 tick，且不会压制任何前线。", Rect2(30, 188, 390, 52), 17, COLOR_DANGER)
-	_label(panel, "当前余烬：%d\n守护值：%d / %d" % [
-		_run.embers,
-		_run.sanctuary_integrity,
-		_run.sanctuary_integrity_max,
-	], Rect2(30, 270, 390, 72), 18, COLOR_TEXT)
-	var options_panel := _panel(root, Rect2(596, 150, 610, 430), COLOR_PANEL_SOFT)
-	_label(options_panel, "购买 1 项", Rect2(26, 24, 320, 30), 24, COLOR_TEXT)
-	var y := 74.0
+	var shop_panel := _panel(root, Rect2(72, 142, 1136, 448), Color(0.052, 0.041, 0.035, 0.985))
+	shop_panel.name = "ShopStallPanel"
+	_add_shop_panel_decoration(shop_panel, Vector2(1136, 448))
+	_label(shop_panel, String(node.get("title", "")), Rect2(36, 26, 360, 40), 31, COLOR_TEXT)
+	_label(shop_panel, "封存的军需箱仍带着余温。", Rect2(404, 36, 360, 26), 17, COLOR_MUTED)
+	_label(shop_panel, "购买 1 项", Rect2(940, 34, 150, 28), 20, COLOR_AMBER)
+	_add_shop_resource_strip(shop_panel, Rect2(34, 84, 1068, 58))
+	_add_shop_shelf_frame(shop_panel, Rect2(30, 160, 1076, 246))
 	var shop_data: Dictionary = node.get("shop", {})
+	var options: Array = shop_data.get("options", [])
+	var card_w := 328.0
+	var gap := 30.0
 	for option in shop_data.get("options", []):
-		var card := _panel(options_panel, Rect2(26, y, 554, 96), COLOR_PANEL)
-		_label(card, String(option.get("title", "")), Rect2(18, 12, 330, 26), 20, COLOR_AMBER)
-		_label(card, String(option.get("description", "")), Rect2(18, 42, 360, 42), 15, COLOR_TEXT)
-		_label(card, _effects_text(option.get("effects", [])), Rect2(386, 18, 132, 58), 14, COLOR_MUTED)
+		var index := options.find(option)
 		var option_id := String(option.get("option_id", ""))
-		var buy_button := _button(card, "购买", Rect2(468, 56, 78, 30), func(id := option_id): _resolve_shop_choice(id))
-		buy_button.disabled = not _run.can_afford_effects(option.get("effects", []))
-		y += 112.0
-	_button(root, "返回任务详情", Rect2(72, 610, 150, 48), _return_to_current_mission_detail)
-
-func _return_to_current_mission_detail() -> void:
-	if _run == null or _run.current_node_id.is_empty():
-		_show_hub()
-		return
-	_show_mission_detail(_run.current_node_id)
+		var effects: Array = option.get("effects", [])
+		var can_afford: bool = _run.can_afford_effects(effects)
+		var card_rect := Rect2(54 + index * (card_w + gap), 178, card_w, 206)
+		_add_shop_stall_card(shop_panel, card_rect, option, can_afford, func(id := option_id): _resolve_shop_choice(id))
+	_button(root, "返回任务布告", Rect2(72, 610, 150, 48), _cancel_current_node_and_show_mission_board)
 
 func _resolve_shop_choice(option_id: String) -> void:
 	_run.resolve_shop_node(option_id)
-	_show_hub()
+	_show_mission_board()
+
+func _add_shop_panel_decoration(parent: Control, size: Vector2) -> void:
+	_decor_rect(parent, Rect2(0, 0, size.x, 6), Color(1.0, 0.55, 0.18, 0.30)).name = "ShopPanelTopGlow"
+	_decor_rect(parent, Rect2(0, size.y - 10, size.x, 10), Color(0.0, 0.0, 0.0, 0.32)).name = "ShopPanelBottomShade"
+	_decor_rect(parent, Rect2(20, 72, size.x - 40, 1), Color(1.0, 0.67, 0.30, 0.28)).name = "ShopTitleHairline"
+	_decor_rect(parent, Rect2(22, 22, 5, 28), COLOR_AMBER).name = "ShopTitleAccent"
+	_decor_rect(parent, Rect2(size.x - 176, 24, 126, 2), Color(1.0, 0.68, 0.26, 0.24)).name = "ShopLedgerRule"
+
+func _add_shop_resource_strip(parent: Control, rect: Rect2) -> void:
+	var strip := _panel(parent, rect, Color(0.036, 0.030, 0.028, 0.96))
+	strip.name = "ShopResourceStrip"
+	_decor_rect(strip, Rect2(0, 0, rect.size.x, 2), Color(1.0, 0.70, 0.30, 0.28)).name = "ShopResourceTopLine"
+	_decor_rect(strip, Rect2(0, rect.size.y - 2, rect.size.x, 2), Color(0.0, 0.0, 0.0, 0.24)).name = "ShopResourceBottomLine"
+	var chip_w := 246.0
+	var gap := 22.0
+	_add_shop_resource_chip(strip, Rect2(18, 10, chip_w, 38), "余烬", "%d" % _run.embers, COLOR_AMBER)
+	_add_shop_resource_chip(strip, Rect2(18 + (chip_w + gap), 10, chip_w, 38), "守护值", "%d / %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], COLOR_GOOD)
+	_add_shop_resource_chip(strip, Rect2(18 + (chip_w + gap) * 2, 10, chip_w, 38), "守卫者", "%d / 3" % _run.alive_warden_count(), COLOR_TEXT)
+	_add_shop_resource_chip(strip, Rect2(18 + (chip_w + gap) * 3, 10, chip_w, 38), "腐化", "%d" % _run.corruption, COLOR_DANGER if _run.corruption > 0 else COLOR_PARCHMENT)
+
+func _add_shop_resource_chip(parent: Control, rect: Rect2, title: String, value: String, accent: Color) -> void:
+	var chip := _panel(parent, rect, Color(0.075, 0.058, 0.045, 0.92))
+	chip.name = "ShopResource_%s" % title
+	_decor_rect(chip, Rect2(0, 0, 4, rect.size.y), accent).name = "ShopResourceAccent"
+	_label(chip, title, Rect2(14, 9, 78, 20), 15, COLOR_MUTED)
+	_label(chip, value, Rect2(104, 7, rect.size.x - 118, 24), 19, accent)
+
+func _add_shop_shelf_frame(parent: Control, rect: Rect2) -> void:
+	var shelf := _panel(parent, rect, Color(0.030, 0.024, 0.022, 0.76))
+	shelf.name = "ShopShelfFrame"
+	_decor_rect(shelf, Rect2(0, 0, rect.size.x, 10), Color(0.23, 0.13, 0.060, 0.92)).name = "ShopShelfTopBeam"
+	_decor_rect(shelf, Rect2(14, 14, rect.size.x - 28, 24), Color(0.090, 0.048, 0.024, 0.92)).name = "ShopShelfCanopy"
+	var stripe_w := (rect.size.x - 52.0) / 12.0
+	for i in range(12):
+		var stripe_color := Color(0.24, 0.13, 0.055, 0.70) if i % 2 == 0 else Color(0.12, 0.065, 0.032, 0.82)
+		_decor_rect(shelf, Rect2(26 + i * stripe_w, 15, stripe_w - 3, 22), stripe_color).name = "ShopShelfCanopyStripe"
+	_decor_rect(shelf, Rect2(22, 42, rect.size.x - 44, 4), Color(1.0, 0.62, 0.22, 0.18)).name = "ShopShelfLampLine"
+	_decor_rect(shelf, Rect2(22, 132, rect.size.x - 44, 34), Color(0.0, 0.0, 0.0, 0.24)).name = "ShopShelfRearShadow"
+	_decor_rect(shelf, Rect2(0, rect.size.y - 14, rect.size.x, 14), Color(0.16, 0.085, 0.040, 0.94)).name = "ShopShelfCounterLip"
+	_decor_rect(shelf, Rect2(0, rect.size.y - 3, rect.size.x, 3), Color(1.0, 0.62, 0.22, 0.20)).name = "ShopShelfCounterGlow"
+	for x in [352.0, 710.0]:
+		_decor_rect(shelf, Rect2(x, 18, 2, rect.size.y - 38), Color(1.0, 0.56, 0.20, 0.18)).name = "ShopShelfDivider"
+
+func _add_shop_stall_card(parent: Control, rect: Rect2, option: Dictionary, can_afford: bool, callback: Callable) -> Control:
+	var effects: Array = option.get("effects", [])
+	var kind := _shop_item_kind(effects)
+	var accent := _shop_item_accent(kind)
+	var card_fill := Color(0.079, 0.061, 0.049, 0.98) if can_afford else Color(0.044, 0.038, 0.036, 0.94)
+	var card := _panel(parent, rect, card_fill)
+	card.name = "ShopStall_%s" % String(option.get("option_id", "unknown"))
+	_decor_rect(card, Rect2(0, 0, rect.size.x, 5), accent).name = "ShopStallAccent"
+	_decor_rect(card, Rect2(10, 14, rect.size.x - 20, 118), Color(0.018, 0.016, 0.015, 0.50)).name = "ShopStallBackcloth"
+	_decor_rect(card, Rect2(15, 17, 4, 106), Color(0.18, 0.10, 0.047, 0.80)).name = "ShopStallPostLeft"
+	_decor_rect(card, Rect2(rect.size.x - 19, 17, 4, 106), Color(0.18, 0.10, 0.047, 0.80)).name = "ShopStallPostRight"
+	_decor_rect(card, Rect2(22, 118, rect.size.x - 44, 9), Color(0.25, 0.13, 0.055, 0.90)).name = "ShopStallDisplayShelf"
+	_decor_rect(card, Rect2(32, 128, rect.size.x - 64, 3), Color(1.0, 0.63, 0.24, 0.18)).name = "ShopStallShelfGlow"
+	_decor_rect(card, Rect2(26, 143, 116, 30), Color(0.030, 0.026, 0.023, 0.92)).name = "ShopStallPriceTag"
+	_decor_rect(card, Rect2(0, rect.size.y - 6, rect.size.x, 6), Color(0.0, 0.0, 0.0, 0.26)).name = "ShopStallBaseShade"
+	_add_shop_item_mark(card, Rect2(22, 26, 86, 86), kind, can_afford)
+	_label(card, _shop_item_title(option), Rect2(124, 24, 180, 30), 23, accent if can_afford else COLOR_MUTED)
+	_label(card, _shop_price_text(effects), Rect2(126, 60, 150, 24), 18, COLOR_AMBER if can_afford else COLOR_MUTED)
+	_label(card, _shop_effect_text(effects), Rect2(126, 92, 176, 46), 16, COLOR_TEXT if can_afford else COLOR_MUTED)
+	if not can_afford:
+		_label(card, "余烬不足", Rect2(24, 148, 100, 24), 15, COLOR_MUTED)
+	var buy_button := _button(card, "购买", Rect2(204, 144, 94, 42), callback)
+	buy_button.name = "ShopBuy_%s" % String(option.get("option_id", "unknown"))
+	buy_button.disabled = not can_afford
+	if can_afford:
+		_apply_button_style(buy_button, Color(0.18, 0.105, 0.045, 0.98), Color(0.86, 0.52, 0.20, 0.92), 2)
+	return card
+
+func _add_shop_item_mark(parent: Control, rect: Rect2, kind: String, can_afford: bool) -> void:
+	var accent := _shop_item_accent(kind)
+	var alpha := 1.0 if can_afford else 0.46
+	var holder := _panel(parent, rect, Color(0.020, 0.018, 0.017, 0.96))
+	holder.name = "ShopItemMark_%s" % kind
+	_decor_rect(holder, Rect2(8, 8, rect.size.x - 16, rect.size.y - 16), Color(accent.r, accent.g, accent.b, 0.13 * alpha)).name = "ShopItemInnerGlow"
+	_decor_rect(holder, Rect2(15, rect.size.y - 20, rect.size.x - 30, 6), Color(0.0, 0.0, 0.0, 0.34 * alpha)).name = "ShopItemCastShadow"
+	match kind:
+		"healing":
+			_decor_rect(holder, Rect2(26, 58, 34, 8), Color(0.18, 0.13, 0.09, 0.86 * alpha)).name = "ShopHealBottleBase"
+			_decor_rect(holder, Rect2(28, 18, 30, 50), Color(0.72, 0.84, 0.66, 0.86 * alpha)).name = "ShopHealBottle"
+			_decor_rect(holder, Rect2(34, 10, 18, 12), Color(0.44, 0.60, 0.42, 0.86 * alpha)).name = "ShopHealCap"
+			_decor_rect(holder, Rect2(49, 24, 5, 30), Color(0.94, 1.0, 0.78, 0.24 * alpha)).name = "ShopHealBottleHighlight"
+			_decor_rect(holder, Rect2(39, 29, 8, 28), Color(0.08, 0.18, 0.12, 0.88 * alpha)).name = "ShopHealCrossV"
+			_decor_rect(holder, Rect2(29, 39, 28, 8), Color(0.08, 0.18, 0.12, 0.88 * alpha)).name = "ShopHealCrossH"
+		"repair":
+			_decor_rect(holder, Rect2(16, 58, 54, 7), Color(0.18, 0.10, 0.055, 0.84 * alpha)).name = "ShopRepairStackShadow"
+			_decor_rect(holder, Rect2(18, 42, 50, 14), Color(0.74, 0.45, 0.20, 0.90 * alpha)).name = "ShopRepairPlankA"
+			_decor_rect(holder, Rect2(22, 24, 42, 12), Color(0.60, 0.34, 0.15, 0.90 * alpha)).name = "ShopRepairPlankB"
+			_decor_rect(holder, Rect2(15, 33, 54, 7), Color(0.86, 0.56, 0.25, 0.78 * alpha)).name = "ShopRepairPlankC"
+			_decor_rect(holder, Rect2(24, 20, 8, 42), Color(0.24, 0.19, 0.16, 0.88 * alpha)).name = "ShopRepairStrapA"
+			_decor_rect(holder, Rect2(56, 22, 8, 38), Color(0.24, 0.19, 0.16, 0.88 * alpha)).name = "ShopRepairStrapB"
+		"relic":
+			var gem := _decor_rect(holder, Rect2(32, 22, 24, 24), Color(0.42, 0.62, 0.74, 0.88 * alpha))
+			gem.name = "ShopRelicGem"
+			gem.pivot_offset = Vector2(12, 12)
+			gem.rotation = 0.785
+			_decor_rect(holder, Rect2(29, 47, 28, 10), Color(0.10, 0.16, 0.18, 0.82 * alpha)).name = "ShopRelicSocket"
+			_decor_rect(holder, Rect2(26, 55, 34, 6), Color(0.88, 0.58, 0.24, 0.82 * alpha)).name = "ShopRelicBase"
+			_decor_rect(holder, Rect2(39, 14, 7, 54), Color(0.66, 0.84, 0.94, 0.34 * alpha)).name = "ShopRelicLight"
+		_:
+			_decor_rect(holder, Rect2(20, 28, 46, 34), Color(0.70, 0.48, 0.24, 0.84 * alpha)).name = "ShopSupplyBox"
+			_decor_rect(holder, Rect2(20, 40, 46, 6), Color(0.24, 0.18, 0.13, 0.86 * alpha)).name = "ShopSupplyBand"
+	_decor_rect(holder, Rect2(10, rect.size.y - 12, rect.size.x - 20, 2), Color(1.0, 0.80, 0.44, 0.20 * alpha)).name = "ShopItemFootGlow"
+
+func _shop_item_kind(effects: Array) -> String:
+	for effect in effects:
+		if typeof(effect) != TYPE_DICTIONARY:
+			continue
+		match String(effect.get("reward_type", "")):
+			"warden_hp":
+				return "healing"
+			"sanctuary_integrity":
+				return "repair"
+			"relic":
+				return "relic"
+	return "supply"
+
+func _shop_item_accent(kind: String) -> Color:
+	match kind:
+		"healing":
+			return Color(0.54, 0.80, 0.56, 1.0)
+		"repair":
+			return Color(0.95, 0.58, 0.24, 1.0)
+		"relic":
+			return Color(0.50, 0.72, 0.86, 1.0)
+	return COLOR_AMBER
+
+func _shop_item_title(option: Dictionary) -> String:
+	var title := String(option.get("title", ""))
+	if title.begins_with("购买"):
+		title = title.substr(2)
+	return title
+
+func _shop_price_text(effects: Array) -> String:
+	for effect in effects:
+		if typeof(effect) != TYPE_DICTIONARY:
+			continue
+		if String(effect.get("reward_type", "")) == "embers":
+			return "余烬 %d" % int(effect.get("amount", 0))
+	return "无余烬消耗"
+
+func _shop_effect_text(effects: Array) -> String:
+	var lines: Array[String] = []
+	for effect in effects:
+		if typeof(effect) != TYPE_DICTIONARY:
+			continue
+		var reward_type := String(effect.get("reward_type", ""))
+		if reward_type == "embers":
+			continue
+		var amount := int(effect.get("amount", 0))
+		var sign := "+" if amount >= 0 else ""
+		match reward_type:
+			"warden_hp":
+				lines.append("存活守卫者 HP %s%d" % [sign, amount])
+			"sanctuary_integrity":
+				lines.append("守护值 %s%d" % [sign, amount])
+			"relic":
+				lines.append("获得遗物")
+			"corruption":
+				lines.append("腐化 %s%d" % [sign, amount])
+			_:
+				lines.append("%s %s%d" % [reward_type, sign, amount])
+	if lines.is_empty():
+		return "无即时收益"
+	return "\n".join(lines)
 
 func _add_main_menu_background(root: Control) -> void:
 	var background := TextureRect.new()
@@ -583,26 +804,152 @@ func _add_hub_hotspot(root: Control, node: Dictionary) -> Button:
 	var callback: Callable = node.get("action", Callable())
 	var button := _button(root, "%s\n%s" % [title, subtitle], rect, callback)
 	button.name = "HubHotspot_%s" % String(node.get("id", "unknown"))
-	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_font_size_override("font_size", 16)
 	_apply_button_style(button, HUB_GATE_BUTTON_FILL, COLOR_AMBER, 3)
 	return button
 
-func _add_expedition_map_region(parent: Control, title: String, subtitle: String, rect: Rect2, color: Color, callback: Callable) -> Button:
+func _add_expedition_title_plate(parent: Control, rect: Rect2) -> void:
+	var shadow := _decor_rect(parent, Rect2(rect.position + Vector2(4, 5), rect.size), Color(0.0, 0.0, 0.0, 0.34))
+	shadow.name = "ExpeditionTitleShadow"
+	var plate := _panel(parent, rect, Color(0.070, 0.046, 0.030, 0.92))
+	plate.name = "ExpeditionTitlePlate"
+	_decor_rect(plate, Rect2(12, 12, 4, 22), COLOR_AMBER).name = "ExpeditionTitleAccent"
+	_decor_rect(plate, Rect2(22, 34, rect.size.x - 44, 1), Color(1.0, 0.70, 0.30, 0.32)).name = "ExpeditionTitleHairline"
+	_label(plate, "断墙外远征地图", Rect2(30, 7, rect.size.x - 50, 36), 29, COLOR_AMBER)
+
+func _add_expedition_map_backdrop(parent: Control, rect: Rect2) -> Control:
+	var holder := Control.new()
+	holder.name = "ExpeditionTacticalMap"
+	holder.position = rect.position
+	holder.size = rect.size
+	parent.add_child(holder)
+	var texture := _load_texture_from_path(EXPEDITION_MAP_BACKGROUND_PATH)
+	if texture != null:
+		var image := TextureRect.new()
+		image.name = "ExpeditionMapArt"
+		image.anchor_right = 1.0
+		image.anchor_bottom = 1.0
+		image.texture = texture
+		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		image.stretch_mode = TextureRect.STRETCH_SCALE
+		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(image)
+	else:
+		_panel(holder, Rect2(Vector2.ZERO, rect.size), Color(0.026, 0.022, 0.020, 0.98))
+	_decor_rect(holder, Rect2(Vector2.ZERO, rect.size), Color(0.0, 0.0, 0.0, 0.16)).name = "ExpeditionMapGrade"
+	_decor_rect(holder, Rect2(0, 0, rect.size.x, 18), Color(0.0, 0.0, 0.0, 0.30)).name = "ExpeditionMapTopShade"
+	_decor_rect(holder, Rect2(0, rect.size.y - 22, rect.size.x, 22), Color(0.0, 0.0, 0.0, 0.32)).name = "ExpeditionMapBottomShade"
+	_add_expedition_map_frame(holder, rect.size)
+	return holder
+
+func _add_expedition_map_frame(parent: Control, size: Vector2) -> void:
+	var outer := ReferenceRect.new()
+	outer.name = "ExpeditionMapOuterFrame"
+	outer.anchor_right = 1.0
+	outer.anchor_bottom = 1.0
+	outer.border_width = 2.0
+	outer.border_color = Color(0.95, 0.58, 0.24, 0.64)
+	outer.editor_only = false
+	outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(outer)
+	var inner := ReferenceRect.new()
+	inner.name = "ExpeditionMapInnerFrame"
+	inner.position = Vector2(14, 14)
+	inner.size = size - Vector2(28, 28)
+	inner.border_width = 1.0
+	inner.border_color = Color(0.95, 0.67, 0.30, 0.26)
+	inner.editor_only = false
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(inner)
+	_decor_rect(parent, Rect2(0, 0, 2, size.y), Color(1.0, 0.60, 0.24, 0.28)).name = "ExpeditionMapLeftRail"
+	_decor_rect(parent, Rect2(size.x - 2, 0, 2, size.y), Color(1.0, 0.60, 0.24, 0.28)).name = "ExpeditionMapRightRail"
+
+func _add_expedition_route_path(parent: Control, points: Array) -> void:
+	if points.size() < 2:
+		return
+	for i in range(points.size() - 1):
+		_add_expedition_route_line(parent, points[i], points[i + 1])
+	for point in points:
+		_add_expedition_route_pin(parent, point, 3.0, Color(1.0, 0.64, 0.26, 0.58))
+
+func _add_expedition_route_line(parent: Control, from: Vector2, to: Vector2) -> void:
+	var delta := to - from
+	var length := delta.length()
+	if length <= 0.0:
+		return
+	var shadow := _decor_rect(parent, Rect2(from + Vector2(0, 2), Vector2(length, 3)), Color(0.0, 0.0, 0.0, 0.28))
+	shadow.rotation = delta.angle()
+	var line := _decor_rect(parent, Rect2(from, Vector2(length, 2)), Color(1.0, 0.60, 0.22, 0.42))
+	line.rotation = delta.angle()
+	var core := _decor_rect(parent, Rect2(from + Vector2(0, 1), Vector2(length, 1)), Color(1.0, 0.84, 0.46, 0.54))
+	core.rotation = delta.angle()
+
+func _add_expedition_route_pin(parent: Control, position: Vector2, radius: float, color: Color) -> void:
+	var glow := ColorRect.new()
+	glow.position = position - Vector2(radius + 3.0, radius + 3.0)
+	glow.size = Vector2((radius + 3.0) * 2.0, (radius + 3.0) * 2.0)
+	glow.color = Color(color.r, color.g, color.b, 0.16)
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(glow)
+	var pin := ColorRect.new()
+	pin.position = position - Vector2(radius, radius)
+	pin.size = Vector2(radius * 2.0, radius * 2.0)
+	pin.color = color
+	pin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(pin)
+
+func _add_expedition_map_region(parent: Control, title: String, subtitle: String, rect: Rect2, color: Color, marker_kind: String, callback: Callable) -> Button:
+	var shadow := ColorRect.new()
+	shadow.position = rect.position + Vector2(7, 9)
+	shadow.size = rect.size
+	shadow.color = Color(0.0, 0.0, 0.0, 0.44)
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(shadow)
 	var button := _button(parent, "%s\n%s" % [title, subtitle], rect, callback)
-	button.add_theme_font_size_override("font_size", 17)
-	_apply_button_style(button, color, COLOR_AMBER, 3)
+	button.name = "ExpeditionRegion_%s" % title
+	button.add_theme_font_size_override("font_size", 18)
+	_apply_expedition_region_style(button, color)
+	_add_expedition_region_marker(parent, rect, color, marker_kind)
 	return button
+
+func _add_expedition_region_marker(parent: Control, rect: Rect2, color: Color, marker_kind: String) -> void:
+	var marker_rect := Rect2(rect.position + Vector2(16, 17), Vector2(32, 32))
+	var base := _decor_rect(parent, marker_rect, Color(0.020, 0.017, 0.015, 0.80))
+	base.name = "ExpeditionRegionMarker_%s" % marker_kind
+	var accent := Color(color.r, color.g, color.b, 1.0).lightened(0.46)
+	match marker_kind:
+		"rift":
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(14, 5), Vector2(4, 22)), accent).rotation = 0.46
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(9, 16), Vector2(14, 3)), Color(0.52, 0.82, 0.94, 0.88)).rotation = 0.18
+		"supply":
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(8, 9), Vector2(16, 14)), accent)
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(12, 5), Vector2(8, 5)), Color(1.0, 0.78, 0.40, 0.78))
+		_:
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(8, 8), Vector2(16, 4)), accent)
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(8, 14), Vector2(16, 4)), accent.darkened(0.12))
+			_decor_rect(parent, Rect2(marker_rect.position + Vector2(8, 20), Vector2(16, 4)), accent.darkened(0.24))
 
 func _add_hub_summary(root: Control) -> void:
 	var bar := _panel(root, HUB_SUMMARY_RECT, Color(0.045, 0.038, 0.036, 0.96))
 	bar.name = "HubSummary"
 	if _run == null:
-		_label(bar, "尚未选择关卡地图", Rect2(20, 15, 220, 26), 17, COLOR_TEXT)
+		_label(bar, "尚未选择远征区域", Rect2(20, 15, 220, 26), 17, COLOR_TEXT)
 		_label(bar, "断墙远征门等待确认目的地", Rect2(266, 15, 260, 26), 17, COLOR_MUTED)
 		return
 	_sync_run_warden_base_stats()
 	_label(bar, "余烬 %d" % _run.embers, Rect2(20, 15, 112, 26), 17, COLOR_TEXT)
 	_label(bar, "守卫者 %d / 3" % _run.alive_warden_count(), Rect2(166, 15, 154, 26), 17, COLOR_TEXT)
+
+func _add_mission_board_summary(root: Control) -> void:
+	var bar := _panel(root, HUB_SUMMARY_RECT, Color(0.045, 0.038, 0.036, 0.96))
+	bar.name = "MissionBoardSummary"
+	if _run == null:
+		return
+	_sync_run_warden_base_stats()
+	_label(bar, "余烬 %d" % _run.embers, Rect2(20, 15, 112, 26), 17, COLOR_TEXT)
+	_label(bar, "守护值 %d / %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], Rect2(152, 15, 170, 26), 17, COLOR_TEXT)
+	_label(bar, "守卫者 %d / 3" % _run.alive_warden_count(), Rect2(350, 15, 154, 26), 17, COLOR_TEXT)
+	_label(bar, "腐化 %d" % _run.corruption, Rect2(532, 15, 112, 26), 17, COLOR_TEXT)
 
 func _show_unavailable_hub_feature(feature_name: String) -> void:
 	var root := _make_root()
@@ -616,7 +963,7 @@ func _run_summary_line() -> String:
 	if _run == null:
 		return "暂无远征。"
 	_sync_run_warden_base_stats()
-	var next: Dictionary = _run.next_unvisited_node()
+	var next: Dictionary = _run.current_commission()
 	var next_title := String(next.get("title", "已完成"))
 	return "%s · 进度 %d/%d\n守护值 %d/%d   余烬 %d   腐化 %d\n下一任务：%s" % [
 		_run.chapter_name,
@@ -638,15 +985,63 @@ func _mission_card_tags(node: Dictionary) -> String:
 
 func _add_mission_card(parent: Control, node: Dictionary, rect: Rect2) -> void:
 	var node_type := String(node.get("node_type", ""))
-	var card := _panel(parent, rect, Color(0.095, 0.072, 0.052, 0.98))
-	var accent := _mission_accent(node_type)
-	_label(card, String(node.get("title", "")), Rect2(18, 16, rect.size.x - 36, 30), 22, COLOR_TEXT)
-	_label(card, _mission_type_title(node), Rect2(18, 50, 132, 24), 17, accent)
-	_label(card, "风险 %s" % _risk_marks(int(node.get("risk_level", 1))), Rect2(156, 50, 120, 24), 16, COLOR_AMBER)
-	_label(card, _mission_card_tags(node), Rect2(18, 80, rect.size.x - 36, 32), 15, COLOR_MUTED)
-	_label(card, _mission_reward_preview(node), Rect2(18, rect.size.y - 34, 170, 24), 15, COLOR_PARCHMENT)
 	var node_id := String(node.get("node_id", ""))
-	_button(card, "查看详情", Rect2(rect.size.x - 118, rect.size.y - 48, 100, 40), func(id := node_id): _show_mission_detail(id))
+	var accent := _mission_accent(node_type)
+	var card := Button.new()
+	card.name = "MissionCard_%s" % node_id
+	card.position = rect.position
+	card.size = rect.size
+	card.text = ""
+	card.focus_mode = Control.FOCUS_ALL
+	card.pressed.connect(func(id := node_id): _start_mission_from_board(id))
+	_apply_mission_card_style(card, node_type)
+	parent.add_child(card)
+	var accent_rule := ColorRect.new()
+	accent_rule.position = Vector2(0, 0)
+	accent_rule.size = Vector2(rect.size.x, 5)
+	accent_rule.color = accent
+	accent_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(accent_rule)
+	var selection_glow := ColorRect.new()
+	selection_glow.name = "MissionCardSelectionGlow"
+	selection_glow.anchor_right = 1.0
+	selection_glow.anchor_bottom = 1.0
+	selection_glow.offset_right = 0.0
+	selection_glow.offset_bottom = 0.0
+	selection_glow.color = Color(accent.r, accent.g, accent.b, 0.09)
+	selection_glow.visible = false
+	selection_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(selection_glow)
+	var inner := ReferenceRect.new()
+	inner.anchor_right = 1.0
+	inner.anchor_bottom = 1.0
+	inner.offset_left = 8
+	inner.offset_top = 8
+	inner.offset_right = -8
+	inner.offset_bottom = -8
+	inner.border_width = 1.0
+	inner.border_color = Color(accent.r, accent.g, accent.b, 0.28)
+	inner.editor_only = false
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(inner)
+	_bind_mission_card_selection_state(card, selection_glow, inner, accent)
+	_card_label(card, String(node.get("title", "")), Rect2(20, 20, rect.size.x - 40, 34), 24, COLOR_TEXT)
+	_card_label(card, _mission_type_title(node), Rect2(20, 62, 142, 24), 17, accent)
+	_card_label(card, _mission_risk_label(node), Rect2(166, 62, 120, 24), 17, _mission_risk_color(node))
+	_card_label(card, _mission_card_intel(node), Rect2(20, 106, rect.size.x - 40, 54), 18, COLOR_TEXT)
+	_card_label(card, _mission_card_reward_line(node), Rect2(20, rect.size.y - 52, rect.size.x - 40, 28), 18, COLOR_PARCHMENT)
+
+func _bind_mission_card_selection_state(card: Button, glow: Control, inner: ReferenceRect, accent: Color) -> void:
+	var update_state := func() -> void:
+		var selected := card.is_hovered() or card.has_focus()
+		glow.visible = selected
+		inner.border_width = 2.0 if selected else 1.0
+		inner.border_color = Color(accent.r, accent.g, accent.b, 0.64 if selected else 0.28)
+	card.mouse_entered.connect(update_state)
+	card.mouse_exited.connect(update_state)
+	card.focus_entered.connect(update_state)
+	card.focus_exited.connect(update_state)
+	update_state.call()
 
 func _add_route_notice(parent: Control, rect: Rect2, notice: Dictionary) -> void:
 	var tone := String(notice.get("tone", "good"))
@@ -707,20 +1102,6 @@ func _pending_reward_fixed_summary(reward: Dictionary) -> String:
 		return "待领取奖励"
 	return "待领取 余烬 +%d" % embers
 
-func _mission_summary_text(node: Dictionary) -> String:
-	var battle: Dictionary = node.get("battle", {})
-	var rounds := int(battle.get("max_rounds", 0))
-	var lines: Array[String] = []
-	lines.append("任务目标：%s" % _mission_objective_text(node))
-	lines.append(String(node.get("summary", "")))
-	if rounds > 0:
-		lines.append("回合数：撑到第 %d 回合，保护目标。" % rounds)
-	else:
-		lines.append("行动：处理据点外事务并返回据点。")
-	lines.append("压力提示：%s" % _mission_card_tags(node))
-	lines.append("奖励预览：%s" % _mission_reward_detail(node))
-	return "\n".join(lines)
-
 func _mission_type_title(node: Dictionary) -> String:
 	var node_type := String(node.get("node_type", ""))
 	var tags: Array = node.get("pressure_tags", [])
@@ -741,54 +1122,83 @@ func _mission_type_title(node: Dictionary) -> String:
 		return "清剿委托"
 	return "防守委托"
 
-func _mission_objective_text(node: Dictionary) -> String:
-	var node_type := String(node.get("node_type", ""))
-	match node_type:
-		RunStateScript.NODE_ELITE:
-			return "击退精英威胁，守住关键建筑并争取遗物。"
-		RunStateScript.NODE_BOSS:
-			return "压制锚石与心脏钟，撑过 Boss 毁灭脚本。"
-		RunStateScript.NODE_EVENT:
-			return "在公开收益和代价之间选择一项。"
-		RunStateScript.NODE_CAMP:
-			return "选择治疗小队或修复防线。"
-		RunStateScript.NODE_SHOP:
-			return "花费余烬购买治疗、修复或遗物。"
-	if _mission_type_title(node) == "裂隙压制":
-		return "处理地裂出怪压力，保护建筑到终局。"
-	if _mission_type_title(node) == "清剿委托":
-		return "利用推撞、挡线和地形化解密集威胁。"
-	return "完成标准防守，撑到最大回合。"
+func _mission_risk_label(node: Dictionary) -> String:
+	var risk := clampi(int(node.get("risk_level", 1)), 1, 5)
+	if String(node.get("node_type", "")) == RunStateScript.NODE_BOSS:
+		return "Boss %d/5" % risk
+	var label := "低危"
+	match risk:
+		2:
+			label = "中危"
+		3:
+			label = "高危"
+		4:
+			label = "危急"
+		5:
+			label = "死线"
+	return "%s %d/5" % [label, risk]
 
-func _mission_reward_preview(node: Dictionary) -> String:
+func _mission_risk_color(node: Dictionary) -> Color:
+	var risk := clampi(int(node.get("risk_level", 1)), 1, 5)
+	if risk >= 4 or String(node.get("node_type", "")) == RunStateScript.NODE_BOSS:
+		return COLOR_DANGER
+	if risk >= 3:
+		return COLOR_AMBER
+	return COLOR_PARCHMENT
+
+func _mission_card_intel(node: Dictionary) -> String:
+	match String(node.get("node_id", "")):
+		"outer_wall_01":
+			return "外墙有远程火线压近。"
+		"extinguished_beacon_02":
+			return "灯塔内仍有余火。"
+		"quartermaster_cache_02":
+			return "军需箱仍可开封。"
+		"crack_courtyard_03":
+			return "浅裂隙正在扩张。"
+		"pillar_graveyard_03":
+			return "石柱间回声越来越密。"
+		"ember_camp_03":
+			return "守夜人留下补给。"
+		"scout_ritual_03":
+			return "坑底还在冒黑火。"
+		"iron_gate_04":
+			return "铁角闸门后有重影。"
+		"ember_camp_05":
+			return "残火还够整队一次。"
+		"quartermaster_cache_05":
+			return "仓库深处仍有封箱。"
+		"last_watch_event_05":
+			return "最后一圈路障未倒。"
+		"boss_outer_bell_01":
+			return "心脏钟正在倒数。"
+	var node_type := String(node.get("node_type", ""))
+	if node_type == RunStateScript.NODE_EVENT:
+		return "前线传来一项取舍。"
+	if node_type == RunStateScript.NODE_CAMP:
+		return "这里还能短暂喘息。"
+	if node_type == RunStateScript.NODE_SHOP:
+		return "旧补给线尚未断绝。"
+	if node_type == RunStateScript.NODE_ELITE:
+		return "更重的脚步压近防线。"
+	if node_type == RunStateScript.NODE_BOSS:
+		return "终局威胁已经显形。"
+	return "断墙外仍有火线。"
+
+func _mission_card_reward_line(node: Dictionary) -> String:
 	var node_type := String(node.get("node_type", ""))
 	match node_type:
 		RunStateScript.NODE_ELITE:
-			return "余烬 +%d · 遗物" % int(node.get("base_embers", 0))
+			return "报酬 %d 余烬 · 遗物" % int(node.get("base_embers", 0))
 		RunStateScript.NODE_BOSS:
-			return "余烬 +%d · 终局奖励" % int(node.get("base_embers", 0))
+			return "终局报酬 %d 余烬" % int(node.get("base_embers", 0))
 		RunStateScript.NODE_EVENT:
 			return _option_preview(node, "event")
 		RunStateScript.NODE_CAMP:
-			return "治疗 / 修复二选一"
+			return "治疗 / 修复"
 		RunStateScript.NODE_SHOP:
 			return "消耗余烬 · 补给"
-	return "余烬 +%d · 成长机会" % int(node.get("base_embers", 0))
-
-func _mission_reward_detail(node: Dictionary) -> String:
-	var node_type := String(node.get("node_type", ""))
-	match node_type:
-		RunStateScript.NODE_ELITE:
-			return "基础余烬 +%d，胜利后出现遗物选择；奖励任务越多，选项和稀有权重越高。" % int(node.get("base_embers", 0))
-		RunStateScript.NODE_BOSS:
-			return "基础余烬 +%d，Boss 奖励任务和心脏钟命中会追加终局收益。" % int(node.get("base_embers", 0))
-		RunStateScript.NODE_EVENT:
-			return "事件选项会改变余烬、守护值、腐化或下一战状态。"
-		RunStateScript.NODE_CAMP:
-			return "免费整备，只能在治疗小队和修复防线中选择 1 项。"
-		RunStateScript.NODE_SHOP:
-			return "用当前余烬购买治疗、守护值修复或原型遗物。"
-	return "基础余烬 +%d；奖励任务可追加余烬，并可能提供成长或防线修复机会。" % int(node.get("base_embers", 0))
+	return "报酬 %d 余烬" % int(node.get("base_embers", 0))
 
 func _option_preview(node: Dictionary, group_key: String) -> String:
 	var group: Dictionary = node.get(group_key, {})
@@ -803,13 +1213,6 @@ func _option_preview(node: Dictionary, group_key: String) -> String:
 		return "公开取舍"
 	return " / ".join(labels)
 
-func _risk_marks(risk: int) -> String:
-	var filled := clampi(risk, 1, 5)
-	var marks := ""
-	for i in range(5):
-		marks += "■" if i < filled else "□"
-	return "%s %d/5" % [marks, filled]
-
 func _mission_accent(node_type: String) -> Color:
 	if node_type == RunStateScript.NODE_ELITE or node_type == RunStateScript.NODE_BOSS:
 		return COLOR_DANGER
@@ -818,9 +1221,6 @@ func _mission_accent(node_type: String) -> Color:
 	if node_type == RunStateScript.NODE_CAMP:
 		return COLOR_GOOD
 	return COLOR_AMBER
-
-func _mission_is_high_risk(node: Dictionary) -> bool:
-	return int(node.get("risk_level", 1)) >= 3 and (_run.alive_warden_count() < 3 or _run.sanctuary_integrity <= 3)
 
 func _on_battle_finished(summary: Dictionary) -> void:
 	var node: Dictionary = _run.current_node()
@@ -844,20 +1244,20 @@ func _on_battle_finished(summary: Dictionary) -> void:
 		_show_run_result()
 		return
 	_run.pending_reward = _run.build_pending_reward(node, _run.last_resolution)
-	_show_battle_debrief()
+	_show_reward()
 
 func _show_battle_debrief_or_recover() -> void:
 	if _run == null:
 		_show_main_menu()
+		return
+	if not _run.pending_reward.is_empty():
+		_show_reward()
 		return
 	if not _run.last_resolution.is_empty():
 		_show_battle_debrief()
 		return
 	if _run.result_outcome != "":
 		_show_run_result()
-		return
-	if not _run.pending_reward.is_empty():
-		_show_reward()
 		return
 	if _run.current_node_id.is_empty():
 		_show_mission_board()
@@ -868,6 +1268,7 @@ func _show_battle_debrief() -> void:
 	if _run == null:
 		_show_main_menu()
 		return
+	_play_menu_bgm()
 	_run.phase = RunStateScript.Phase.NODE_RESOLUTION
 	var node: Dictionary = _run.current_node()
 	var res: Dictionary = _run.last_resolution
@@ -909,8 +1310,11 @@ func _debrief_art_panel(parent: Control, rect: Rect2) -> Control:
 	return holder
 
 func _load_debrief_panel_texture() -> Texture2D:
+	return _load_texture_from_path(BATTLE_DEBRIEF_PANEL_PATH)
+
+func _load_texture_from_path(path: String) -> Texture2D:
 	var source := Image.new()
-	var err := source.load(ProjectSettings.globalize_path(BATTLE_DEBRIEF_PANEL_PATH))
+	var err := source.load(ProjectSettings.globalize_path(path))
 	if err != OK:
 		return null
 	return ImageTexture.create_from_image(source)
@@ -976,79 +1380,118 @@ func _show_reward() -> void:
 	if _run.pending_reward.is_empty():
 		_after_reward_claimed()
 		return
+	_play_menu_bgm()
 	_run.phase = RunStateScript.Phase.REWARD
-	_selected_reward_option_id = ""
 	var root := _make_root()
 	_add_hub_backdrop(root)
-	_add_top_bar(root)
-	_label(root, "奖励选择", Rect2(72, 92, 420, 38), 28, COLOR_AMBER)
 	var reward: Dictionary = _run.pending_reward
-	_add_reward_battle_strip(root, Rect2(72, 136, 1154, 72))
-	var fixed_panel := _panel(root, Rect2(72, 224, 370, 374), COLOR_PANEL)
-	_label(fixed_panel, "固定奖励", Rect2(26, 24, 280, 30), 24, COLOR_TEXT)
-	var fy := 78.0
-	for fr in reward.get("fixed_rewards", []):
-		_label(fixed_panel, "+%d %s · %s" % [
-			int(fr.get("amount", 0)),
-			"余烬" if String(fr.get("reward_type", "")) == "embers" else String(fr.get("reward_type", "")),
-			String(fr.get("reason", "")),
-		], Rect2(28, fy, 318, 24), 16, COLOR_AMBER)
-		fy += 28.0
-	if not reward.get("modifiers", []).is_empty():
-		_label(fixed_panel, "奖励修正", Rect2(28, fy + 10.0, 318, 22), 17, COLOR_TEXT)
-		fy += 38.0
-		for modifier in reward.get("modifiers", []):
-			_label(
-				fixed_panel,
-				"· %s" % String(modifier.get("description", "")),
-				Rect2(28, fy, 318, 30),
-				14,
-				COLOR_MUTED
-			)
-			fy += 32.0
-	_label(fixed_panel, "当前余烬：%d\n当前守护值：%d / %d\n遗物数量：%d" % [
-		_run.embers,
-		_run.sanctuary_integrity,
-		_run.sanctuary_integrity_max,
-		_run.relics.size(),
-	], Rect2(28, minf(274.0, maxf(224.0, fy + 8.0)), 318, 96), 17, COLOR_MUTED)
+	var node: Dictionary = _run.current_node()
+	var panel := _panel(root, Rect2(320, 104, 640, 496), Color(0.066, 0.056, 0.052, 0.98))
+	_label(panel, "获得奖励", Rect2(42, 36, 320, 44), 32, COLOR_AMBER)
+	_label(panel, "%s · 委托完成" % String(node.get("title", "当前委托")), Rect2(44, 84, 440, 28), 18, COLOR_TEXT)
+	var rewards: Array = reward.get("fixed_rewards", []).duplicate(true)
+	rewards.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("visible_order", 0)) < int(b.get("visible_order", 0))
+	)
+	var y := 140.0
+	for item in rewards:
+		_add_reward_list_item(panel, Rect2(42, y, 556, 78), item)
+		y += 92.0
+	if rewards.is_empty():
+		_label(panel, "没有可领取奖励。", Rect2(44, 154, 360, 28), 19, COLOR_MUTED)
+	_button(root, "返回任务委托", Rect2(540, 620, 200, UI_BUTTON_MIN_HEIGHT), _confirm_reward)
 
-	var choice_panel := _panel(root, Rect2(486, 224, 740, 374), COLOR_PANEL_SOFT)
-	_label(choice_panel, "选择 1 项", Rect2(26, 24, 320, 30), 24, COLOR_TEXT)
-	var options: Array = []
-	for group in reward.get("choice_groups", []):
-		options.append_array(group.get("options", []))
-	var x := 28.0
-	for option in options:
-		var card := _panel(choice_panel, Rect2(x, 76, 220, 218), COLOR_PANEL)
-		_label(card, String(option.get("title", "")), Rect2(18, 16, 184, 42), 19, COLOR_AMBER)
-		_label(card, String(option.get("description", "")), Rect2(18, 70, 184, 86), 15, COLOR_TEXT)
-		_label(card, ", ".join(option.get("tags", [])), Rect2(18, 164, 184, 24), 14, COLOR_MUTED)
-		var option_id := String(option.get("option_id", ""))
-		_button(card, "选择", Rect2(18, 184, 90, 34), func(id := option_id): _select_reward_option(id))
-		x += 238.0
-	if options.is_empty():
-		_label(choice_panel, "本节点只有固定奖励。", Rect2(28, 92, 500, 30), 18, COLOR_MUTED)
-	else:
-		_button(choice_panel, "跳过换 3 余烬", Rect2(28, 312, 148, 36), func(): _select_reward_option("skip"))
-	_button(root, "确认领取", Rect2(72, 610, 160, 48), _confirm_reward)
+func _add_reward_list_item(parent: Control, rect: Rect2, reward_item: Dictionary) -> Control:
+	var item: Control = RewardListItemScript.new()
+	item.position = rect.position
+	item.size = rect.size
+	var display := _reward_item_display(reward_item)
+	item.setup(display)
+	parent.add_child(item)
+	return item
 
-func _select_reward_option(option_id: String) -> void:
-	_selected_reward_option_id = option_id
-	_confirm_reward()
+func _reward_item_display(reward_item: Dictionary) -> Dictionary:
+	var reward_type := String(reward_item.get("reward_type", ""))
+	var amount := int(reward_item.get("amount", 0))
+	var sign := "+" if amount >= 0 else ""
+	var reason := _reward_item_reason_text(String(reward_item.get("reason", "")))
+	match reward_type:
+		"embers":
+			return {
+				"title": "余烬",
+				"amount_text": "%s%d" % [sign, amount],
+				"description": reason,
+				"icon_text": "烬",
+				"amount_color": COLOR_AMBER,
+			}
+		"sanctuary_integrity":
+			return {
+				"title": "防线修复",
+				"amount_text": "%s%d" % [sign, amount],
+				"description": reason,
+				"icon_text": "墙",
+				"amount_color": COLOR_GOOD,
+			}
+		"warden_hp":
+			return {
+				"title": "守卫者治疗",
+				"amount_text": "%s%d" % [sign, amount],
+				"description": reason,
+				"icon_text": "疗",
+				"amount_color": COLOR_GOOD,
+			}
+		"relic":
+			return {
+				"title": String(reward_item.get("title", "获得遗物")),
+				"amount_text": "",
+				"description": reason,
+				"icon_text": "遗",
+				"amount_color": COLOR_AMBER,
+			}
+		"upgrade":
+			return {
+				"title": String(reward_item.get("title", "获得升级")),
+				"amount_text": "",
+				"description": reason,
+				"icon_text": "升",
+				"amount_color": COLOR_AMBER,
+			}
+		"chapter_reward":
+			return {
+				"title": String(reward_item.get("title", "章节奖励")),
+				"amount_text": "",
+				"description": reason,
+				"icon_text": "章",
+				"amount_color": COLOR_AMBER,
+			}
+	return {
+		"title": reward_type if not reward_type.is_empty() else "奖励",
+		"amount_text": "%s%d" % [sign, amount] if amount != 0 else "",
+		"description": reason,
+		"icon_text": "奖",
+		"amount_color": COLOR_AMBER,
+	}
+
+func _reward_item_reason_text(reason: String) -> String:
+	if reason.begins_with("完成 ") and reason.find("个奖励任务") >= 0:
+		return "额外目标奖励"
+	match reason:
+		"普通战基础奖励":
+			return "完成普通委托"
+		"精英战基础奖励":
+			return "完成精英委托"
+		"Boss 战基础奖励":
+			return "完成 Boss 委托"
+		"守护值已满，恢复机会转化":
+			return "防线已满，修复转化"
+		_:
+			return reason if not reason.is_empty() else "委托奖励"
 
 func _confirm_reward() -> void:
 	if _run.pending_reward.is_empty():
 		_after_reward_claimed()
 		return
-	var has_choices := false
-	for group in _run.pending_reward.get("choice_groups", []):
-		if not group.get("options", []).is_empty():
-			has_choices = true
-			break
-	if has_choices and _selected_reward_option_id.is_empty():
-		_selected_reward_option_id = String(_run.pending_reward.get("choice_groups", [])[0].get("options", [])[0].get("option_id", ""))
-	_run.claim_pending_reward(_selected_reward_option_id)
+	_run.claim_pending_reward("")
 	_after_reward_claimed()
 
 func _after_reward_claimed() -> void:
@@ -1076,6 +1519,7 @@ func _show_run_result() -> void:
 	if _run == null:
 		_show_main_menu()
 		return
+	_play_menu_bgm()
 	_sync_run_warden_base_stats()
 	_run.phase = RunStateScript.Phase.RUN_RESULT
 	var root := _make_root()
@@ -1084,7 +1528,7 @@ func _show_run_result() -> void:
 	_label(root, "Run 结算", Rect2(82, 92, 420, 38), 30, COLOR_AMBER)
 	var panel := _panel(root, Rect2(82, 156, 620, 420), COLOR_PANEL)
 	_label(panel, "防线守住" if victory else "Run 失败", Rect2(30, 28, 500, 48), 36, COLOR_GOOD if victory else COLOR_DANGER)
-	_label(panel, "%s · 完成节点 %d / %d" % [_run.chapter_name, _run.visited_nodes.size(), _run.route_nodes.size()], Rect2(32, 94, 520, 28), 18, COLOR_TEXT)
+	_label(panel, "%s · 完成委托 %d / %d" % [_run.chapter_name, _run.visited_nodes.size(), _run.route_nodes.size()], Rect2(32, 94, 520, 28), 18, COLOR_TEXT)
 	_label(panel, "守护值 %d / %d   余烬 %d   腐化 %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max, _run.embers, _run.corruption], Rect2(32, 136, 520, 28), 18, COLOR_AMBER)
 	_label(panel, "遗物：%s" % _relic_summary(), Rect2(32, 178, 540, 52), 17, COLOR_MUTED)
 	var y := 252.0
@@ -1095,12 +1539,14 @@ func _show_run_result() -> void:
 	_button(root, "主菜单", Rect2(252, 614, 130, 48), _show_main_menu)
 
 func _show_codex_placeholder(return_to_hub: bool = false) -> void:
+	_play_menu_bgm()
 	var root := _make_root()
 	_label(root, "图鉴", Rect2(86, 96, 420, 42), 30, COLOR_AMBER)
 	_label(root, "图鉴入口已保留，第一版暂未开放完整资料库。", Rect2(86, 164, 640, 32), 18, COLOR_TEXT)
 	_button(root, "返回据点" if return_to_hub else "返回", Rect2(86, 240, 120, 44), _show_hub if return_to_hub else _show_main_menu)
 
 func _show_settings_placeholder(return_to_hub: bool = false) -> void:
+	_play_menu_bgm()
 	var root := _make_root()
 	_label(root, "设置", Rect2(86, 96, 420, 42), 30, COLOR_AMBER)
 	_label(root, "设置入口已保留，第一版沿用现有输入配置。", Rect2(86, 164, 640, 32), 18, COLOR_TEXT)
@@ -1163,13 +1609,21 @@ func _label(parent: Node, text: String, rect: Rect2, font_size: int, color: Colo
 	parent.add_child(l)
 	return l
 
+func _card_label(parent: Node, text: String, rect: Rect2, font_size: int, color: Color = COLOR_TEXT) -> Label:
+	var label := _label(parent, text, rect, font_size, color)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
 func _button(parent: Node, text: String, rect: Rect2, callback: Callable) -> Button:
 	var b := Button.new()
 	b.position = rect.position
 	b.size = Vector2(maxf(rect.size.x, 48.0), maxf(rect.size.y, UI_BUTTON_MIN_HEIGHT))
 	b.text = text
 	b.add_theme_font_size_override("font_size", 17)
-	b.pressed.connect(callback)
+	b.pressed.connect(func() -> void:
+		_play_button_sfx(text)
+		callback.call()
+	)
 	_apply_button_style(b)
 	parent.add_child(b)
 	return b
@@ -1194,9 +1648,24 @@ func _main_menu_button(parent: Node, text: String, rect: Rect2, callback: Callab
 	button.add_theme_color_override("font_hover_color", COLOR_AMBER)
 	button.add_theme_color_override("font_pressed_color", COLOR_TEXT)
 	button.add_theme_color_override("font_disabled_color", Color(0.55, 0.53, 0.50, 0.78))
-	button.pressed.connect(callback)
+	button.pressed.connect(func() -> void:
+		_play_button_sfx(text)
+		callback.call()
+	)
 	parent.add_child(button)
 	return button
+
+func _play_button_sfx(text: String) -> void:
+	var manager = _audio_manager()
+	if manager == null or not manager.has_method(&"play_sfx"):
+		return
+	manager.play_sfx(_button_sfx_id(text))
+
+func _button_sfx_id(text: String) -> StringName:
+	var label := text.strip_edges()
+	if label.contains("返回") or label.contains("取消") or label.contains("退出") or label.contains("留在"):
+		return AudioManagerScript.SFX_UI_CANCEL
+	return AudioManagerScript.SFX_UI_CONFIRM
 
 func _apply_main_menu_button_style(button: Button, primary: bool) -> void:
 	var fill := Color(0.060, 0.052, 0.046, 0.96) if primary else Color(0.048, 0.043, 0.040, 0.90)
@@ -1247,6 +1716,75 @@ func _apply_button_style(button: Button, fill: Color = Color(0.12, 0.085, 0.055,
 	button.add_theme_color_override("font_hover_color", COLOR_AMBER)
 	button.add_theme_color_override("font_pressed_color", COLOR_TEXT)
 	button.add_theme_color_override("font_disabled_color", Color(0.45, 0.42, 0.38, 0.80))
+
+func _apply_expedition_region_style(button: Button, fill: Color) -> void:
+	button.custom_minimum_size = Vector2(132, 76)
+	button.focus_mode = Control.FOCUS_ALL
+	var border := Color(1.0, 0.72, 0.34, 0.94)
+	button.add_theme_stylebox_override("normal", _expedition_region_stylebox(fill, border, 3, 0))
+	button.add_theme_stylebox_override("hover", _expedition_region_stylebox(fill.lightened(0.08), COLOR_AMBER, 4, 1))
+	button.add_theme_stylebox_override("pressed", _expedition_region_stylebox(fill.darkened(0.10), border.darkened(0.10), 3, -1))
+	button.add_theme_stylebox_override("focus", _expedition_region_stylebox(fill.lightened(0.06), COLOR_AMBER, 4, 1))
+	button.add_theme_color_override("font_color", COLOR_TEXT)
+	button.add_theme_color_override("font_hover_color", Color(1.0, 0.88, 0.62, 1.0))
+	button.add_theme_color_override("font_pressed_color", COLOR_TEXT)
+	button.add_theme_color_override("font_focus_color", Color(1.0, 0.88, 0.62, 1.0))
+
+func _apply_mission_card_style(button: Button, node_type: String) -> void:
+	button.custom_minimum_size = Vector2(240, 188)
+	button.focus_mode = Control.FOCUS_ALL
+	var fill := Color(0.115, 0.086, 0.060, 0.98)
+	var accent := _mission_accent(node_type)
+	var border := Color(0.48, 0.32, 0.17, 0.82)
+	button.add_theme_stylebox_override("normal", _mission_card_stylebox(fill, border, 2, 0, false))
+	button.add_theme_stylebox_override("hover", _mission_card_stylebox(fill.lightened(0.07), Color(1.0, 0.68, 0.25, 0.98), 3, -3, true))
+	button.add_theme_stylebox_override("focus", _mission_card_stylebox(fill.lightened(0.07), Color(1.0, 0.68, 0.25, 0.98), 3, -3, true))
+	button.add_theme_stylebox_override("pressed", _mission_card_stylebox(fill.darkened(0.08), accent.darkened(0.12), 3, 1, false))
+	button.add_theme_color_override("font_color", Color(1, 1, 1, 0))
+	button.add_theme_color_override("font_hover_color", Color(1, 1, 1, 0))
+	button.add_theme_color_override("font_pressed_color", Color(1, 1, 1, 0))
+
+func _mission_card_stylebox(fill: Color, border: Color, border_width: int, state_offset: int, selected: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width + 1
+	style.corner_radius_top_left = 7
+	style.corner_radius_top_right = 7
+	style.corner_radius_bottom_right = 7
+	style.corner_radius_bottom_left = 7
+	style.content_margin_left = 0
+	style.content_margin_right = 0
+	style.content_margin_top = 0
+	style.content_margin_bottom = 0
+	style.shadow_color = Color(1.0, 0.42, 0.12, 0.30) if selected else Color(0.0, 0.0, 0.0, 0.46)
+	style.shadow_size = 12 if selected else 7
+	style.shadow_offset = Vector2(0, 5 + state_offset)
+	return style
+
+func _expedition_region_stylebox(fill: Color, border: Color, border_width: int, state_offset: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width + 1
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_right = 6
+	style.corner_radius_bottom_left = 6
+	style.content_margin_left = 54
+	style.content_margin_right = 16
+	style.content_margin_top = 12
+	style.content_margin_bottom = 11
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.42)
+	style.shadow_size = 9
+	style.shadow_offset = Vector2(1, 2 + state_offset)
+	return style
 
 func _button_stylebox(fill: Color, border: Color, border_width: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -1308,3 +1846,18 @@ func _relic_summary() -> String:
 	for relic in _run.relics:
 		names.append(String(relic.get("title", "遗物")))
 	return ", ".join(names)
+
+func _play_menu_bgm() -> void:
+	var audio = _audio_manager()
+	if audio != null and audio.has_method(&"play_menu_bgm"):
+		audio.play_menu_bgm()
+
+func _play_battle_bgm() -> void:
+	var audio = _audio_manager()
+	if audio != null and audio.has_method(&"play_battle_bgm"):
+		audio.play_battle_bgm()
+
+func _audio_manager():
+	if is_inside_tree() and get_tree().root != null:
+		return get_tree().root.get_node_or_null("AudioManager")
+	return null

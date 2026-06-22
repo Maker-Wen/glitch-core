@@ -24,6 +24,10 @@ const ATLASES := {
 			{"id": "warden_mage_body", "source": "res://art/units/board_body/wardens/warden_mage_body.png"},
 			{"id": "enemy_carrion_spawn_body", "source": "res://art/units/board_body/enemies/enemy_carrion_spawn_body.png"},
 			{"id": "enemy_plague_archer_body", "source": "res://art/units/board_body/enemies/enemy_plague_archer_body.png"},
+			{"id": "enemy_bone_grub_token", "source": "res://art/units/enemies/enemy_bone_grub_token.png"},
+			{"id": "enemy_ironhorn_token", "source": "res://art/units/enemies/enemy_ironhorn_token.png"},
+			{"id": "enemy_shell_beetle_token", "source": "res://art/units/enemies/enemy_shell_beetle_token.png"},
+			{"id": "enemy_bell_thrall_token", "source": "res://art/units/enemies/enemy_bell_thrall_token.png"},
 		],
 	},
 	"battle_props": {

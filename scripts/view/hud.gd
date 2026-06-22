@@ -5,6 +5,7 @@ signal end_turn_pressed
 signal undo_pressed
 signal confirm_deploy_pressed
 signal ability_selected(ability_id: String)
+signal ability_unavailable(ability_id: String, reason: String)
 signal enemy_stack_hovered(enemy_id: int)
 
 const ENEMY_STACK_ROW_SIZE := Vector2(208, 42)
@@ -50,6 +51,23 @@ const ICON_MOVE := preload("res://art/atlases/battle/battle_ui.move_icon.tres")
 const ICON_RELIC := preload("res://art/atlases/battle/battle_ui.relic_icon.tres")
 const ICON_WAIT := preload("res://art/atlases/battle/battle_ui.wait_icon.tres")
 const BattleStatusPresenter := preload("res://scripts/view/battle_status_presenter.gd")
+
+class AbilityCooldownRing extends Control:
+	var progress: float = 1.0
+	var cooldown_active: bool = false
+
+	func _draw() -> void:
+		var center := size * 0.5
+		if not cooldown_active:
+			return
+		var radius := minf(size.x, size.y) * 0.46
+		draw_arc(center, radius, 0.0, TAU, 36, Color(0.13, 0.14, 0.18, 0.92), 4.0, true)
+		var clamped := clampf(progress, 0.0, 1.0)
+		if clamped <= 0.0:
+			return
+		var start := -PI * 0.5
+		var end := start + TAU * clamped
+		draw_arc(center, radius, start, end, max(6, int(36.0 * clamped)), Color(1.0, 0.52, 0.16, 0.96), 4.0, true)
 
 @onready var round_label: Label = $Root/TopRow/RoundLabel
 @onready var phase_label: Label = $Root/TopRow/PhaseLabel
@@ -584,6 +602,8 @@ func _ensure_ability_detail_panel() -> void:
 
 func _ensure_settings_button() -> void:
 	if top_row == null:
+		top_row = get_node_or_null("Root/TopRow")
+	if top_row == null:
 		return
 	var existing := top_row.get_node_or_null("SettingsButton")
 	if existing is Button:
@@ -940,6 +960,8 @@ func _apply_layout_metrics() -> void:
 			top_row.move_child(undo_button, top_row.get_child_count() - 2)
 		if end_turn_button != null:
 			top_row.move_child(end_turn_button, top_row.get_child_count() - 2)
+		if settings_button != null:
+			top_row.move_child(settings_button, top_row.get_child_count() - 1)
 		top_row.offset_left = 16.0
 		top_row.offset_top = 9.0
 		top_row.offset_right = 1264.0
@@ -1131,7 +1153,7 @@ func _apply_layout_metrics() -> void:
 	if item_slot_row != null:
 		item_slot_row.visible = false
 
-func update_status(state: BattleState) -> void:
+func update_status(state: BattleState, can_undo: bool = false) -> void:
 	_refresh_round_display(state)
 	var phase_name: String = "?"
 	match state.phase:
@@ -1146,16 +1168,19 @@ func update_status(state: BattleState) -> void:
 		BattleState.Phase.PLAYER_ACTION: phase_name = "玩家回合"
 		BattleState.Phase.ENEMY_EXECUTE: phase_name = "敌方执行"
 		BattleState.Phase.BATTLE_END: phase_name = "战斗结束"
-	phase_label.text = ""
+	if phase_label != null:
+		phase_label.text = ""
 	_refresh_sanctuary_display()
 	set_battle_status_summary(state)
-	end_turn_button.disabled = state.phase != BattleState.Phase.PLAYER_ACTION
-	end_turn_button.visible = state.phase != BattleState.Phase.GARRISON
+	if end_turn_button != null:
+		end_turn_button.disabled = state.phase != BattleState.Phase.PLAYER_ACTION
+		end_turn_button.visible = state.phase != BattleState.Phase.GARRISON
 	# Confirm-deploy is visible only in garrison, enabled when all wardens placed.
-	confirm_deploy_button.visible = state.phase == BattleState.Phase.GARRISON
-	confirm_deploy_button.disabled = not state.pending_warden_defs.is_empty()
-	# Undo is always available unless battle is over.
-	undo_button.disabled = state.phase == BattleState.Phase.BATTLE_END
+	if confirm_deploy_button != null:
+		confirm_deploy_button.visible = state.phase == BattleState.Phase.GARRISON
+		confirm_deploy_button.disabled = not state.pending_warden_defs.is_empty()
+	if undo_button != null:
+		undo_button.disabled = not can_undo
 
 func _refresh_round_display(state: BattleState) -> void:
 	if round_label == null:
@@ -1250,6 +1275,10 @@ func _refresh_boss_status_panel(state: BattleState) -> void:
 		boss_status_body.text = "\n".join(BattleStatusPresenter.boss_status_lines(state))
 
 func set_help(text: String) -> void:
+	if help_label == null:
+		help_label = get_node_or_null("Root/HelpLabel")
+	if help_label == null:
+		return
 	help_label.text = text
 	help_label.visible = false
 
@@ -1300,6 +1329,9 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 	for i in range(displayed_abilities.size()):
 		var ab: Dictionary = displayed_abilities[i]
 		ab["slot_index"] = i
+		var cooldown_rounds := int(ab.get("cooldown_rounds", 0))
+		var cooldown_remaining := int(ab.get("cooldown_remaining", 0))
+		var is_cooling_down := cooldown_remaining > 0
 		if bool(ab.get("is_armed", false)):
 			_armed_ability_detail = ab.duplicate(true)
 		var slot := Control.new()
@@ -1332,7 +1364,7 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 		btn.offset_bottom = 0.0
 		btn.flat = true
 		btn.text = ""
-		btn.disabled = not ab.get("active", true)
+		btn.disabled = false
 		slot.add_child(btn)
 
 		var key := Label.new()
@@ -1388,6 +1420,29 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 		icon_text.visible = icon.texture == null
 		slot.add_child(icon_text)
 
+		if is_cooling_down:
+			var icon_scrim := ColorRect.new()
+			icon_scrim.name = "CooldownIconScrim"
+			icon_scrim.offset_left = icon_frame.offset_left + 1.0
+			icon_scrim.offset_top = icon_frame.offset_top + 1.0
+			icon_scrim.offset_right = icon_frame.offset_right - 1.0
+			icon_scrim.offset_bottom = icon_frame.offset_bottom - 1.0
+			icon_scrim.color = Color(0.010, 0.013, 0.024, 0.70)
+			icon_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(icon_scrim)
+
+		if is_cooling_down:
+			var cooldown_ring := AbilityCooldownRing.new()
+			cooldown_ring.name = "CooldownRing"
+			cooldown_ring.offset_left = icon_frame.offset_left - 3.0
+			cooldown_ring.offset_top = icon_frame.offset_top - 3.0
+			cooldown_ring.offset_right = icon_frame.offset_right + 3.0
+			cooldown_ring.offset_bottom = icon_frame.offset_bottom + 3.0
+			cooldown_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cooldown_ring.cooldown_active = true
+			cooldown_ring.progress = float(cooldown_remaining) / float(maxi(1, cooldown_rounds))
+			slot.add_child(cooldown_ring)
+
 		var name := Label.new()
 		name.offset_left = 58.0
 		name.offset_top = 13.0
@@ -1417,6 +1472,19 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 		desc.visible = desc.text != ""
 		slot.add_child(desc)
 
+		if is_cooling_down:
+			var card_scrim := ColorRect.new()
+			card_scrim.name = "CooldownCardScrim"
+			card_scrim.anchor_right = 1.0
+			card_scrim.anchor_bottom = 1.0
+			card_scrim.offset_right = 0.0
+			card_scrim.offset_bottom = 0.0
+			card_scrim.color = Color(0.005, 0.007, 0.012, 0.32)
+			card_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(card_scrim)
+			if slot.has_node("CooldownRing"):
+				slot.move_child(slot.get_node("CooldownRing"), slot.get_child_count() - 1)
+
 		var tint := Color(0.86, 0.86, 0.88, 1.0)
 		var desc_tint := UI_TEXT_DIM
 		if ab.get("is_armed", false):
@@ -1425,7 +1493,7 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 		elif ab.get("is_default", false):
 			tint = Color(1.0, 0.84, 0.48, 1.0)
 			desc_tint = Color(0.90, 0.73, 0.40, 0.94)
-		if btn.disabled:
+		if not bool(ab.get("active", true)):
 			tint = Color(0.50, 0.52, 0.56, 0.86)
 			desc_tint = Color(0.50, 0.54, 0.58, 0.84)
 		icon.modulate = tint
@@ -1433,8 +1501,14 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 		name.modulate = tint
 		desc.modulate = desc_tint
 		var ab_id: String = ab.get("id", "")
-		if not btn.disabled and ab_id != "":
-			btn.pressed.connect(func(): ability_selected.emit(ab_id))
+		if ab_id != "":
+			btn.pressed.connect(func():
+				if bool(ab.get("active", true)):
+					ability_selected.emit(ab_id)
+				else:
+					ability_unavailable.emit(ab_id, _ability_unavailable_reason(ab))
+					_show_ability_detail(ab, true)
+			)
 		slot.mouse_entered.connect(func(): _show_ability_detail(ab))
 		slot.mouse_exited.connect(_on_ability_slot_exited)
 	if not _armed_ability_detail.is_empty():
@@ -1814,28 +1888,46 @@ func _populate_ability_detail(ability: Dictionary, force: bool = false) -> void:
 
 func _ability_detail_badges(ability: Dictionary) -> Array[String]:
 	var desc := String(ability.get("desc", ""))
+	var target_rule := String(ability.get("target_rule", ""))
 	var badges: Array[String] = []
-	if desc.find("近战") != -1:
-		badges.append("近战")
-	if desc.find("远程") != -1:
-		badges.append("远程")
-	if desc.find("直线") != -1:
-		badges.append("直线")
+	var cooldown_remaining := int(ability.get("cooldown_remaining", 0))
+	if cooldown_remaining > 0:
+		_append_unique_badge(badges, "冷却 %d" % cooldown_remaining)
+	if bool(ability.get("upgraded", false)):
+		_append_unique_badge(badges, "强化")
+	if target_rule.find("adjacent") != -1 or desc.find("近战") != -1:
+		_append_unique_badge(badges, "近战")
+	if target_rule.find("line") != -1 or desc.find("远程") != -1 or desc.find("直线") != -1:
+		_append_unique_badge(badges, "直线")
+	if target_rule.find("protected_building") != -1:
+		_append_unique_badge(badges, "建筑")
+	if target_rule.find("rift") != -1:
+		_append_unique_badge(badges, "裂隙")
+	if target_rule.find("empty") != -1:
+		_append_unique_badge(badges, "区域")
 	if desc.find("伤") != -1:
 		var parts := desc.split(" ", false)
 		for p in parts:
 			if String(p).find("伤") != -1:
-				badges.append(p)
+				_append_unique_badge(badges, p)
 				break
 	if desc.find("推") != -1:
-		badges.append("推动")
+		_append_unique_badge(badges, "推动")
 	if desc.find("拉") != -1:
-		badges.append("拉近")
-	if not bool(ability.get("active", true)):
-		badges.append("未接入")
+		_append_unique_badge(badges, "拉近")
+	if desc.find("换位") != -1:
+		_append_unique_badge(badges, "换位")
+	if desc.find("修复") != -1 or desc.find("护盾") != -1:
+		_append_unique_badge(badges, "守护")
 	if badges.is_empty():
 		badges.append("技能")
-	return badges.slice(0, min(4, badges.size()))
+	return badges.slice(0, min(3, badges.size()))
+
+func _append_unique_badge(badges: Array[String], text: String) -> void:
+	if text == "":
+		return
+	if not badges.has(text):
+		badges.append(text)
 
 func _make_ability_detail_badge(text: String) -> Control:
 	var badge := Panel.new()
@@ -1869,39 +1961,69 @@ func _make_ability_detail_badge(text: String) -> Control:
 	return badge
 
 func _ability_detail_body_text(ability: Dictionary, force: bool) -> String:
-	if force or bool(ability.get("is_armed", false)):
-		return "选择棋盘上的有效目标，预览会显示位移、伤害和敌方意图变化。"
 	var id := String(ability.get("id", ""))
 	var desc := String(ability.get("desc", "")).strip_edges()
 	match id:
-		"attack":
+		"attack", "bounty_chain_strike", "mage_repulsion_bolt":
 			if desc.find("推") != -1:
 				return "造成伤害并推动目标；碰撞、坠落按棋盘规则结算。"
 			if desc.find("拉") != -1:
 				return "造成伤害，并把目标向施法者方向拉近。用于改变敌方攻击位置。"
 			return "造成伤害。选择目标后可预览结算结果。"
-		"guard_shoulder":
-			return "与目标换位或调整站位，用来替建筑承受威胁。"
+		"graverobber_hook_rope":
+			return "直线造成伤害并拉近敌人，用来改写敌方攻击线。"
+		"bounty_guard_shoulder", "guard_shoulder":
+			return "与相邻单位换位并撞伤敌人，用来替建筑承压。"
 		"bounty_execute":
-			return "围绕击杀收益的进阶技能，适合收尾敌人。"
-		"rift_wedge":
-			return "制造延迟地裂，控制敌人后续站位。"
-		"backhand_throw":
-			return "拉近目标后再侧向调整，适合打断敌方攻击线。"
-		"ward_fire":
-			return "修复或保护建筑，降低守护值压力。"
-		"sigil":
-			return "布置区域法阵，限制敌方移动节奏。"
+			return "限次收尾技，适合击杀残血敌人并完成悬赏。"
+		"graverobber_rift_wedge", "rift_wedge":
+			return "延迟目标裂隙刷新；若敌人在裂隙上会受到伤害。"
+		"graverobber_backhand_throw", "backhand_throw":
+			return "直线拉近目标后尝试侧推，适合打断敌方攻击线。"
+		"mage_ward_fire", "ward_fire":
+			var shield_amount := int(ability.get("shield_amount", 1))
+			return "为保护建筑提供护盾，抵消下一次 %d 点伤害。" % maxi(1, shield_amount)
+		"mage_sigil", "sigil":
+			var duration := int(ability.get("duration_rounds", 2))
+			return "在空地布置持续 %d 回合的减速法阵，拖慢敌人进攻。" % maxi(1, duration)
+		"wait":
+			return "结束当前玩家回合，交给敌方按顺序执行。"
 	if desc != "":
 		return desc
 	return "该技能尚未配置完整说明。"
 
 func _ability_detail_footer_text(ability: Dictionary, force: bool) -> String:
 	if not bool(ability.get("active", true)):
-		return "当前版本未接入，可先查看定位。"
+		var reason := _ability_unavailable_reason(ability)
+		return "不可用：%s。" % (reason if reason != "" else "当前条件不满足")
 	if force or bool(ability.get("is_armed", false)):
-		return "再次点击技能可取消瞄准。"
+		return "选择有效目标；再次点击技能可取消瞄准。"
 	return "点击技能进入瞄准态。"
+
+func _ability_unavailable_reason(ability: Dictionary) -> String:
+	var cooldown_remaining := int(ability.get("cooldown_remaining", 0))
+	if cooldown_remaining > 0:
+		return "冷却 %d 回合" % cooldown_remaining
+	var reason := String(ability.get("disabled_reason", "")).strip_edges()
+	if reason != "":
+		return reason
+	var code := String(ability.get("disabled_reason_code", ""))
+	match code:
+		"acted":
+			return "已行动"
+		"uses_exhausted":
+			return "次数用尽"
+		"no_target":
+			return "无有效目标"
+		"cooldown":
+			return "冷却中"
+		"wrong_phase":
+			return "非玩家回合"
+		"not_equipped":
+			return "未装备"
+	if not bool(ability.get("active", true)):
+		return "当前条件不满足"
+	return ""
 
 func _populate_selected_unit_hp_bar(hp: int, max_hp: int) -> void:
 	if selected_unit_hp_bar == null:
@@ -2045,12 +2167,147 @@ func _short_ability_desc(desc: String) -> String:
 	return desc
 
 func _ability_slot_meta(ability: Dictionary) -> String:
-	if ability.get("is_armed", false):
-		return "选择目标"
 	var desc := String(ability.get("desc", ""))
 	if desc.strip_edges() == "":
 		return "暂未配置"
-	return desc
+	var meta := _compact_ability_slot_meta(desc, String(ability.get("target_rule", "")))
+	if ability.get("is_armed", false):
+		return "%s · 瞄准" % meta if meta != "" else "选择目标"
+	return meta
+
+func _compact_ability_slot_meta(desc: String, target_rule: String = "") -> String:
+	var clean := desc.strip_edges()
+	if clean == "":
+		return ""
+	if clean.find("未装备") != -1 or clean.find("结束") != -1:
+		return clean
+	var parts: Array[String] = []
+	var range_text := _ability_range_token(clean, target_rule)
+	if range_text != "":
+		parts.append(range_text)
+	var damage_text := _ability_damage_token(clean)
+	if damage_text != "":
+		parts.append(damage_text)
+	var forced_text := _ability_forced_movement_token(clean)
+	if forced_text != "":
+		parts.append(forced_text)
+	for utility in _ability_utility_tokens(clean):
+		if not parts.has(utility):
+			parts.append(utility)
+	var uses_text := _ability_uses_token(clean)
+	if uses_text != "":
+		parts.append(uses_text)
+	if parts.is_empty():
+		return clean
+	return " · ".join(parts.slice(0, min(4, parts.size())))
+
+func _ability_range_token(desc: String, target_rule: String) -> String:
+	if target_rule.find("adjacent") != -1 or desc.find("近战") != -1:
+		return "近战"
+	if target_rule.find("line") != -1 or desc.find("直线") != -1:
+		if target_rule.find("unlimited") != -1 or desc.find("无限") != -1:
+			return "无限直线"
+		var range_value := _first_number_before(desc, "格")
+		if range_value != "":
+			return "%s格直线" % range_value
+		return "直线"
+	if target_rule.find("range") != -1:
+		var range_value := _target_rule_range_value(target_rule)
+		if range_value != "":
+			return "%s格" % range_value
+	var inline_range := _first_number_before(desc, "格")
+	if inline_range != "":
+		return "%s格" % inline_range
+	return ""
+
+func _ability_damage_token(desc: String) -> String:
+	var damage_value := _first_number_before(desc, "伤")
+	if damage_value == "":
+		return ""
+	return "%s伤" % damage_value
+
+func _ability_forced_movement_token(desc: String) -> String:
+	var pull_value := _first_number_after(desc, "拉")
+	if pull_value != "":
+		return "拉%s" % pull_value
+	if desc.find("拉近") != -1:
+		return "拉近"
+	if desc.find("拉") != -1:
+		return "拉"
+	var push_value := _first_number_after(desc, "推")
+	if push_value != "":
+		return "推%s" % push_value
+	if desc.find("推") != -1:
+		return "推"
+	return ""
+
+func _ability_utility_tokens(desc: String) -> Array[String]:
+	var tokens: Array[String] = []
+	if desc.find("换位") != -1:
+		tokens.append("换位")
+	if desc.find("侧推") != -1:
+		tokens.append("侧推")
+	if desc.find("击杀") != -1:
+		tokens.append("击杀")
+	if desc.find("地裂") != -1 or desc.find("裂隙") != -1:
+		tokens.append("地裂")
+	if desc.find("护盾") != -1:
+		tokens.append("护盾")
+	if desc.find("减伤") != -1:
+		tokens.append("减伤")
+	if desc.find("减速") != -1:
+		tokens.append("减速")
+	return tokens
+
+func _ability_uses_token(desc: String) -> String:
+	var marker_index := desc.rfind("·")
+	if marker_index == -1:
+		return ""
+	var tail := desc.substr(marker_index + 1).strip_edges()
+	if tail.find("/") == -1:
+		return ""
+	return tail.replace(" ", "")
+
+func _target_rule_range_value(target_rule: String) -> String:
+	var marker := "range_"
+	var marker_index := target_rule.find(marker)
+	if marker_index == -1:
+		return ""
+	var value := ""
+	for i in range(marker_index + marker.length(), target_rule.length()):
+		var ch := target_rule.substr(i, 1)
+		if not ch.is_valid_int():
+			break
+		value += ch
+	return value
+
+func _first_number_before(text: String, marker: String) -> String:
+	var marker_index := text.find(marker)
+	if marker_index == -1:
+		return ""
+	var number := ""
+	for i in range(marker_index - 1, -1, -1):
+		var ch := text.substr(i, 1)
+		if ch.is_valid_int():
+			number = ch + number
+			continue
+		if number != "" or not ch.strip_edges().is_empty():
+			break
+	return number
+
+func _first_number_after(text: String, marker: String) -> String:
+	var marker_index := text.find(marker)
+	if marker_index == -1:
+		return ""
+	var number := ""
+	for i in range(marker_index + marker.length(), text.length()):
+		var ch := text.substr(i, 1)
+		if ch.is_valid_int():
+			number += ch
+			continue
+		if number != "" or not ch.strip_edges().is_empty():
+			break
+	return number
 
 func _ability_icon_texture(ability_id: String) -> Texture2D:
 	match ability_id:
@@ -2620,6 +2877,10 @@ func _enemy_stack_palette(status: String) -> Dictionary:
 			}
 
 func show_outcome(outcome: int, reason: String = "") -> void:
+	if banner == null:
+		banner = get_node_or_null("Root/Banner")
+	if banner == null:
+		return
 	if outcome == BattleState.Outcome.VICTORY:
 		banner.text = "胜 利" if reason == "" else "胜 利\n%s" % reason
 		banner.modulate = Color(0.7, 1.0, 0.8)

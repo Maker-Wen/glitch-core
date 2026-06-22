@@ -19,3 +19,12 @@ Thumbs.db
 # Generated visual debug / inspection artifacts
 output/
 art/evaluation/
+tmp/
+
+# Local export/build output
+build/
+exports/
+
+# Root-level concept exploration images are not runtime assets.
+concept_*.png
+concept_*.png.import

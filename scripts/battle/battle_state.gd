@@ -49,6 +49,7 @@ var enemy_warnings: Dictionary = {}
 ## - deploy_zone: set of valid cells {Vector2i: true}
 var pending_warden_defs: Array[UnitDef] = []
 var pending_warden_starting_hp: Array[int] = []
+var pending_warden_upgrades: Array = []
 var placed_warden_ids: Array[int] = []
 var deploy_zone: Dictionary = {}
 ## Rift spawning (per design §3.4 / §5.3).
@@ -62,11 +63,8 @@ var pending_rift_spawns: Array = []
 ## At end of each round, entries matching current_round become predictions
 ## for next round.
 var rift_schedule: Array = []
-## Cracked ground hazards. Schedule entries matching current_round become
+## Boss bell wave hazards. Schedule entries matching current_round become
 ## warnings during that player turn, then resolve at the next round start.
-var pending_cracked_ground: Array[Vector2i] = []
-var cracked_ground_schedule: Array = []
-## Boss bell wave hazards. Same timing as cracked ground, but used by boss maps.
 var pending_bell_wave: Array[Vector2i] = []
 var bell_wave_schedule: Array = []
 ## {cell: {dir: true}}. Only configured maps mark certain board edges as
@@ -83,6 +81,12 @@ var protected_damage_taken: int = 0
 var protected_damage_by_pos: Dictionary = {}
 var protected_initial_hp: Dictionary = {}
 var cracked_protected_targets: Dictionary = {}
+var protected_shields: Dictionary = {}
+var sigils: Array[Dictionary] = []
+var warden_upgrades: Dictionary = {}
+var skill_uses: Dictionary = {}
+var skill_cooldowns: Dictionary = {}
+var bounty_executes: Dictionary = {}
 var physical_kills: int = 0
 var killed_enemy_defs: Dictionary = {}
 var warden_deaths: int = 0
@@ -130,13 +134,12 @@ func clone() -> BattleState:
 	s.enemy_warnings = enemy_warnings.duplicate(true)
 	s.pending_warden_defs = pending_warden_defs.duplicate()
 	s.pending_warden_starting_hp = pending_warden_starting_hp.duplicate()
+	s.pending_warden_upgrades = pending_warden_upgrades.duplicate(true)
 	s.placed_warden_ids = placed_warden_ids.duplicate()
 	s.deploy_zone = deploy_zone.duplicate()
 	s.rift_positions = rift_positions.duplicate()
 	s.pending_rift_spawns = pending_rift_spawns.duplicate(true)
 	s.rift_schedule = rift_schedule.duplicate(true)
-	s.pending_cracked_ground = pending_cracked_ground.duplicate()
-	s.cracked_ground_schedule = cracked_ground_schedule.duplicate(true)
 	s.pending_bell_wave = pending_bell_wave.duplicate()
 	s.bell_wave_schedule = bell_wave_schedule.duplicate(true)
 	s.abyss_edges = abyss_edges.duplicate(true)
@@ -147,6 +150,12 @@ func clone() -> BattleState:
 	s.protected_damage_by_pos = protected_damage_by_pos.duplicate()
 	s.protected_initial_hp = protected_initial_hp.duplicate()
 	s.cracked_protected_targets = cracked_protected_targets.duplicate()
+	s.protected_shields = protected_shields.duplicate()
+	s.sigils = sigils.duplicate(true)
+	s.warden_upgrades = warden_upgrades.duplicate(true)
+	s.skill_uses = skill_uses.duplicate()
+	s.skill_cooldowns = skill_cooldowns.duplicate()
+	s.bounty_executes = bounty_executes.duplicate()
 	s.physical_kills = physical_kills
 	s.killed_enemy_defs = killed_enemy_defs.duplicate()
 	s.warden_deaths = warden_deaths
@@ -371,6 +380,19 @@ func damage_boss_anchor(pos: Vector2i, amount: int) -> Dictionary:
 	refresh_boss_heart_exposure()
 	return {"damaged": damaged, "destroyed": true, "tile": Grid.TileType.PILLAR}
 
+func repair_protected_target(pos: Vector2i, amount: int) -> int:
+	if amount <= 0 or not is_protected_target(pos):
+		return 0
+	if grid.get_tile(pos) != Grid.TileType.BUILDING or not grid.tile_hp.has(pos):
+		return 0
+	var old_hp := int(grid.tile_hp.get(pos, Grid.DEFAULT_BUILDING_HP))
+	var max_hp := int(protected_initial_hp.get(pos, old_hp))
+	var new_hp := mini(max_hp, old_hp + amount)
+	if new_hp <= old_hp:
+		return 0
+	grid.tile_hp[pos] = new_hp
+	return new_hp - old_hp
+
 func record_boss_heart_hit(amount: int = 1) -> void:
 	if not has_boss() or amount <= 0:
 		return
@@ -449,6 +471,99 @@ func consume_protected_crack(pos: Vector2i) -> bool:
 		return false
 	cracked_protected_targets.erase(pos)
 	return true
+
+func has_protected_shield(pos: Vector2i) -> bool:
+	return protected_shields.has(pos)
+
+func protected_shield_amount(pos: Vector2i) -> int:
+	return int(protected_shields.get(pos, 0))
+
+func add_protected_shield(pos: Vector2i, amount: int = 1) -> bool:
+	if not is_protected_target(pos):
+		return false
+	if amount <= 0:
+		return false
+	if protected_shields.has(pos):
+		return false
+	protected_shields[pos] = amount
+	return true
+
+func consume_protected_shield(pos: Vector2i, amount: int = 1) -> int:
+	if not protected_shields.has(pos):
+		return 0
+	var current := int(protected_shields.get(pos, 0))
+	var consumed := mini(current, maxi(1, amount))
+	var remaining := current - consumed
+	if remaining > 0:
+		protected_shields[pos] = remaining
+	else:
+		protected_shields.erase(pos)
+	return consumed
+
+func clear_protected_shields() -> void:
+	protected_shields.clear()
+
+func set_warden_upgrades(unit_id: int, upgrade_ids: Array) -> void:
+	warden_upgrades[unit_id] = upgrade_ids.duplicate()
+
+func upgrades_for_warden(unit_id: int) -> Array:
+	return warden_upgrades.get(unit_id, [])
+
+func add_sigil(pos: Vector2i, owner_id: int, remaining_rounds: int = 2) -> bool:
+	if has_sigil_at(pos):
+		return false
+	sigils.append({
+		"pos": pos,
+		"owner_id": owner_id,
+		"remaining_rounds": remaining_rounds,
+	})
+	return true
+
+func has_sigil_at(pos: Vector2i) -> bool:
+	for sigil in sigils:
+		if sigil.get("pos", Vector2i(-1, -1)) == pos and int(sigil.get("remaining_rounds", 0)) > 0:
+			return true
+	return false
+
+func active_sigil_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for sigil in sigils:
+		if int(sigil.get("remaining_rounds", 0)) > 0:
+			cells.append(sigil.get("pos", Vector2i(-1, -1)))
+	return cells
+
+func decrement_sigils_after_enemy_moves() -> void:
+	var kept: Array[Dictionary] = []
+	for sigil in sigils:
+		var copy := sigil.duplicate(true)
+		copy["remaining_rounds"] = int(copy.get("remaining_rounds", 0)) - 1
+		if int(copy.get("remaining_rounds", 0)) > 0:
+			kept.append(copy)
+	sigils = kept
+
+func skill_use_key(unit_id: int, skill_id: StringName) -> String:
+	return "%d:%s" % [unit_id, String(skill_id)]
+
+func skill_use_count(unit_id: int, skill_id: StringName) -> int:
+	return int(skill_uses.get(skill_use_key(unit_id, skill_id), 0))
+
+func record_skill_use(unit_id: int, skill_id: StringName) -> void:
+	var key := skill_use_key(unit_id, skill_id)
+	skill_uses[key] = int(skill_uses.get(key, 0)) + 1
+
+func skill_next_available_round(unit_id: int, skill_id: StringName) -> int:
+	return int(skill_cooldowns.get(skill_use_key(unit_id, skill_id), 1))
+
+func skill_cooldown_remaining(unit_id: int, skill_id: StringName) -> int:
+	return maxi(0, skill_next_available_round(unit_id, skill_id) - current_round)
+
+func start_skill_cooldown(unit_id: int, skill_id: StringName, cooldown_rounds: int) -> void:
+	if cooldown_rounds <= 0:
+		return
+	skill_cooldowns[skill_use_key(unit_id, skill_id)] = current_round + cooldown_rounds + 1
+
+func record_bounty_execute(unit_id: int) -> void:
+	bounty_executes[unit_id] = int(bounty_executes.get(unit_id, 0)) + 1
 
 func finalize_reward_tasks() -> void:
 	_refresh_reward_tasks(true)

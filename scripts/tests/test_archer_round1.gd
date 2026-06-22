@@ -2,43 +2,16 @@ extends RefCounted
 ## Repro test for "archer's plan falls flat on round 1" bug.
 ## Mirrors the production battle_scene initial setup.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_archer() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"archer"
-	d.display_name = "瘟疫弓手"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.RANGED_PUSH
-	d.attack_range = 3
-	d.attack_damage = 1
-	d.attack_force = 0
-	return d
+	return TestUnitDefs.plague_archer({"def_id": &"archer"})
 
 static func _make_carrion() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 3
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_damage = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.carrion_spawn()
 
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "赏金猎人"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func run(tr) -> void:
 	_test_archer_plan_is_actionable_in_production_setup(tr)

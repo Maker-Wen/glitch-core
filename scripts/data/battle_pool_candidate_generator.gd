@@ -123,6 +123,7 @@ static func _build_diagnostics(config: Dictionary, runtime: Dictionary, spawn_ta
 		else:
 			worst_guard_path = maxi(worst_guard_path, dist)
 	var opening_rows := _opening_pressure_rows(config, runtime, spawn_tables)
+	var source_counts := _source_pool_counts(spawn_tables)
 	return {
 		"protected_target_count": protected_targets.size(),
 		"deploy_cell_count": deploy_zone.size(),
@@ -132,7 +133,8 @@ static func _build_diagnostics(config: Dictionary, runtime: Dictionary, spawn_ta
 		"opening_pressure": opening_rows,
 		"opening_pressure_count": opening_rows.size(),
 		"element_coverage": _element_coverage(runtime, selected_elements),
-		"source_pool_counts": _source_pool_counts(spawn_tables),
+		"source_pool_counts": source_counts,
+		"feature_profile": _feature_profile(config, runtime, spawn_tables, selected_elements, opening_rows, source_counts),
 	}
 
 static func _validate_deploy_protection(runtime: Dictionary, diagnostics: Dictionary, issues: Array[String], warnings: Array[String]) -> void:
@@ -328,6 +330,148 @@ static func _source_pool_counts(spawn_tables: Dictionary) -> Dictionary:
 				pool_id = group_id
 			counts[pool_id] = int(counts.get(pool_id, 0)) + 1
 	return counts
+
+static func _feature_profile(
+	config: Dictionary,
+	runtime: Dictionary,
+	spawn_tables: Dictionary,
+	selected_elements: Dictionary,
+	opening_rows: Array,
+	source_counts: Dictionary
+) -> Dictionary:
+	var role_counts := {}
+	var hazard_counts := {}
+	var spawn_pressure_types := {}
+	var core_features: Array[String] = []
+	var support_features: Array[String] = []
+	var risk_sources: Array[String] = []
+	var selected_element_ids: Array[String] = []
+	var selected_element_pools: Array[String] = []
+
+	for role in runtime.get("terrain_roles", []):
+		var role_id := String(role.get("role", ""))
+		if role_id.is_empty():
+			continue
+		_increment_count(role_counts, role_id)
+		if _is_core_role(role_id):
+			_append_unique(core_features, "role:%s" % role_id)
+		else:
+			_append_unique(support_features, "role:%s" % role_id)
+		var hazard_type := String(role.get("hazard_type", ""))
+		if not hazard_type.is_empty():
+			_increment_count(hazard_counts, hazard_type)
+			_append_unique(core_features, "hazard:%s" % hazard_type)
+
+	for hazard_type in _runtime_hazard_types(runtime, spawn_tables):
+		_increment_count(hazard_counts, hazard_type)
+		_append_unique(core_features, "hazard:%s" % hazard_type)
+		_append_unique(risk_sources, "hazard:%s" % hazard_type)
+
+	for pool_id_value in selected_elements.keys():
+		var pool_id := String(pool_id_value)
+		var entry: Dictionary = selected_elements.get(pool_id_value, {})
+		var element_id := String(entry.get("id", ""))
+		if not element_id.is_empty():
+			_append_unique(selected_element_ids, element_id)
+		if not pool_id.is_empty():
+			_append_unique(selected_element_pools, pool_id)
+			_append_unique(support_features, "element_pool:%s" % pool_id)
+		for role_id_value in entry.get("roles", []):
+			var role_id := String(role_id_value)
+			if role_id.is_empty():
+				continue
+			_increment_count(role_counts, role_id)
+			if _is_core_role(role_id):
+				_append_unique(core_features, "role:%s" % role_id)
+			else:
+				_append_unique(support_features, "role:%s" % role_id)
+		var hazard_type := String(entry.get("hazard_type", ""))
+		if not hazard_type.is_empty():
+			_increment_count(hazard_counts, hazard_type)
+			_append_unique(core_features, "hazard:%s" % hazard_type)
+
+	for pool_id_value in source_counts.keys():
+		var pool_id := String(pool_id_value)
+		var pressure_type := _spawn_pressure_type(pool_id)
+		_increment_count(spawn_pressure_types, pressure_type)
+		_append_unique(risk_sources, "spawn:%s" % pressure_type)
+
+	if not spawn_tables.get("scripted_spawns", []).is_empty():
+		_append_unique(risk_sources, "schedule:scripted_spawns")
+	if not spawn_tables.get("rift_schedule", []).is_empty():
+		_append_unique(risk_sources, "schedule:rift_warnings")
+	for row in opening_rows:
+		_append_unique(risk_sources, "opening:%s" % String(row.get("pressure_type", "unknown")))
+
+	core_features.sort()
+	support_features.sort()
+	risk_sources.sort()
+	selected_element_ids.sort()
+	selected_element_pools.sort()
+	return {
+		"pressure_tags": _string_array(config.get("pressure_tags", [])),
+		"preview_flags": _string_array(config.get("preview_flags", [])),
+		"core_features": core_features,
+		"support_features": support_features,
+		"risk_sources": risk_sources,
+		"role_counts": role_counts,
+		"hazard_types": hazard_counts,
+		"spawn_pressure_types": spawn_pressure_types,
+		"selected_element_ids": selected_element_ids,
+		"selected_element_pools": selected_element_pools,
+		"coverage": {
+			"core": core_features.size(),
+			"support": support_features.size(),
+			"risk": risk_sources.size(),
+			"hazards": hazard_counts.size(),
+			"spawn_pressure": spawn_pressure_types.size(),
+			"selected_elements": selected_element_ids.size(),
+			"score": core_features.size() + support_features.size() + risk_sources.size(),
+		},
+	}
+
+static func _runtime_hazard_types(runtime: Dictionary, spawn_tables: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	if not runtime.get("bell_wave_schedule", []).is_empty():
+		_append_unique(result, BattleEngine.HAZARD_BELL_WAVE)
+	if not runtime.get("abyss_edges", {}).is_empty():
+		_append_unique(result, "abyss_edge")
+	if not runtime.get("rift_schedule", []).is_empty() or not spawn_tables.get("rift_schedule", []).is_empty():
+		_append_unique(result, "rift_spawn_warning")
+	return result
+
+static func _is_core_role(role_id: String) -> bool:
+	return role_id in [
+		"boss_window",
+		"choke",
+		"hazard_preview",
+		"push_pocket",
+		"rift_influence",
+	]
+
+static func _spawn_pressure_type(pool_id: String) -> String:
+	var text := pool_id.to_lower()
+	if text.contains("boss"):
+		return "boss_summon"
+	if text.contains("elite"):
+		return "elite"
+	if text.contains("rift"):
+		return "rift"
+	if text.contains("flank"):
+		return "flank"
+	if text.contains("front"):
+		return "front_lane"
+	return "scheduled"
+
+static func _append_unique(values: Array[String], value: String) -> void:
+	if value.is_empty() or value in values:
+		return
+	values.append(value)
+
+static func _increment_count(bucket: Dictionary, key: String) -> void:
+	if key.is_empty():
+		key = "unknown"
+	bucket[key] = int(bucket.get(key, 0)) + 1
 
 static func _spawn_pos_for_pool(config: Dictionary, pool: Dictionary, rng: RandomNumberGenerator) -> Vector2i:
 	var cells: Array = pool.get("cells", [])

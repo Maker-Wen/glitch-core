@@ -4,46 +4,53 @@ extends RefCounted
 const BattleEventAnimatorScript := preload("res://scripts/view/battle_event_animator.gd")
 const AttackFxPresenterScript := preload("res://scripts/view/attack_fx_presenter.gd")
 const BattleSfxPresenterScript := preload("res://scripts/view/battle_sfx_presenter.gd")
+const AudioManagerScript := preload("res://scripts/core/audio_manager.gd")
+const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
+const WardenSkillCatalogScript := preload("res://scripts/battle/warden_skill_catalog.gd")
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
 
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "赏金猎人"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 1
-	return d
+	return TestUnitDefs.bountyhunter()
+
+static func _make_bh_with_stats(overrides: Dictionary) -> UnitDef:
+	return TestUnitDefs.bountyhunter(overrides)
+
+static func _make_gr() -> UnitDef:
+	return TestUnitDefs.graverobber()
+
+static func _make_mage() -> UnitDef:
+	return TestUnitDefs.mage()
 
 static func _make_carrion() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_range = 1
-	d.attack_damage = 1
-	d.attack_force = 0
-	return d
+	return TestUnitDefs.carrion_spawn()
+
+static func _make_basic_melee_enemy(overrides: Dictionary = {}) -> UnitDef:
+	var base := {
+		"def_id": &"enemy_test",
+		"display_name": "腐食兽",
+		"max_hp": 2,
+		"move": 2,
+		"attack_kind": UnitDef.AttackKind.MELEE_BUMP,
+		"attack_range": 1,
+		"attack_damage": 1,
+		"attack_force": 0,
+	}
+	base.merge(overrides, true)
+	return TestUnitDefs.generic_enemy(base)
 
 static func _add(s: BattleState, def: UnitDef, pos: Vector2i) -> Unit:
 	var u := Unit.new(s.allocate_unit_id(), def, pos)
 	s.units.append(u)
 	return u
 
-static func _make_engine_with_locked_melee() -> Dictionary:
+static func _make_engine_with_locked_melee(enemy_overrides: Dictionary = {}) -> Dictionary:
 	var engine := BattleEngine.new()
 	engine.state = BattleState.new()
 	engine.state.grid = Grid.new()
 	engine.state.phase = BattleState.Phase.PLAYER_ACTION
 	var bh := _add(engine.state, _make_bh(), Vector2i(3, 5))
 	var decoy := _add(engine.state, _make_bh(), Vector2i(0, 0))
-	var carrion := _add(engine.state, _make_carrion(), Vector2i(3, 4))
+	var carrion := _add(engine.state, _make_basic_melee_enemy(enemy_overrides), Vector2i(3, 4))
 	var plan := AIDecider.EnemyPlan.new()
 	plan.origin_pos = carrion.position
 	plan.move_to = carrion.position
@@ -62,20 +69,26 @@ static func run(tr) -> void:
 	_test_hud_enemy_rows_show_segmented_hp_bars(tr)
 	_test_hud_enemy_stack_scrolls_many_rows(tr)
 	_test_hud_side_panels_use_approved_visual_balance(tr)
+	_test_hud_omits_persistent_map_feature_tags(tr)
 	_test_hud_sanctuary_preview_uses_bar_segments(tr)
 	_test_hud_squad_cards_use_segmented_hp_bars(tr)
 	_test_hud_ability_buttons_do_not_overlap_portrait(tr)
+	_test_hud_all_warden_skills_have_short_and_detail_copy(tr)
+	_test_hud_upgraded_skill_copy_uses_upgrade_values(tr)
 	_test_hud_ability_detail_panel_shows_skill_context(tr)
+	_test_hud_disabled_ability_reports_reason(tr)
+	_test_hud_ability_cooldown_uses_visual_state(tr)
 	_test_hud_selected_unit_uses_segmented_hp_bar(tr)
 	_test_enemy_board_hover_does_not_show_enemy_info(tr)
 	_test_enemy_push_events_defer_intent_refresh(tr)
 	_test_outcome_banner_waits_for_event_playback(tr)
 	_test_unit_action_visual_resets_without_selection(tr)
 	_test_garrison_click_uses_event_position_for_deploy(tr)
+	_test_f1_debug_shortcut_forces_player_turn_win(tr)
 	_test_enemy_stack_shows_no_attack_rows(tr)
 	_test_battle_scene_updates_building_damage_preview_from_intents(tr)
-	_test_battle_scene_updates_cracked_ground_preview(tr)
 	_test_battle_scene_updates_bell_wave_preview(tr)
+	_test_battle_scene_armed_skill_shows_range_and_targets(tr)
 	_test_battle_scene_sanctuary_bar_spends_real_protected_damage(tr)
 	_test_battle_scene_sanctuary_spends_damage_during_tile_events(tr)
 	_test_battle_scene_unit_hp_spends_damage_during_unit_events(tr)
@@ -88,9 +101,14 @@ static func run(tr) -> void:
 	_test_battle_scene_boss_event_feedback_updates_help(tr)
 	_test_attack_fx_layers_replace_legacy_flash_state(tr)
 	_test_battle_animation_timing_is_readable(tr)
-	_test_battle_sfx_presenter_generates_short_sounds(tr)
+	_test_battle_sfx_presenter_uses_resource_paths_without_generation(tr)
+	_test_battle_scene_command_sfx_uses_audio_manager(tr)
+	_test_battle_scene_outcome_and_death_sfx_uses_audio_manager(tr)
 	_test_attack_fx_presenter_builds_staged_layers(tr)
 	_test_player_attack_fx_context_and_trigger(tr)
+	_test_non_attack_skill_does_not_capture_player_attack_fx(tr)
+	_test_empty_event_batch_clears_unplayed_player_attack_fx(tr)
+	_test_move_event_playback_refreshes_ability_bar(tr)
 	_test_attack_fx_layers_remain_attack_presentation_only(tr)
 	_test_attack_fx_presenter_clear_restores_intents(tr)
 	_test_enemy_attack_fx_request_uses_event_positions(tr)
@@ -123,12 +141,11 @@ static func _test_intent_preview_push_slides_attack_line_without_mutating_state(
 	tr.assert_eq("real enemy hp did not change", carrion.hp, 2)
 
 static func _test_intent_preview_kill_marks_removed_row(tr) -> void:
-	var ctx := _make_engine_with_locked_melee()
+	var ctx := _make_engine_with_locked_melee({"max_hp": 1})
 	var engine: BattleEngine = ctx.engine
 	var bh: Unit = ctx.bh
 	var carrion: Unit = ctx.carrion
 	carrion.hp = 1
-	carrion.def.max_hp = 1
 	var rows := engine.preview_enemy_intent_ui_state(BattleAction.attack(bh.id, carrion.position))
 	tr.assert_eq("removed intent preview keeps row", rows.size(), 1)
 	tr.assert_eq("intent preview row removed", rows[0].status, BattleEngine.INTENT_STATUS_REMOVED)
@@ -372,6 +389,13 @@ static func _test_hud_side_panels_use_approved_visual_balance(tr) -> void:
 	tr.assert_true("enemy status mark stays inside narrowed row", status_mark.offset_right <= HUD.ENEMY_STACK_ROW_SIZE.x)
 	scene.free()
 
+static func _test_hud_omits_persistent_map_feature_tags(tr) -> void:
+	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
+	var hud: HUD = scene.get_node("HUD")
+	tr.assert_eq("hud does not create persistent map feature panel", hud.get_node_or_null("Root/MapFeaturePanel"), null)
+	tr.assert_true("map feature tags are not exposed as hud API", not hud.has_method("set_map_features"))
+	scene.free()
+
 static func _test_hud_sanctuary_preview_uses_bar_segments(tr) -> void:
 	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
 	var hud: HUD = scene.get_node("HUD")
@@ -392,15 +416,13 @@ static func _test_hud_squad_cards_use_segmented_hp_bars(tr) -> void:
 	var hud: HUD = scene.get_node("HUD")
 	hud.squad_strip_bg = hud.get_node("Root/SquadStripBg")
 	hud.squad_strip_row = hud.get_node("Root/SquadStripBg/SquadStripRow")
-	var hp2 := _add(BattleState.new(), _make_bh(), Vector2i(0, 0))
+	var hp2 := _add(BattleState.new(), _make_bh_with_stats({"max_hp": 2}), Vector2i(0, 0))
 	var ui_portrait := GradientTexture2D.new()
 	hp2.def.ui_portrait = ui_portrait
-	var hp5_def := _make_bh()
-	hp5_def.max_hp = 5
+	var hp5_def := _make_bh_with_stats({"max_hp": 5})
 	var hp5 := _add(BattleState.new(), hp5_def, Vector2i(1, 0))
 	hp5.hp = 3
-	var hp10_def := _make_bh()
-	hp10_def.max_hp = 10
+	var hp10_def := _make_bh_with_stats({"max_hp": 10})
 	var hp10 := _add(BattleState.new(), hp10_def, Vector2i(2, 0))
 	hp10.hp = 1
 	hud.set_squad_status([hp2, hp5, hp10], hp2.id)
@@ -481,7 +503,75 @@ static func _test_hud_ability_buttons_do_not_overlap_portrait(tr) -> void:
 	tr.assert_true("ability slot shows active skill description", labels.contains("近战"))
 	tr.assert_true("ability slot shows disabled skill description", labels.contains("未装备"))
 	tr.assert_true("ability slot shows third skill description", labels.contains("结束"))
+	tr.assert_eq("ability slot compacts melee push summary", hud._compact_ability_slot_meta("近战 (1 格) 1 伤 + 推 1", "adjacent_enemy_or_boss"), "近战 · 1伤 · 推1")
+	tr.assert_eq("ability slot compacts ranged pull summary", hud._compact_ability_slot_meta("3 格 1 伤 + 拉 1", "line_enemy_or_boss_range_3"), "3格直线 · 1伤 · 拉1")
+	tr.assert_eq("ability slot compacts unlimited line summary", hud._compact_ability_slot_meta("无限直线 1 伤 + 推 1", "line_enemy_or_boss_unlimited"), "无限直线 · 1伤 · 推1")
+	tr.assert_eq("ability slot keeps pull and side push summary", hud._compact_ability_slot_meta("2 格拉近 · 侧推", "line_enemy_range_2"), "2格直线 · 拉近 · 侧推")
 	scene.free()
+
+static func _test_hud_all_warden_skills_have_short_and_detail_copy(tr) -> void:
+	var hud := HUD.new()
+	var seen_ids: Dictionary = {}
+	var expectations := {
+		"bounty_chain_strike": {"slot": "近战 · 1伤 · 推1", "detail": "推动目标", "badge": "近战"},
+		"bounty_guard_shoulder": {"slot": "近战 · 1伤 · 换位", "detail": "换位", "badge": "换位"},
+		"bounty_execute": {"slot": "近战 · 1伤 · 击杀 · 2/2", "detail": "限次收尾", "badge": "近战"},
+		"graverobber_hook_rope": {"slot": "3格直线 · 1伤 · 拉1", "detail": "拉近敌人", "badge": "直线"},
+		"graverobber_rift_wedge": {"slot": "3格 · 1伤 · 地裂", "detail": "延迟目标裂隙", "badge": "裂隙"},
+		"graverobber_backhand_throw": {"slot": "2格直线 · 拉近 · 侧推", "detail": "尝试侧推", "badge": "直线"},
+		"mage_repulsion_bolt": {"slot": "无限直线 · 1伤 · 推1", "detail": "推动目标", "badge": "直线"},
+		"mage_ward_fire": {"slot": "2格 · 护盾 · 减伤", "detail": "抵消下一次 1 点伤害", "badge": "建筑"},
+		"mage_sigil": {"slot": "3格 · 减速 · 2/2", "detail": "持续 2 回合", "badge": "区域"},
+	}
+	for def_id in [&"warden_bountyhunter", &"warden_graverobber", &"warden_mage"]:
+		for skill in WardenSkillCatalogScript.skills_for_warden(def_id):
+			var id := String(skill.get("id", ""))
+			seen_ids[id] = true
+			var desc := String(skill.get("desc", ""))
+			var target_rule := String(skill.get("target_rule", ""))
+			var ability := {
+				"id": id,
+				"name": skill.get("name", ""),
+				"desc": desc,
+				"target_rule": target_rule,
+				"active": true,
+			}
+			var expected: Dictionary = expectations.get(id, {})
+			var slot_copy := hud._ability_slot_meta(ability)
+			if int(skill.get("max_uses_per_battle", 0)) > 0:
+				var remaining := int(skill.get("max_uses_per_battle", 0))
+				ability["desc"] = "%s · %d/%d" % [desc, remaining, remaining]
+				slot_copy = hud._ability_slot_meta(ability)
+			var detail_copy := hud._ability_detail_body_text(ability, false)
+			var badges := hud._ability_detail_badges(ability)
+			tr.assert_true("%s has compact slot copy" % id, slot_copy != "" and slot_copy.length() <= 18)
+			tr.assert_true("%s detail is explicit" % id, detail_copy != "" and not detail_copy.contains("尚未配置"))
+			tr.assert_true("%s has at least one detail badge" % id, not badges.is_empty())
+			tr.assert_true("%s detail adds explanation beyond raw desc" % id, detail_copy != desc)
+			tr.assert_eq("%s slot copy matches skill implementation" % id, slot_copy, String(expected.get("slot", slot_copy)))
+			tr.assert_true("%s detail copy names concrete effect" % id, detail_copy.contains(String(expected.get("detail", ""))))
+			tr.assert_true("%s badge names target or effect" % id, badges.has(String(expected.get("badge", ""))))
+			ability["is_armed"] = true
+			tr.assert_true("%s armed slot keeps tactical summary" % id, hud._ability_slot_meta(ability).begins_with(slot_copy))
+	tr.assert_eq("all current warden skills covered by detail copy", seen_ids.size(), 9)
+	hud.free()
+
+static func _test_hud_upgraded_skill_copy_uses_upgrade_values(tr) -> void:
+	var hud := HUD.new()
+	var ward_fire := WardenSkillCatalogScript.get_skill(WardenSkillCatalogScript.MAGE_WARD_FIRE, [WardenSkillCatalogScript.UPGRADE_MAGE_WARD_FIRE_SHIELD])
+	var ability := {
+		"id": String(ward_fire.get("id", "")),
+		"name": ward_fire.get("name", ""),
+		"desc": ward_fire.get("desc", ""),
+		"target_rule": ward_fire.get("target_rule", ""),
+		"active": true,
+		"upgraded": true,
+		"shield_amount": int(ward_fire.get("shield_amount", 0)),
+	}
+	tr.assert_eq("upgraded ward fire slot copy uses shield value", hud._ability_slot_meta(ability), "2格 · 护盾 · 减伤")
+	tr.assert_true("upgraded ward fire detail uses shield value", hud._ability_detail_body_text(ability, false).contains("2 点伤害"))
+	tr.assert_true("upgraded ward fire badges include upgrade", "强化" in hud._ability_detail_badges(ability))
+	hud.free()
 
 static func _test_hud_ability_detail_panel_shows_skill_context(tr) -> void:
 	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
@@ -540,12 +630,92 @@ static func _test_hud_ability_detail_panel_shows_skill_context(tr) -> void:
 		]
 	)
 	tr.assert_eq("armed ability detail is pinned visible", hud.ability_detail_panel.visible, true)
-	tr.assert_true("armed ability detail explains targeting", hud.ability_detail_body.text.contains("有效目标"))
+	tr.assert_true("armed ability detail keeps specific skill copy", hud.ability_detail_body.text.contains("推动目标"))
+	tr.assert_true("armed ability detail footer explains targeting", hud.ability_detail_footer.text.contains("选择有效目标"))
 	hud._on_ability_slot_exited()
 	tr.assert_eq("armed ability detail stays visible after hover exit", hud.ability_detail_panel.visible, true)
 	hud.hide_ability_bar()
 	tr.assert_eq("ability detail hides with ability bar", hud.ability_detail_panel.visible, false)
 	scene.free()
+
+static func _test_hud_disabled_ability_reports_reason(tr) -> void:
+	var hud := HUD.new()
+	var ability := {
+		"id": "mage_ward_fire",
+		"name": "护火",
+		"desc": "护盾 · 减伤 1",
+		"target_rule": "protected_building_range_2",
+		"active": false,
+		"disabled_reason": "冷却 1 回合",
+		"disabled_reason_code": "cooldown",
+		"cooldown_remaining": 1,
+	}
+	tr.assert_true("disabled ability footer shows actual reason", hud._ability_detail_footer_text(ability, false).contains("冷却 1 回合"))
+	tr.assert_true("disabled ability badges do not say unimplemented", not hud._ability_detail_badges(ability).has("未接入"))
+	tr.assert_true("disabled ability badges omit unavailable reason", not hud._ability_detail_badges(ability).has("冷却 1 回合"))
+	tr.assert_true("disabled ability slot omits cooldown text", not hud._ability_slot_meta(ability).contains("冷却"))
+	var unavailable: Array = []
+	hud.ability_unavailable.connect(func(id: String, reason: String): unavailable.append({"id": id, "reason": reason}))
+	hud.ability_bar_bg = ColorRect.new()
+	hud.selected_unit_panel_bg = ColorRect.new()
+	hud.ability_title = Label.new()
+	hud.ability_hp_label = Label.new()
+	hud.ability_info_label = Label.new()
+	hud.ability_portrait = TextureRect.new()
+	hud.ability_stack = HBoxContainer.new()
+	hud.ability_console_frame = Panel.new()
+	hud.selected_unit_card_bg = ColorRect.new()
+	hud.ability_bar_bg.add_child(hud.ability_stack)
+	hud.show_ability_bar(
+		{"name": "法师", "hp": 4, "max_hp": 4, "move": 2},
+		[ability]
+	)
+	var slot := hud.ability_stack.get_child(0)
+	var button: Button = null
+	for child in slot.get_children():
+		if child is Button:
+			button = child
+			break
+	tr.assert_true("disabled-looking ability button stays clickable", button != null and not button.disabled)
+	button.pressed.emit()
+	tr.assert_eq("disabled ability emits unavailable signal", unavailable.size(), 1)
+	if not unavailable.is_empty():
+		tr.assert_eq("unavailable signal reports ability id", unavailable[0].id, "mage_ward_fire")
+		tr.assert_true("unavailable signal reports reason", String(unavailable[0].reason).contains("冷却 1 回合"))
+	hud.free()
+
+static func _test_hud_ability_cooldown_uses_visual_state(tr) -> void:
+	var hud := HUD.new()
+	hud.ability_bar_bg = ColorRect.new()
+	hud.selected_unit_panel_bg = ColorRect.new()
+	hud.ability_title = Label.new()
+	hud.ability_hp_label = Label.new()
+	hud.ability_info_label = Label.new()
+	hud.ability_portrait = TextureRect.new()
+	hud.ability_stack = HBoxContainer.new()
+	hud.ability_console_frame = Panel.new()
+	hud.selected_unit_card_bg = ColorRect.new()
+	hud.ability_bar_bg.add_child(hud.ability_stack)
+	hud.show_ability_bar(
+		{"name": "赏金猎人", "hp": 3, "max_hp": 3, "move": 2},
+		[
+			{"id": "guard_shoulder", "name": "护卫肩撞", "desc": "换位 · 敌人 1 伤", "active": true, "cooldown_rounds": 1, "cooldown_remaining": 0},
+			{"id": "bounty_execute", "name": "悬赏处决", "desc": "1 伤 · 击杀计数", "active": false, "cooldown_rounds": 2, "cooldown_remaining": 1, "disabled_reason": "冷却 1 回合"},
+		]
+	)
+	var ready_slot: Control = hud.ability_stack.get_child(0)
+	var cooling_slot: Control = hud.ability_stack.get_child(1)
+	tr.assert_eq("ready cooldown skill omits ready clock", ready_slot.get_node_or_null("CooldownReadyIcon"), null)
+	tr.assert_eq("ready cooldown skill omits cooldown ring", ready_slot.get_node_or_null("CooldownRing"), null)
+	tr.assert_eq("ready cooldown skill omits card scrim", ready_slot.get_node_or_null("CooldownCardScrim"), null)
+	tr.assert_eq("ready cooldown skill omits icon scrim", ready_slot.get_node_or_null("CooldownIconScrim"), null)
+	tr.assert_true("cooling skill shows card scrim", cooling_slot.get_node_or_null("CooldownCardScrim") != null)
+	tr.assert_true("cooling skill shows icon scrim", cooling_slot.get_node_or_null("CooldownIconScrim") != null)
+	tr.assert_true("cooling skill shows progress ring", cooling_slot.get_node_or_null("CooldownRing") != null)
+	var label_texts: Array = []
+	_collect_label_texts(hud.ability_stack, label_texts)
+	tr.assert_true("cooldown state is not duplicated as slot text", not " ".join(label_texts).contains("冷却"))
+	hud.free()
 
 static func _test_hud_selected_unit_uses_segmented_hp_bar(tr) -> void:
 	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
@@ -670,6 +840,14 @@ static func _label_texts_contain(node: Node, needle: String) -> bool:
 	_collect_label_texts(node, texts)
 	return " ".join(texts).contains(needle)
 
+static func _first_ability_button(hud: HUD) -> Button:
+	if hud == null or hud.ability_stack == null or hud.ability_stack.get_child_count() == 0:
+		return null
+	for child in hud.ability_stack.get_child(0).get_children():
+		if child is Button:
+			return child
+	return null
+
 static func _test_unit_action_visual_resets_without_selection(tr) -> void:
 	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
 	var state := BattleState.new()
@@ -718,6 +896,26 @@ static func _test_garrison_click_uses_event_position_for_deploy(tr) -> void:
 		tr.assert_eq("garrison click action target", requested[0].target_pos, Vector2i(3, 6))
 	scene.free()
 
+static func _test_f1_debug_shortcut_forces_player_turn_win(tr) -> void:
+	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
+	var hud: HUD = scene.get_node("HUD")
+	scene.hud = hud
+	scene.diamond_board_view = DiamondBoardView.new()
+	hud.help_label = hud.get_node("Root/HelpLabel")
+	var engine := BattleEngine.new()
+	engine.state = BattleState.new()
+	engine.state.grid = Grid.new()
+	engine.state.phase = BattleState.Phase.GARRISON
+	engine.state.outcome = BattleState.Outcome.UNDECIDED
+	scene.engine = engine
+	scene.toggle_debug_mode()
+	tr.assert_eq("F1 debug shortcut ignores garrison phase", engine.state.outcome, BattleState.Outcome.UNDECIDED)
+	engine.state.phase = BattleState.Phase.PLAYER_ACTION
+	scene.toggle_debug_mode()
+	tr.assert_eq("F1 debug shortcut sets victory outcome", engine.state.outcome, BattleState.Outcome.VICTORY)
+	tr.assert_eq("F1 debug shortcut enters battle end phase", engine.state.phase, BattleState.Phase.BATTLE_END)
+	scene.free()
+
 static func _test_enemy_stack_shows_no_attack_rows(tr) -> void:
 	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
 	var hud: HUD = scene.get_node("HUD")
@@ -759,7 +957,7 @@ static func _test_battle_scene_updates_building_damage_preview_from_intents(tr) 
 	state.phase = BattleState.Phase.PLAYER_ACTION
 	state.protected_targets = [building_pos]
 	state.grid.set_tile(building_pos, Grid.TileType.BUILDING, 2)
-	var enemy := _add(state, _make_carrion(), Vector2i(3, 5))
+	var enemy := _add(state, _make_basic_melee_enemy(), Vector2i(3, 5))
 	var engine := BattleEngine.new()
 	engine.state = state
 	scene.engine = engine
@@ -788,20 +986,6 @@ static func _test_battle_scene_updates_building_damage_preview_from_intents(tr) 
 	tr.assert_eq("hud receives sanctuary preview damage", hud.get_sanctuary_preview_loss(), 1)
 	scene.free()
 
-static func _test_battle_scene_updates_cracked_ground_preview(tr) -> void:
-	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
-	scene.hud = scene.get_node("HUD")
-	scene.diamond_board_view = DiamondBoardView.new()
-	scene.engine = BattleEngine.new()
-	scene.engine.state = BattleState.new()
-	scene.engine.state.grid = Grid.new()
-	scene.engine.state.phase = BattleState.Phase.PLAYER_ACTION
-	scene.engine.state.pending_cracked_ground = [Vector2i(3, 4), Vector2i(4, 4)]
-	scene._refresh_enemy_intent_overlay()
-	tr.assert_eq("board receives cracked ground preview", scene.diamond_board_view.get_predicted_cracked_ground(), [Vector2i(3, 4), Vector2i(4, 4)])
-	scene.diamond_board_view.free()
-	scene.free()
-
 static func _test_battle_scene_updates_bell_wave_preview(tr) -> void:
 	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
 	scene.hud = scene.get_node("HUD")
@@ -813,6 +997,33 @@ static func _test_battle_scene_updates_bell_wave_preview(tr) -> void:
 	scene.engine.state.pending_bell_wave = [Vector2i(3, 3), Vector2i(4, 3)]
 	scene._refresh_enemy_intent_overlay()
 	tr.assert_eq("board receives bell wave preview", scene.diamond_board_view.get_predicted_bell_wave(), [Vector2i(3, 3), Vector2i(4, 3)])
+	scene.diamond_board_view.free()
+	scene.free()
+
+static func _test_battle_scene_armed_skill_shows_range_and_targets(tr) -> void:
+	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
+	var state := BattleState.new()
+	state.grid = Grid.new()
+	state.phase = BattleState.Phase.PLAYER_ACTION
+	var mage := _add(state, _make_mage(), Vector2i(3, 5))
+	_add(state, _make_bh(), Vector2i(0, 0))
+	var occupied := _add(state, _make_carrion(), Vector2i(3, 4))
+	var engine := BattleEngine.new()
+	engine.state = state
+	scene.engine = engine
+	scene.diamond_board_view = DiamondBoardView.new()
+	scene.hud = scene.get_node("HUD")
+	scene.selected_warden_id = mage.id
+	scene._armed_ability_id = String(WardenSkillCatalogScript.MAGE_SIGIL)
+	scene._refresh_selection_highlights()
+	tr.assert_true("armed skill range includes nearby cells", scene.diamond_board_view.get_skill_range_cells().has(Vector2i(3, 4)))
+	tr.assert_true("armed skill targets exclude occupied cell", not scene.diamond_board_view.get_skill_target_cells().has(occupied.position))
+	tr.assert_true("armed skill targets include empty range cell", scene.diamond_board_view.get_skill_target_cells().has(Vector2i(3, 3)))
+	tr.assert_eq("armed skill clears normal attack overlay", scene.diamond_board_view.get_attack_cells().size(), 0)
+	scene._armed_ability_id = ""
+	scene._refresh_selection_highlights()
+	tr.assert_eq("disarmed skill range clears", scene.diamond_board_view.get_skill_range_cells().size(), 0)
+	tr.assert_eq("disarmed skill targets clear", scene.diamond_board_view.get_skill_target_cells().size(), 0)
 	scene.diamond_board_view.free()
 	scene.free()
 
@@ -887,7 +1098,7 @@ static func _test_battle_scene_unit_hp_spends_damage_during_unit_events(tr) -> v
 	scene.hud = hud
 	scene.diamond_board_view = DiamondBoardView.new()
 	var state := BattleState.new()
-	var warden := _add(state, _make_bh(), Vector2i(3, 6))
+	var warden := _add(state, _make_bh_with_stats({"max_hp": 2}), Vector2i(3, 6))
 	warden.hp = 1
 	var engine := BattleEngine.new()
 	engine.state = state
@@ -931,10 +1142,14 @@ static func _test_selecting_warden_refreshes_hover_push_preview(tr) -> void:
 	var building_pos := Vector2i(3, 6)
 	state.protected_targets = [building_pos]
 	state.grid.set_tile(building_pos, Grid.TileType.BUILDING, 2)
-	var pull_def := _make_bh()
-	pull_def.attack_kind = UnitDef.AttackKind.RANGED_PULL
-	pull_def.attack_range = 3
-	pull_def.attack_force = 1
+	var pull_def := TestUnitDefs.generic_warden({
+		"max_hp": 3,
+		"move": 2,
+		"attack_kind": UnitDef.AttackKind.RANGED_PULL,
+		"attack_range": 3,
+		"attack_damage": 1,
+		"attack_force": 1,
+	})
 	var bh := _add(state, pull_def, Vector2i(3, 3))
 	var enemy := _add(state, _make_carrion(), Vector2i(3, 5))
 	var plan := AIDecider.EnemyPlan.new()
@@ -1145,13 +1360,41 @@ static func _test_battle_animation_timing_is_readable(tr) -> void:
 	tr.assert_true("attack action timing is readable", AttackFxPresenterScript.ACTION_DURATION >= 0.22)
 	tr.assert_true("impact timing is readable", AttackFxPresenterScript.IMPACT_DURATION >= 0.14)
 
-static func _test_battle_sfx_presenter_generates_short_sounds(tr) -> void:
+static func _test_battle_sfx_presenter_uses_resource_paths_without_generation(tr) -> void:
 	var sfx = BattleSfxPresenterScript.new()
-	var stream: AudioStreamWAV = sfx._build_stream(&"ranged_push")
-	tr.assert_true("battle sfx stream exists", stream != null)
-	tr.assert_eq("battle sfx uses lightweight sample rate", stream.mix_rate, BattleSfxPresenterScript.SAMPLE_RATE)
-	tr.assert_true("battle sfx is short one-shot", stream.data.size() <= int(BattleSfxPresenterScript.SAMPLE_RATE * 0.20))
-	tr.assert_true("battle sfx has sample data", stream.data.size() > 0)
+	var fake_audio := _FakeAudioManager.new()
+	sfx.bind_audio(fake_audio)
+	tr.assert_true("battle sfx maps ranged push to shared resource id", BattleSfxPresenterScript.SOUND_IDS.get(&"ranged_push") == AudioManagerScript.SFX_RANGED_PUSH)
+	tr.assert_true("battle sfx maps default impact to shared resource id", BattleSfxPresenterScript.SOUND_IDS.get(&"impact_hit") == AudioManagerScript.SFX_IMPACT_HIT)
+	tr.assert_eq("missing battle sfx id has no shared resource id", sfx._audio_sound_id(&"missing_sound"), &"")
+	sfx.play_attack_action(UnitDef.AttackKind.RANGED_PUSH)
+	tr.assert_eq("battle sfx delegates attack action to audio manager", fake_audio.played_ids, [AudioManagerScript.SFX_RANGED_PUSH])
+	sfx.play_impact(UnitDef.AttackKind.RANGED_PULL)
+	tr.assert_eq("battle sfx delegates impact to audio manager", fake_audio.played_ids, [AudioManagerScript.SFX_RANGED_PUSH, AudioManagerScript.SFX_IMPACT_PULL])
+
+static func _test_battle_scene_command_sfx_uses_audio_manager(tr) -> void:
+	var scene := BattleScene.new()
+	var fake_audio := _FakeAudioManager.new()
+	scene.bind_audio(fake_audio)
+	scene._on_ability_unavailable("attack", "冷却中")
+	tr.assert_eq("unavailable ability plays feedback sfx", fake_audio.played_ids, [AudioManagerScript.SFX_ABILITY_UNAVAILABLE])
+	scene._play_action_sfx(BattleAction.deploy(Vector2i(3, 6)))
+	scene._play_action_sfx(BattleAction.confirm_deploy())
+	scene._play_action_sfx(BattleAction.end_turn())
+	tr.assert_eq("battle commands use shared sfx ids", fake_audio.played_ids.slice(1), [AudioManagerScript.SFX_TILE_SELECT, AudioManagerScript.SFX_DEPLOY_CONFIRM, AudioManagerScript.SFX_END_TURN])
+	scene.free()
+
+static func _test_battle_scene_outcome_and_death_sfx_uses_audio_manager(tr) -> void:
+	var scene := BattleScene.new()
+	var fake_audio := _FakeAudioManager.new()
+	scene.bind_audio(fake_audio)
+	scene.engine = BattleEngine.new()
+	scene.engine.state = BattleState.new()
+	scene.engine.state.outcome = BattleState.Outcome.VICTORY
+	scene._emit_finish_if_ready()
+	scene._anim_unit_died(BattleEvent.make(BattleEvent.Type.UNIT_DIED))
+	tr.assert_eq("victory and death sfx delegate to audio manager", fake_audio.played_ids, [AudioManagerScript.SFX_VICTORY_STINGER, AudioManagerScript.SFX_UNIT_DEATH])
+	scene.free()
 
 static func _test_attack_fx_presenter_builds_staged_layers(tr) -> void:
 	var presenter = AttackFxPresenterScript.new()
@@ -1192,6 +1435,74 @@ static func _test_player_attack_fx_context_and_trigger(tr) -> void:
 	pushed.from_pos = enemy.position
 	pushed.to_pos = Vector2i(3, 3)
 	tr.assert_true("push to later cell does not start attack fx by itself", not scene._event_starts_player_attack_fx(pushed))
+	scene.free()
+
+static func _test_non_attack_skill_does_not_capture_player_attack_fx(tr) -> void:
+	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
+	var state := BattleState.new()
+	state.grid = Grid.new()
+	state.phase = BattleState.Phase.PLAYER_ACTION
+	var gr := _add(state, _make_gr(), Vector2i(3, 6))
+	var engine := BattleEngine.new()
+	engine.state = state
+	scene.engine = engine
+	scene._capture_player_attack_context(BattleAction.skill(gr.id, WardenSkillCatalog.GRAVEROBBER_RIFT_WEDGE, Vector2i(3, 3)))
+	tr.assert_true("rift wedge does not capture attack fx context", scene._pending_player_attack_context.is_empty())
+	scene.free()
+
+static func _test_empty_event_batch_clears_unplayed_player_attack_fx(tr) -> void:
+	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
+	scene.engine = BattleEngine.new()
+	scene.engine.state = BattleState.new()
+	scene.engine.state.grid = Grid.new()
+	scene.engine.state.phase = BattleState.Phase.PLAYER_ACTION
+	scene._pending_player_attack_context = {"from_cell": Vector2i(0, 0), "to_cell": Vector2i(1, 0)}
+	scene._on_events([])
+	tr.assert_true("empty event batch clears unplayed attack fx context", scene._pending_player_attack_context.is_empty())
+	scene.free()
+
+static func _test_move_event_playback_refreshes_ability_bar(tr) -> void:
+	var scene: BattleScene = load("res://Scenes/battle/BattleScene.tscn").instantiate()
+	var hud: HUD = scene.get_node("HUD")
+	hud.ability_bar_bg = hud.get_node("Root/AbilityBarBg")
+	hud.ability_portrait_frame = hud.get_node("Root/SelectedUnitPanelBg/AbilityPortraitFrame")
+	hud.ability_title = hud.get_node("Root/SelectedUnitPanelBg/AbilityTitle")
+	hud.ability_portrait = hud.get_node("Root/SelectedUnitPanelBg/AbilityPortraitFrame/AbilityPortrait")
+	hud.ability_hp_label = hud.get_node("Root/SelectedUnitPanelBg/AbilityHpLabel")
+	hud.ability_info_label = hud.get_node("Root/SelectedUnitPanelBg/AbilityInfoLabel")
+	hud.ability_row = hud.get_node("Root/AbilityBarBg/AbilityRow")
+	hud._ensure_selected_unit_panel()
+	hud._apply_layout_metrics()
+	scene.hud = hud
+	scene.diamond_board_view = DiamondBoardView.new()
+	var state := BattleState.new()
+	state.grid = Grid.new()
+	state.phase = BattleState.Phase.PLAYER_ACTION
+	var bh := _add(state, _make_bh(), Vector2i(3, 6))
+	_add(state, _make_carrion(), Vector2i(3, 4))
+	var engine := BattleEngine.new()
+	engine.state = state
+	scene.engine = engine
+	scene.selected_warden_id = bh.id
+	scene._refresh_ability_bar()
+	var selected_before: Array = []
+	var unavailable_before: Array = []
+	hud.ability_selected.connect(func(id: String): selected_before.append(id))
+	hud.ability_unavailable.connect(func(id: String, reason: String): unavailable_before.append({"id": id, "reason": reason}))
+	_first_ability_button(hud).pressed.emit()
+	tr.assert_eq("bounty chain starts unavailable before adjacent move", selected_before.size(), 0)
+	tr.assert_eq("bounty chain reports unavailable before adjacent move", unavailable_before.size(), 1)
+
+	bh.position = Vector2i(3, 5)
+	scene._refresh_after_event_playback()
+	var selected_after: Array = []
+	var unavailable_after: Array = []
+	hud.ability_selected.connect(func(id: String): selected_after.append(id))
+	hud.ability_unavailable.connect(func(id: String, reason: String): unavailable_after.append({"id": id, "reason": reason}))
+	_first_ability_button(hud).pressed.emit()
+	tr.assert_eq("bounty chain selects after move playback refresh", selected_after.size(), 1)
+	tr.assert_eq("bounty chain no longer reports unavailable after move playback", unavailable_after.size(), 0)
+	scene.diamond_board_view.free()
 	scene.free()
 
 static func _test_attack_fx_layers_remain_attack_presentation_only(tr) -> void:
@@ -1289,3 +1600,9 @@ static func _test_battle_scene_outcome_reason_names_sources(tr) -> void:
 	line_defeat.grid.set_tile(Vector2i(1, 6), Grid.TileType.RUIN)
 	tr.assert_eq("line defeat reason names breach", scene._battle_outcome_reason(line_defeat), "防线溃败")
 	scene.free()
+
+class _FakeAudioManager:
+	var played_ids: Array = []
+
+	func play_sfx(sound_id: StringName) -> void:
+		played_ids.append(sound_id)

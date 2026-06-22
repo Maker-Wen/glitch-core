@@ -1,10 +1,10 @@
 extends RefCounted
 ## Pull = push in the opposite direction (toward the attacker).
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _add(s: BattleState, faction: int, hp: int, pos: Vector2i) -> Unit:
-	var def := UnitDef.new()
-	def.faction = faction
-	def.max_hp = hp
+	var def := TestUnitDefs.generic_warden({"max_hp": hp}) if faction == UnitDef.Faction.WARDEN else TestUnitDefs.generic_enemy({"max_hp": hp})
 	var u := Unit.new(s.allocate_unit_id(), def, pos)
 	u.hp = hp
 	s.units.append(u)

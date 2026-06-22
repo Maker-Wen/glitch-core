@@ -11,6 +11,7 @@ static func run(tr) -> void:
 	_test_candidate_generation_produces_spawn_tables(tr)
 	_test_candidate_generation_validates_basic_fairness(tr)
 	_test_candidate_generation_reports_structural_diagnostics(tr)
+	_test_candidate_generation_reports_feature_profile(tr)
 	_test_far_deploy_zone_rejects_unguarded_building(tr)
 	_test_interceptable_opening_archer_is_warning_not_rejection(tr)
 	_test_movable_intercept_opening_archer_is_warning_not_rejection(tr)
@@ -79,6 +80,24 @@ static func _test_candidate_generation_reports_structural_diagnostics(tr) -> voi
 		tr.assert_true("%s reports source pool counts" % config_id, not diagnostics.get("source_pool_counts", {}).is_empty())
 		if not config.get("element_pools", {}).is_empty():
 			tr.assert_true("%s reports element coverage" % config_id, not diagnostics.get("element_coverage", {}).is_empty())
+
+static func _test_candidate_generation_reports_feature_profile(tr) -> void:
+	for config_id in [
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL,
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+		BattleConfigCatalogScript.CONFIG_IRON_GATE,
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+	]:
+		var config := BattleConfigCatalogScript.get_config(config_id)
+		var candidate := BattlePoolCandidateGeneratorScript.generate_candidate(config, 9100, 1)
+		var feature_profile: Dictionary = candidate.get("validation", {}).get("diagnostics", {}).get("feature_profile", {})
+		var coverage: Dictionary = feature_profile.get("coverage", {})
+		tr.assert_true("%s reports feature profile" % config_id, not feature_profile.is_empty())
+		tr.assert_true("%s has core feature coverage" % config_id, int(coverage.get("core", 0)) > 0)
+		tr.assert_true("%s has support feature coverage" % config_id, int(coverage.get("support", 0)) > 0)
+		tr.assert_true("%s has risk source coverage" % config_id, int(coverage.get("risk", 0)) > 0)
+		tr.assert_true("%s has selected element coverage" % config_id, int(coverage.get("selected_elements", 0)) > 0)
 
 static func _test_far_deploy_zone_rejects_unguarded_building(tr) -> void:
 	var config := BattleConfigCatalogScript.get_config(BattleConfigCatalogScript.CONFIG_OUTER_WALL)
@@ -196,6 +215,8 @@ static func _test_batch_playtester_summarizes_small_sample(tr) -> void:
 	var config_summary: Dictionary = summary.get("by_config", {}).get(BattleConfigCatalogScript.CONFIG_OUTER_WALL, {})
 	tr.assert_true("batch config summary carries diagnostics", not config_summary.get("diagnostics", {}).is_empty())
 	tr.assert_true("batch config summary carries opening pressure types", config_summary.get("diagnostics", {}).has("opening_pressure_types"))
+	tr.assert_true("batch config summary carries feature profile counts", config_summary.get("diagnostics", {}).has("feature_core_counts"))
+	tr.assert_true("batch config summary carries selected element counts", config_summary.get("diagnostics", {}).has("selected_element_counts"))
 
 static func _test_candidate_generation_does_not_replace_fixed_runtime(tr) -> void:
 	var config := BattleConfigCatalogScript.get_config(BattleConfigCatalogScript.CONFIG_IRON_GATE)

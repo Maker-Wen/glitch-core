@@ -4,6 +4,7 @@ class_name BattleAction extends RefCounted
 enum Kind {
 	MOVE,        # Move actor_id to target_pos
 	ATTACK,      # Attack the unit at target_pos with actor_id's weapon
+	SKILL,       # Use actor_id's active skill on target_pos
 	END_TURN,    # Skip remaining wardens; enemy executes
 	UNDO,
 	DEPLOY,      # Garrison phase: place the next pending warden at target_pos
@@ -13,6 +14,7 @@ enum Kind {
 var kind: int
 var actor_id: int = -1
 var target_pos: Vector2i = Vector2i.ZERO
+var skill_id: StringName = &""
 
 static func move(p_actor_id: int, p_target: Vector2i) -> BattleAction:
 	var a := BattleAction.new()
@@ -25,6 +27,14 @@ static func attack(p_actor_id: int, p_target: Vector2i) -> BattleAction:
 	var a := BattleAction.new()
 	a.kind = Kind.ATTACK
 	a.actor_id = p_actor_id
+	a.target_pos = p_target
+	return a
+
+static func skill(p_actor_id: int, p_skill_id: StringName, p_target: Vector2i) -> BattleAction:
+	var a := BattleAction.new()
+	a.kind = Kind.SKILL
+	a.actor_id = p_actor_id
+	a.skill_id = p_skill_id
 	a.target_pos = p_target
 	return a
 

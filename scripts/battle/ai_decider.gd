@@ -94,6 +94,7 @@ static func _plan_melee(state: BattleState, enemy: Unit, claimed: Dictionary, bl
 	if goal == Vector2i(-1, -1):
 		return plan
 	plan.move_to = _BattlePathing.best_step_toward(state, enemy, goal, blocked, claimed)
+	plan.move_to = _apply_sigil_slow_to_move(state, enemy, goal, blocked, claimed, plan.move_to)
 	if Grid.manhattan(plan.move_to, target_pos) == 1:
 		plan.attack_pos = target_pos
 	return plan
@@ -117,6 +118,7 @@ static func _plan_ranged(state: BattleState, enemy: Unit, claimed: Dictionary, b
 	if goal == Vector2i(-1, -1):
 		return plan
 	plan.move_to = _BattlePathing.best_step_toward(state, enemy, goal, blocked, claimed)
+	plan.move_to = _apply_sigil_slow_to_move(state, enemy, goal, blocked, claimed, plan.move_to)
 	# Re-check after the projected move.
 	if plan.move_to != Vector2i(-1, -1):
 		plan.attack_pos = _EnemyTargeting.scan_with_shadow(state, plan.move_to, enemy.def.attack_range, enemy.id, shadow)
@@ -147,6 +149,31 @@ static func _new_plan(enemy: Unit) -> EnemyPlan:
 	plan.origin_pos = enemy.position
 	plan.move_to = enemy.position
 	return plan
+
+static func _apply_sigil_slow_to_move(
+	state: BattleState,
+	enemy: Unit,
+	goal: Vector2i,
+	blocked: Dictionary,
+	claimed: Dictionary,
+	planned_move: Vector2i
+) -> Vector2i:
+	if state == null or enemy == null or enemy.def == null or state.sigils.is_empty():
+		return planned_move
+	if enemy.def.move <= 0 or planned_move == enemy.position:
+		return planned_move
+	var path := state.grid.find_path(enemy.position, planned_move, blocked)
+	if path.is_empty():
+		return planned_move
+	var touches_sigil := state.has_sigil_at(enemy.position)
+	if not touches_sigil:
+		for cell in path:
+			if state.has_sigil_at(cell):
+				touches_sigil = true
+				break
+	if not touches_sigil:
+		return planned_move
+	return _BattlePathing.best_step_toward(state, enemy, goal, blocked, claimed, maxi(0, enemy.def.move - 1))
 
 static func _is_ranged(def: UnitDef) -> bool:
 	return def.attack_kind == UnitDef.AttackKind.RANGED_PUSH \

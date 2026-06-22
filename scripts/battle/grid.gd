@@ -5,7 +5,7 @@ class_name Grid extends RefCounted
 const SIZE := 8
 const DEFAULT_BUILDING_HP := 2
 
-enum TileType { EMPTY, PILLAR, BUILDING, RIFT, RUIN }
+enum TileType { EMPTY, PILLAR, BUILDING, RIFT, RUIN, VOID }
 
 ## Direction priority order for tie-break: North, East, South, West.
 const DIRS: Array[Vector2i] = [
@@ -75,10 +75,10 @@ func damage_tile(p: Vector2i, amount: int) -> Dictionary:
 	return {"damaged": damaged, "destroyed": true, "tile": tile}
 
 ## True if the tile occupies the cell and blocks unit movement onto it.
-## PILLAR + BUILDING block. RIFT + RUIN + EMPTY do not.
+## PILLAR + BUILDING + VOID block. RIFT + RUIN + EMPTY do not.
 func blocks_movement(p: Vector2i) -> bool:
 	var t := get_tile(p)
-	return t == TileType.PILLAR or t == TileType.BUILDING
+	return t == TileType.PILLAR or t == TileType.BUILDING or t == TileType.VOID
 
 ## Reachable cells via 4-direction BFS up to max_steps.
 ## `blocked` is a set of additional cells (e.g. occupied by other units) that
@@ -126,7 +126,7 @@ func find_path(from: Vector2i, to: Vector2i, blocked: Dictionary) -> Array[Vecto
 				var n: Vector2i = cell + d
 				if not in_bounds(n):
 					continue
-				if n != to and blocks_movement(n):
+				if blocks_movement(n):
 					continue
 				if n != to and blocked.has(n):
 					continue

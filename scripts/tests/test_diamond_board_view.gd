@@ -20,7 +20,13 @@ static func run(tr) -> void:
 	_assert_unit_overhead_hp_bar_config(tr)
 	_assert_building_hp_bar_config(tr)
 	_assert_building_hp_preview_damage_state(tr, view)
-	_assert_predicted_cracked_ground_state(tr, view)
+	_assert_hazard_decal_atlas(tr, view)
+	_assert_hazard_visual_profiles(tr, view)
+	_assert_rift_warning_keeps_fallback_glyph(tr, view)
+	_assert_hazard_intent_redraw_rules(tr, view)
+	_assert_environment_decal_variants(tr, view)
+	_assert_void_tile_rendering_rules(tr, view)
+	_assert_predicted_rift_state(tr, view)
 	_assert_predicted_bell_wave_state(tr, view)
 	_assert_abyss_edge_geometry(tr, view)
 	_assert_tile_display_overrides(tr, view)
@@ -72,15 +78,15 @@ static func _assert_floor_map_size(tr) -> void:
 	tr.assert_eq("battle board floor map width matches logical grid", image.get_width(), int(DiamondBoardView.TILE_W * Grid.SIZE))
 	tr.assert_eq("battle board floor map height matches logical grid", image.get_height(), int(DiamondBoardView.TILE_H * Grid.SIZE))
 
-static func _assert_predicted_cracked_ground_state(tr, view: DiamondBoardView) -> void:
-	var cells := [Vector2i(3, 4), Vector2i(4, 4)]
-	view.set_predicted_cracked_ground(cells)
-	tr.assert_eq("predicted cracked ground cells stored", view.get_predicted_cracked_ground(), cells)
-
 static func _assert_predicted_bell_wave_state(tr, view: DiamondBoardView) -> void:
 	var cells := [Vector2i(3, 3), Vector2i(4, 3)]
 	view.set_predicted_bell_wave(cells)
 	tr.assert_eq("predicted bell wave cells stored", view.get_predicted_bell_wave(), cells)
+
+static func _assert_predicted_rift_state(tr, view: DiamondBoardView) -> void:
+	var cells := [Vector2i(3, 1), Vector2i(4, 2)]
+	view.set_predicted_rifts(cells)
+	tr.assert_eq("predicted rift cells stored", view.get_predicted_rifts(), cells)
 
 static func _assert_abyss_edge_geometry(tr, view: DiamondBoardView) -> void:
 	var west_edge: Array = view._diamond_edge_for_direction(Vector2i(0, 3), Vector2i(-1, 0))
@@ -207,6 +213,8 @@ static func _assert_readability_palette(tr) -> void:
 	tr.assert_true("deploy frame uses calm teal, not attack red", DiamondBoardView.COLOR_DEPLOY_FRAME.g > DiamondBoardView.COLOR_DEPLOY_FRAME.r and DiamondBoardView.COLOR_DEPLOY_FRAME.g >= DiamondBoardView.COLOR_DEPLOY_FRAME.b)
 	tr.assert_true("enemy order marker uses non-yellow red/orange threat border", DiamondBoardView.COLOR_ENEMY_ORDER_BORDER.r > DiamondBoardView.COLOR_ENEMY_ORDER_BORDER.g and DiamondBoardView.COLOR_ENEMY_ORDER_BORDER.g > DiamondBoardView.COLOR_ENEMY_ORDER_BORDER.b)
 	tr.assert_true("enemy order marker has dark backing", DiamondBoardView.COLOR_ENEMY_ORDER_BACK.r < 0.10 and DiamondBoardView.COLOR_ENEMY_ORDER_BACK.g < 0.10 and DiamondBoardView.COLOR_ENEMY_ORDER_BACK.b < 0.10)
+	tr.assert_true("ruin cell base reads as a full grid cell", DiamondBoardView.RUIN_CELL_FILL.a > DiamondBoardView.COLOR_GRID_GROUT.a * 6.0 and DiamondBoardView.RUIN_CELL_LIT.a > DiamondBoardView.COLOR_GRID_LINE.a * 8.0)
+	tr.assert_true("ruin cell base avoids a black platform", DiamondBoardView.RUIN_CELL_FILL.a < 0.38 and DiamondBoardView.RUIN_CELL_DARK.a < 0.36)
 
 static func _assert_deploy_overlay_visibility_rules(tr, view: DiamondBoardView) -> void:
 	var state := BattleState.new()
@@ -244,7 +252,13 @@ static func _assert_prop_profiles(tr, view: DiamondBoardView) -> void:
 		var anchor: Vector2 = profile.get("anchor_px", Vector2.ZERO)
 		tr.assert_true("%s profile comes from an authored resource" % id, String(profile.get("profile_resource", "")).ends_with("_profile.tres"))
 		tr.assert_true("%s profile anchor is inside or at crop bottom" % id, anchor.x >= crop.position.x and anchor.x <= crop.position.x + crop.size.x and anchor.y >= crop.position.y and anchor.y <= crop.position.y + crop.size.y)
-		tr.assert_true("%s profile target height is gameplay-scale" % id, float(profile.get("target_height", 0.0)) >= 40.0 and float(profile.get("target_height", 0.0)) <= DiamondBoardView.UNIT_TOKEN_HEIGHT)
+		var target_height := float(profile.get("target_height", 0.0))
+		if id == BattleBoardAssetProfilesScript.ID_BUILDING_BODY:
+			tr.assert_true("%s profile target height is ITB-style compact objective scale" % id, target_height >= DiamondBoardView.UNIT_TOKEN_HEIGHT * 0.55 and target_height <= DiamondBoardView.UNIT_TOKEN_HEIGHT * 0.70)
+		elif id == BattleBoardAssetProfilesScript.ID_RUIN_BODY:
+			tr.assert_true("%s profile target height is low rubble scale" % id, target_height >= 32.0 and target_height <= DiamondBoardView.UNIT_TOKEN_HEIGHT * 0.45)
+		else:
+			tr.assert_true("%s profile target height is gameplay-scale" % id, target_height >= 40.0 and target_height <= DiamondBoardView.UNIT_TOKEN_HEIGHT)
 		tr.assert_true("%s profile crop renders full body alpha" % id, crop.is_equal_approx(alpha_bbox))
 		tr.assert_true("%s source is body-only, not a baked full tile" % id, alpha_bbox.size.x < 1024.0 * 0.84)
 		tr.assert_true("%s source keeps horizontal transparent padding" % id, alpha_bbox.position.x >= 64.0 and alpha_bbox.position.x + alpha_bbox.size.x <= 1024.0 - 64.0)
@@ -252,13 +266,19 @@ static func _assert_prop_profiles(tr, view: DiamondBoardView) -> void:
 		tr.assert_true("%s profile exposes foundation footprint" % id, profile.get("foundation_scale", Vector2.ZERO).x > 0.0 and profile.get("foundation_scale", Vector2.ZERO).y > 0.0)
 		tr.assert_true("%s profile darkens floor contact" % id, float(profile.get("floor_occlusion_strength", 0.0)) > 0.0)
 		tr.assert_true("%s profile has contact shadow" % id, float(profile.get("contact_shadow_strength", 0.0)) > 0.0)
+		var expected_min_width := 56.0
+		if id == BattleBoardAssetProfilesScript.ID_PILLAR_BODY:
+			expected_min_width = 74.0
+		elif id == BattleBoardAssetProfilesScript.ID_RUIN_BODY:
+			expected_min_width = 96.0
+		tr.assert_true("%s profile draws as a one-cell prop, not a tiny object" % id, float(profile.get("min_draw_width", 0.0)) >= expected_min_width)
 		tr.assert_true("%s profile does not rely on legacy crop trim" % id, not profile.has("crop_bottom_trim"))
 	var building: Dictionary = BattleBoardAssetProfilesScript.prop_profile_for_tile(Grid.TileType.BUILDING, profiles)
 	var building_crop: Rect2 = building.get("crop", Rect2())
 	var building_anchor: Vector2 = building.get("anchor_px", Vector2.ZERO)
 	var building_offset: Vector2 = building.get("foot_offset", Vector2.ZERO)
 	tr.assert_true("building profile anchors near bottom of crop", building_anchor.y >= building_crop.position.y + building_crop.size.y - 1.0)
-	tr.assert_true("prop foot offset sits on the lower diamond face", building_offset.y >= 6.0 and building_offset.y < DiamondBoardView.TILE_HALF.y)
+	tr.assert_true("prop foot offset sits near the lower diamond edge", building_offset.y >= DiamondBoardView.TILE_HALF.y - 4.0 and building_offset.y < DiamondBoardView.TILE_HALF.y)
 	tr.assert_eq("prop renderer fallback offset matches shared profile offset", DiamondBoardView.PROP_TILE_ANCHOR_OFFSET, BattleBoardAssetProfilesScript.DEFAULT_PROP_FOOT_OFFSET)
 	tr.assert_true("runtime view has profile cache after ready fallback or load", view != null)
 
@@ -270,8 +290,9 @@ static func _assert_prop_draw_rects(tr, view: DiamondBoardView) -> void:
 	var anchor: Vector2 = view.cell_to_pixel(cell) + building_offset
 	var rect: Rect2 = BattleBoardAssetProfilesScript.profile_draw_rect(anchor, building_profile)
 	tr.assert_true("building draw rect bottom aligns to board anchor", is_equal_approx(rect.position.y + rect.size.y, anchor.y))
+	tr.assert_true("building draw rect fills one-cell footprint", rect.size.x >= float(building_profile.get("min_draw_width", 0.0)) - 0.5)
 	tr.assert_true("building draw rect is no wider than profile max", rect.size.x <= float(building_profile.get("max_draw_width", DiamondBoardView.TILE_W)) + 0.5)
-	tr.assert_true("building draw rect is no wider than tile width", rect.size.x <= DiamondBoardView.TILE_W)
+	tr.assert_true("building draw rect stays near tile width", rect.size.x <= DiamondBoardView.TILE_W + 4.0)
 	var atlas_region: Rect2 = building_profile.get("atlas_region", Rect2())
 	tr.assert_true("prop crop is offset inside atlas region", atlas_region.size.x > 0.0 and atlas_region.position.y >= 0.0)
 	var state := BattleState.new()
@@ -282,7 +303,7 @@ static func _assert_prop_draw_rects(tr, view: DiamondBoardView) -> void:
 	var ruin_offset: Vector2 = ruin_profile.get("foot_offset", Vector2.ZERO)
 	var ruin_anchor: Vector2 = view.cell_to_pixel(cell) + ruin_offset
 	var ruin_rect: Rect2 = BattleBoardAssetProfilesScript.profile_draw_rect(ruin_anchor, ruin_profile)
-	tr.assert_true("ruin draw rect remains compact", ruin_rect.size.y < DiamondBoardView.UNIT_TOKEN_HEIGHT * 0.6)
+	tr.assert_true("ruin draw rect stays low but fills one-cell width", ruin_rect.size.y < DiamondBoardView.UNIT_TOKEN_HEIGHT * 0.75 and ruin_rect.size.x >= float(ruin_profile.get("min_draw_width", 0.0)) - 0.5)
 
 static func _assert_entity_draw_order(tr, view: DiamondBoardView) -> void:
 	var a := {"sort_y": 10.0, "cell": Vector2i(4, 4), "sequence": 1}
@@ -317,6 +338,108 @@ static func _assert_building_hp_preview_damage_state(tr, view: DiamondBoardView)
 	tr.assert_eq("building preview damage can be queried", view.get_preview_protected_damage().get(pos, 0), 2)
 	view.clear_preview()
 	tr.assert_true("building preview damage clears with preview", view.get_preview_protected_damage().is_empty())
+
+static func _assert_hazard_decal_atlas(tr, view: DiamondBoardView) -> void:
+	var image := Image.load_from_file(ProjectSettings.globalize_path(DiamondBoardView.HAZARD_DECAL_ATLAS_PATH))
+	tr.assert_true("hazard decal atlas exists", image != null)
+	if image == null:
+		return
+	tr.assert_eq("hazard decal atlas width has three frames", image.get_width(), int(DiamondBoardView.HAZARD_DECAL_FRAME_SIZE.x) * 3)
+	tr.assert_eq("hazard decal atlas height matches tile", image.get_height(), int(DiamondBoardView.HAZARD_DECAL_FRAME_SIZE.y))
+	var expected := {
+		DiamondBoardView.HAZARD_RIFT_WARNING: DiamondBoardView.HAZARD_DECAL_RIFT,
+		BattleEngine.HAZARD_BELL_WAVE: DiamondBoardView.HAZARD_DECAL_BELL,
+		BattleEngine.HAZARD_CHARGE_LANE: DiamondBoardView.HAZARD_DECAL_CHARGE,
+	}
+	for hazard_type in expected.keys():
+		var frame_index := int(expected[hazard_type])
+		tr.assert_eq("%s hazard maps to expected decal frame" % hazard_type, view._hazard_decal_index(hazard_type), frame_index)
+		var region := view._hazard_decal_region(frame_index)
+		tr.assert_eq("%s hazard decal region size" % hazard_type, region.size, DiamondBoardView.HAZARD_DECAL_FRAME_SIZE)
+		tr.assert_true("%s hazard decal frame has visible art" % hazard_type, _region_visible_pixels(image, region) > 80)
+	tr.assert_eq("unknown hazard has no decal frame", view._hazard_decal_index("unknown_hazard"), -1)
+
+static func _assert_hazard_visual_profiles(tr, view: DiamondBoardView) -> void:
+	var hazard_types := [
+		DiamondBoardView.HAZARD_RIFT_WARNING,
+		BattleEngine.HAZARD_BELL_WAVE,
+		BattleEngine.HAZARD_CHARGE_LANE,
+	]
+	for hazard_type in hazard_types:
+		var profile: Dictionary = view._hazard_visual_profile(hazard_type)
+		var fill: Color = profile.get("fill", Color.TRANSPARENT)
+		var frame: Color = profile.get("frame", Color.TRANSPARENT)
+		var max_fill_alpha := 0.32 if hazard_type == DiamondBoardView.HAZARD_RIFT_WARNING else 0.26
+		tr.assert_true("%s hazard profile uses readable terrain fill" % hazard_type, fill.a >= 0.20 and fill.a <= max_fill_alpha)
+		tr.assert_true("%s hazard profile keeps readable frame" % hazard_type, frame.a >= 0.80)
+		tr.assert_true("%s hazard profile pulses with shared schema" % hazard_type, profile.has("base_pulse") and profile.has("pulse_amp") and profile.has("pulse_rate"))
+	tr.assert_true("rift warning keeps warm danger family", DiamondBoardView.COLOR_HAZARD_RIFT_FRAME.r >= DiamondBoardView.COLOR_HAZARD_RIFT_FRAME.g)
+	tr.assert_true("bell wave keeps distinct cool hazard accent", DiamondBoardView.COLOR_HAZARD_BELL_FRAME.b >= DiamondBoardView.COLOR_HAZARD_BELL_FRAME.r)
+
+static func _assert_rift_warning_keeps_fallback_glyph(tr, view: DiamondBoardView) -> void:
+	tr.assert_true("rift warning uses decal frame", view._hazard_decal_index(DiamondBoardView.HAZARD_RIFT_WARNING) >= 0)
+	tr.assert_true("rift warning always overlays core glyph", view._hazard_always_draws_glyph(DiamondBoardView.HAZARD_RIFT_WARNING))
+	tr.assert_true("bell wave relies on decal without duplicate glyph", not view._hazard_always_draws_glyph(BattleEngine.HAZARD_BELL_WAVE))
+	tr.assert_true("charge lane relies on decal without duplicate glyph", not view._hazard_always_draws_glyph(BattleEngine.HAZARD_CHARGE_LANE))
+
+static func _assert_hazard_intent_redraw_rules(tr, view: DiamondBoardView) -> void:
+	view.set_enemy_intents([{
+		"enemy_id": 3,
+		"enemy_pos": Vector2i(2, 1),
+		"attack_pos": Vector2i(2, 3),
+		"status": BattleEngine.INTENT_STATUS_HIT,
+		"hazard_type": BattleEngine.HAZARD_CHARGE_LANE,
+		"hazard_cells": [Vector2i(2, 2), Vector2i(2, 3)],
+	}])
+	tr.assert_true("charge lane hazard intents keep board pulse redraw active", view._has_visible_hazard_intents())
+	view.set_attack_fx_suppresses_intents(true)
+	tr.assert_true("suppressed intents do not keep board pulse redraw active", not view._has_visible_hazard_intents())
+	view.set_attack_fx_suppresses_intents(false)
+	view.set_enemy_intents([{
+		"status": BattleEngine.INTENT_STATUS_REMOVED,
+		"hazard_type": BattleEngine.HAZARD_CHARGE_LANE,
+		"hazard_cells": [Vector2i(2, 2)],
+	}])
+	tr.assert_true("removed hazard intent does not keep board pulse redraw active", not view._has_visible_hazard_intents())
+
+static func _assert_environment_decal_variants(tr, view: DiamondBoardView) -> void:
+	tr.assert_eq("empty tile environment decal pool has six stable variants", DiamondBoardView.EMPTY_TILE_ENV_DECAL_VARIANTS, 6)
+	tr.assert_eq("board edge detail pool has five stable variants", DiamondBoardView.EDGE_DETAIL_VARIANTS, 5)
+	var empty_variants := {}
+	var right_edge_variants := {}
+	var front_edge_variants := {}
+	for y in Grid.SIZE:
+		for x in Grid.SIZE:
+			var cell := Vector2i(x, y)
+			var variant := view._empty_tile_env_decal_variant_for_cell(cell)
+			tr.assert_true("empty tile environment variant is in range", variant >= 0 and variant < DiamondBoardView.EMPTY_TILE_ENV_DECAL_VARIANTS)
+			empty_variants[variant] = true
+			if x == Grid.SIZE - 1:
+				var right_variant := view._edge_detail_variant_for_cell(cell, true)
+				tr.assert_true("right edge detail variant is in range", right_variant >= 0 and right_variant < DiamondBoardView.EDGE_DETAIL_VARIANTS)
+				right_edge_variants[right_variant] = true
+			if y == Grid.SIZE - 1:
+				var front_variant := view._edge_detail_variant_for_cell(cell, false)
+				tr.assert_true("front edge detail variant is in range", front_variant >= 0 and front_variant < DiamondBoardView.EDGE_DETAIL_VARIANTS)
+				front_edge_variants[front_variant] = true
+	tr.assert_true("empty tile environment decals cover several styles", empty_variants.size() >= 4)
+	tr.assert_true("right edge details cover several styles", right_edge_variants.size() >= 3)
+	tr.assert_true("front edge details cover several styles", front_edge_variants.size() >= 3)
+
+static func _assert_void_tile_rendering_rules(tr, view: DiamondBoardView) -> void:
+	tr.assert_eq("void tile has no ordinary floor texture", view._tile_texture(Grid.TileType.VOID, false), null)
+	var pos := Vector2i(3, 3)
+	view.set_tile_display_overrides({pos: {"tile": Grid.TileType.VOID}})
+	tr.assert_eq("void display override exposes void tile", view._display_tile(pos), Grid.TileType.VOID)
+	view.clear_tile_display_overrides()
+
+static func _region_visible_pixels(image: Image, region: Rect2) -> int:
+	var count := 0
+	for y in range(int(region.position.y), int(region.position.y + region.size.y)):
+		for x in range(int(region.position.x), int(region.position.x + region.size.x)):
+			if image.get_pixel(x, y).a > 0.05:
+				count += 1
+	return count
 
 static func _assert_tile_display_overrides(tr, view: DiamondBoardView) -> void:
 	var pos := Vector2i(2, 6)

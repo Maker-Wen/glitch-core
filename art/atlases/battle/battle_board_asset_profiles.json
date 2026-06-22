@@ -8,48 +8,49 @@
 			"source": "res://art/tiles/board_building_body_v2.png",
 			"texture": "res://art/atlases/battle/battle_props.board_building_body.tres",
 			"alpha_bbox": {
-				"x": 223.0,
-				"y": 11.0,
-				"w": 571.0,
-				"h": 994.0
+				"x": 169.0,
+				"y": 100.0,
+				"w": 692.0,
+				"h": 787.0
 			},
 			"crop": {
-				"x": 223.0,
-				"y": 11.0,
-				"w": 571.0,
-				"h": 994.0
+				"x": 169.0,
+				"y": 100.0,
+				"w": 692.0,
+				"h": 787.0
 			},
 			"anchor_px": {
-				"x": 508.5,
-				"y": 1005.0
+				"x": 515.0,
+				"y": 887.0
 			},
-			"target_height": 100.0,
+			"target_height": 66.0,
 			"foot_offset": {
 				"x": 0.0,
-				"y": 10.0
+				"y": 24.0
 			},
 			"hp_offset": {
-				"x": -22.0,
-				"y": -23.0
+				"x": -18.0,
+				"y": -43.0
 			},
-			"footprint_scale": 0.78,
+			"footprint_scale": 1.0,
 			"foundation_scale": {
-				"x": 0.720000028610229,
-				"y": 0.360000014305115
+				"x": 0.680000007152557,
+				"y": 0.439999997615814
 			},
 			"foundation_offset": {
 				"x": 0.0,
-				"y": 1.0
+				"y": -24.0
 			},
-			"floor_occlusion_strength": 0.26,
-			"contact_shadow_strength": 0.56,
+			"floor_occlusion_strength": 0.09,
+			"contact_shadow_strength": 0.16,
 			"sort_bias": 0.0,
-			"max_draw_width": 64.0,
+			"min_draw_width": 56.0,
+			"max_draw_width": 62.0,
 			"tint": {
-				"r": 0.959999978542328,
-				"g": 0.970000028610229,
-				"b": 0.920000016689301,
-				"a": 0.959999978542328
+				"r": 1.0,
+				"g": 1.0,
+				"b": 1.0,
+				"a": 1.0
 			},
 			"issues": [],
 			"atlas_region": {
@@ -66,48 +67,49 @@
 			"source": "res://art/tiles/board_pillar_body_v2.png",
 			"texture": "res://art/atlases/battle/battle_props.board_pillar_body.tres",
 			"alpha_bbox": {
-				"x": 100.0,
-				"y": 188.0,
-				"w": 824.0,
-				"h": 651.0
+				"x": 113.0,
+				"y": 217.0,
+				"w": 798.0,
+				"h": 632.0
 			},
 			"crop": {
-				"x": 100.0,
-				"y": 188.0,
-				"w": 824.0,
-				"h": 651.0
+				"x": 113.0,
+				"y": 217.0,
+				"w": 798.0,
+				"h": 632.0
 			},
 			"anchor_px": {
 				"x": 512.0,
-				"y": 839.0
+				"y": 849.0
 			},
-			"target_height": 54.0,
+			"target_height": 60.0,
 			"foot_offset": {
 				"x": 0.0,
-				"y": 10.0
+				"y": 25.0
 			},
 			"hp_offset": {
-				"x": -22.0,
-				"y": -23.0
+				"x": -20.0,
+				"y": -34.0
 			},
-			"footprint_scale": 0.68,
+			"footprint_scale": 1.0,
 			"foundation_scale": {
-				"x": 0.680000007152557,
-				"y": 0.280000001192093
+				"x": 0.860000014305115,
+				"y": 0.560000002384186
 			},
 			"foundation_offset": {
 				"x": 0.0,
-				"y": 1.0
+				"y": -25.0
 			},
-			"floor_occlusion_strength": 0.18,
+			"floor_occlusion_strength": 0.24,
 			"contact_shadow_strength": 0.38,
 			"sort_bias": -2.0,
-			"max_draw_width": 70.0,
+			"min_draw_width": 74.0,
+			"max_draw_width": 80.0,
 			"tint": {
-				"r": 0.779999971389771,
-				"g": 0.819999992847443,
-				"b": 0.759999990463257,
-				"a": 0.939999997615814
+				"r": 1.0,
+				"g": 1.0,
+				"b": 1.0,
+				"a": 1.0
 			},
 			"issues": [],
 			"atlas_region": {
@@ -124,48 +126,49 @@
 			"source": "res://art/tiles/board_ruin_body_v2.png",
 			"texture": "res://art/atlases/battle/battle_props.board_ruin_body.tres",
 			"alpha_bbox": {
-				"x": 104.0,
-				"y": 142.0,
-				"w": 826.0,
-				"h": 786.0
+				"x": 110.0,
+				"y": 584.0,
+				"w": 804.0,
+				"h": 271.0
 			},
 			"crop": {
-				"x": 104.0,
-				"y": 142.0,
-				"w": 826.0,
-				"h": 786.0
+				"x": 110.0,
+				"y": 584.0,
+				"w": 804.0,
+				"h": 271.0
 			},
 			"anchor_px": {
-				"x": 517.0,
-				"y": 928.0
+				"x": 512.0,
+				"y": 855.0
 			},
-			"target_height": 58.0,
+			"target_height": 39.0,
 			"foot_offset": {
 				"x": 0.0,
-				"y": 10.0
+				"y": 24.0
 			},
 			"hp_offset": {
-				"x": -22.0,
-				"y": -23.0
+				"x": -18.0,
+				"y": -28.0
 			},
-			"footprint_scale": 0.7,
+			"footprint_scale": 1.0,
 			"foundation_scale": {
-				"x": 0.740000009536743,
-				"y": 0.300000011920929
+				"x": 1.17999994754791,
+				"y": 0.860000014305115
 			},
 			"foundation_offset": {
 				"x": 0.0,
-				"y": 1.0
+				"y": -17.0
 			},
-			"floor_occlusion_strength": 0.22,
-			"contact_shadow_strength": 0.42,
+			"floor_occlusion_strength": 0.34,
+			"contact_shadow_strength": 0.26,
 			"sort_bias": -2.0,
-			"max_draw_width": 66.0,
+			"min_draw_width": 104.0,
+			"max_draw_width": 110.0,
 			"tint": {
-				"r": 0.959999978542328,
-				"g": 0.970000028610229,
-				"b": 0.920000016689301,
-				"a": 0.899999976158142
+				"r": 1.0,
+				"g": 1.0,
+				"b": 1.0,
+				"a": 1.0
 			},
 			"issues": [],
 			"atlas_region": {

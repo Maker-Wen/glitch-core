@@ -1,14 +1,10 @@
 extends RefCounted
 ## AIDecider tests for Carrion Spawn (slice scope).
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _add(s: BattleState, faction: int, hp: int, move_v: int, pos: Vector2i) -> Unit:
-	var def := UnitDef.new()
-	def.faction = faction
-	def.max_hp = hp
-	def.move = move_v
-	def.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	def.attack_range = 1
-	def.attack_damage = 1
+	var def := TestUnitDefs.generic_warden({"max_hp": hp, "move": move_v}) if faction == UnitDef.Faction.WARDEN else TestUnitDefs.carrion_spawn({"max_hp": hp, "move": move_v})
 	var u := Unit.new(s.allocate_unit_id(), def, pos)
 	u.hp = hp
 	s.units.append(u)

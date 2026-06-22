@@ -22,5 +22,7 @@ enum AttackKind {
 @export var color: Color = Color.WHITE
 ## Optional static token art for battle board rendering.
 @export var token_texture: Texture2D = null
+## Optional board-space correction for token art with a visually off-center base.
+@export var token_board_offset: Vector2 = Vector2.ZERO
 ## Optional bust/portrait art for HUD cards. Falls back to token_texture.
 @export var ui_portrait: Texture2D = null

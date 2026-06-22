@@ -31,11 +31,17 @@ static func run(tr) -> void:
 	_test_run_state_public_methods_sync_legacy_stats(tr)
 	_test_mark_current_node_visited_is_idempotent(tr)
 	_test_commission_board_refills_after_each_completed_task(tr)
+	_test_boss_replaces_board_after_fifth_commission_from_non_battle_nodes(tr)
+	_test_boss_completion_leaves_no_commissions(tr)
 	_test_guard_loss_from_protected_damage_is_uncapped(tr)
 	_test_run_fails_when_sanctuary_reaches_zero(tr)
 	_test_run_fails_when_all_wardens_are_dead(tr)
 	_test_pending_reward_basic_structure(tr)
+	_test_expedition_map_pools_are_explicit(tr)
 	_test_random_route_is_seeded_and_valid(tr)
+	_test_random_route_map_pool_contracts(tr)
+	_test_map_pool_candidate_filtering_prefers_valid_entries(tr)
+	_test_battle_map_assignment_debug_report(tr)
 
 static func _test_fixed_demo_route_order_and_battle_limits(tr) -> void:
 	var run = RunStateScript.new()
@@ -51,7 +57,7 @@ static func _test_fixed_demo_route_order_and_battle_limits(tr) -> void:
 			var battle: Dictionary = node.get("battle", {})
 			battle_max_rounds.append(int(battle.get("max_rounds", 0)))
 			battle_config_ids.append(String(battle.get("config_id", "")))
-	tr.assert_eq("fixed route node ids", ids, [
+	tr.assert_eq("fixed commission candidate ids", ids, [
 		"outer_wall_01",
 		"extinguished_beacon_02",
 		"quartermaster_cache_02",
@@ -65,7 +71,7 @@ static func _test_fixed_demo_route_order_and_battle_limits(tr) -> void:
 		"last_watch_event_05",
 		"boss_outer_bell_01",
 	])
-	tr.assert_eq("fixed route node types", types, [
+	tr.assert_eq("fixed commission candidate types", types, [
 		RunStateScript.NODE_NORMAL,
 		RunStateScript.NODE_EVENT,
 		RunStateScript.NODE_SHOP,
@@ -94,7 +100,10 @@ static func _test_fixed_demo_route_order_and_battle_limits(tr) -> void:
 	tr.assert_eq("boss camp has options", run.node_by_id("ember_camp_05").get("camp", {}).get("options", []).size(), 2)
 	tr.assert_eq("early shop has options", run.node_by_id("quartermaster_cache_02").get("shop", {}).get("options", []).size(), 3)
 	tr.assert_eq("boss shop has options", run.node_by_id("quartermaster_cache_05").get("shop", {}).get("options", []).size(), 3)
-	tr.assert_eq("initial commission board offers three tasks", _node_ids(run.available_route_nodes()), ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"])
+	tr.assert_eq("initial commission board offers three tasks", _node_ids(run.available_commissions()), ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"])
+	tr.assert_eq("legacy route availability mirrors commission board", _node_ids(run.available_route_nodes()), _node_ids(run.available_commissions()))
+	tr.assert_eq("current commission mirrors legacy next node", run.current_commission().get("node_id", ""), run.next_unvisited_node().get("node_id", ""))
+	tr.assert_eq("commission availability replaces route-node availability", run.is_commission_available("outer_wall_01"), run.is_route_node_available("outer_wall_01"))
 
 static func _test_legacy_warden_snapshot_syncs_to_current_base_stats(tr) -> void:
 	var run = RunStateScript.new()
@@ -126,9 +135,9 @@ static func _test_run_state_public_methods_sync_legacy_stats(tr) -> void:
 	tr.assert_eq("battle resolution syncs legacy bountyhunter max hp", run.wardens[0].hp_max, 3)
 	tr.assert_eq("battle resolution syncs legacy graverobber move", run.wardens[1].move, 3)
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
-	run.claim_pending_reward("upgrade_bountyhunter_vanguard")
-	tr.assert_eq("claim upgrade stacks on synced bountyhunter base hp", run.wardens[0].hp_max, 4)
-	tr.assert_eq("claim upgrade heals from current battle hp", run.wardens[0].hp, 3)
+	run.claim_pending_reward("")
+	tr.assert_eq("fixed reward claim keeps synced bountyhunter max hp", run.wardens[0].hp_max, 3)
+	tr.assert_eq("fixed reward claim keeps current battle hp", run.wardens[0].hp, 2)
 
 static func _test_mark_current_node_visited_is_idempotent(tr) -> void:
 	var run = RunStateScript.new()
@@ -138,11 +147,11 @@ static func _test_mark_current_node_visited_is_idempotent(tr) -> void:
 	run.current_node_id = "outer_wall_01"
 	run.mark_current_node_visited()
 	tr.assert_eq("visited node recorded once", run.visited_nodes, ["outer_wall_01"])
-	tr.assert_eq("route node visited flag set", run.route_nodes[0].get("visited", false), true)
+	tr.assert_eq("commission candidate visited flag set", run.route_nodes[0].get("visited", false), true)
 	tr.assert_eq("chapter node index follows visited count", run.chapter_node_index, 1)
 	tr.assert_eq("current node cleared after visit", run.current_node_id, "")
-	tr.assert_eq("next unvisited advanced after visit", run.next_unvisited_node().get("node_id", ""), "extinguished_beacon_02")
-	tr.assert_eq("commission board refills after first visit", _node_ids(run.available_route_nodes()), ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"])
+	tr.assert_eq("current commission advances after visit", run.current_commission().get("node_id", ""), "extinguished_beacon_02")
+	tr.assert_eq("commission board refills after first visit", _node_ids(run.available_commissions()), ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"])
 	run.current_node_id = "outer_wall_01"
 	run.mark_current_node_visited()
 	tr.assert_eq("duplicate visit does not duplicate id", run.visited_nodes.size(), 1)
@@ -150,20 +159,56 @@ static func _test_mark_current_node_visited_is_idempotent(tr) -> void:
 static func _test_commission_board_refills_after_each_completed_task(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	tr.assert_eq("initial board has three visible commissions", _node_ids(run.available_route_nodes()), ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"])
+	tr.assert_eq("initial board has three visible commissions", _node_ids(run.available_commissions()), ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"])
 	run.current_node_id = "outer_wall_01"
 	run.mark_current_node_visited()
-	tr.assert_eq("first completion replaces one commission", _node_ids(run.available_route_nodes()), ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"])
+	tr.assert_eq("first completion replaces one commission", _node_ids(run.available_commissions()), ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"])
 	run.current_node_id = "extinguished_beacon_02"
 	run.mark_current_node_visited()
-	tr.assert_eq("second completion refills from deeper pool", _node_ids(run.available_route_nodes()), ["quartermaster_cache_02", "crack_courtyard_03", "pillar_graveyard_03"])
+	tr.assert_eq("second completion refills from deeper pool", _node_ids(run.available_commissions()), ["quartermaster_cache_02", "crack_courtyard_03", "pillar_graveyard_03"])
 	run.current_node_id = "quartermaster_cache_02"
 	run.mark_current_node_visited()
 	run.current_node_id = "crack_courtyard_03"
 	run.mark_current_node_visited()
 	run.current_node_id = "pillar_graveyard_03"
 	run.mark_current_node_visited()
-	tr.assert_eq("after five non-boss commissions boss unlocks alone", _node_ids(run.available_route_nodes()), ["boss_outer_bell_01"])
+	tr.assert_eq("after five non-boss commissions boss unlocks alone", _node_ids(run.available_commissions()), ["boss_outer_bell_01"])
+
+	var out_of_order_run = RunStateScript.new()
+	out_of_order_run.setup_new_demo()
+	out_of_order_run.current_node_id = "outer_wall_01"
+	out_of_order_run.mark_current_node_visited()
+	out_of_order_run.current_node_id = "crack_courtyard_03"
+	out_of_order_run.mark_current_node_visited()
+	tr.assert_eq("out-of-order completion keeps three commission cards", _node_ids(out_of_order_run.available_commissions()), ["extinguished_beacon_02", "quartermaster_cache_02", "pillar_graveyard_03"])
+
+static func _test_boss_replaces_board_after_fifth_commission_from_non_battle_nodes(tr) -> void:
+	var event_run = _run_with_four_completed_non_boss_commissions()
+	event_run.current_node_id = "last_watch_event_05"
+	event_run.resolve_event_node("raise_last_barricade")
+	tr.assert_eq("event as fifth commission unlocks boss only", _node_ids(event_run.available_commissions()), ["boss_outer_bell_01"])
+
+	var camp_run = _run_with_four_completed_non_boss_commissions()
+	camp_run.current_node_id = "ember_camp_05"
+	camp_run.resolve_camp_node("heal_squad")
+	tr.assert_eq("camp as fifth commission unlocks boss only", _node_ids(camp_run.available_commissions()), ["boss_outer_bell_01"])
+
+	var shop_run = _run_with_four_completed_non_boss_commissions()
+	shop_run.embers = 10
+	shop_run.current_node_id = "quartermaster_cache_05"
+	shop_run.resolve_shop_node("buy_field_treatment")
+	tr.assert_eq("shop as fifth commission unlocks boss only", _node_ids(shop_run.available_commissions()), ["boss_outer_bell_01"])
+
+static func _test_boss_completion_leaves_no_commissions(tr) -> void:
+	var run = RunStateScript.new()
+	run.setup_new_demo()
+	for node_id in ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03", "pillar_graveyard_03"]:
+		run.current_node_id = node_id
+		run.mark_current_node_visited()
+	tr.assert_eq("boss is only available after unlock", _node_ids(run.available_commissions()), ["boss_outer_bell_01"])
+	run.current_node_id = "boss_outer_bell_01"
+	run.mark_current_node_visited()
+	tr.assert_eq("boss completion leaves board empty", _node_ids(run.available_commissions()), [])
 
 static func _test_guard_loss_from_protected_damage_is_uncapped(tr) -> void:
 	var run = RunStateScript.new()
@@ -207,16 +252,26 @@ static func _test_pending_reward_basic_structure(tr) -> void:
 	tr.assert_eq("pending reward id uses source node", reward.get("reward_id", ""), "outer_wall_01-reward")
 	tr.assert_eq("pending reward source node", reward.get("source_node_id", ""), "outer_wall_01")
 	tr.assert_eq("pending reward source type", reward.get("source_type", ""), "battle")
-	tr.assert_eq("pending reward phase", reward.get("reward_phase", ""), "choice")
+	tr.assert_eq("pending reward phase", reward.get("reward_phase", ""), "fixed")
 	tr.assert_eq("pending reward fixed reward count", reward.get("fixed_rewards", []).size(), 2)
 	tr.assert_eq("pending reward base embers", reward.get("fixed_rewards", [])[0].get("amount", 0), 7)
 	tr.assert_eq("pending reward bonus embers", reward.get("fixed_rewards", [])[1].get("amount", 0), 4)
 	tr.assert_eq("pending reward claim state generated", reward.get("claim_state", {}).get("generated", false), true)
-	tr.assert_eq("pending reward has one choice group", reward.get("choice_groups", []).size(), 1)
-	var group = reward.get("choice_groups", [])[0]
-	tr.assert_eq("pending reward choose count", group.get("choose_count", 0), 1)
-	tr.assert_eq("pending reward can skip", group.get("can_skip", false), true)
-	tr.assert_eq("pending reward skip embers", group.get("skip_reward", {}).get("amount", 0), 3)
+	tr.assert_eq("pending reward has no choice groups", reward.get("choice_groups", []).size(), 0)
+
+
+static func _test_expedition_map_pools_are_explicit(tr) -> void:
+	var run = RunStateScript.new()
+	var broken_normal := run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_BROKEN_WALL, RunStateScript.MAP_POOL_NORMAL)
+	var rift_normal := run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_RIFT_CORRIDOR, RunStateScript.MAP_POOL_NORMAL)
+	var supply_normal := run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_SUPPLY_LINE, RunStateScript.MAP_POOL_NORMAL)
+	tr.assert_true("broken wall normal pool includes rift courtyard", BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD in broken_normal)
+	tr.assert_true("broken wall normal pool includes bridge candidate", BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE in broken_normal)
+	tr.assert_true("rift corridor normal pool includes bridge candidate", BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE in rift_normal)
+	tr.assert_true("supply line normal pool excludes bridge candidate", not (BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE in supply_normal))
+	tr.assert_eq("broken wall start pool is fixed intro", run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_BROKEN_WALL, RunStateScript.MAP_POOL_START), [BattleConfigCatalogScript.CONFIG_OUTER_WALL])
+	tr.assert_eq("broken wall elite pool is fixed elite", run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_BROKEN_WALL, RunStateScript.MAP_POOL_ELITE), [BattleConfigCatalogScript.CONFIG_IRON_GATE])
+	tr.assert_eq("broken wall boss pool is fixed boss", run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_BROKEN_WALL, RunStateScript.MAP_POOL_BOSS), [BattleConfigCatalogScript.CONFIG_OUTER_BELL])
 
 
 static func _test_random_route_is_seeded_and_valid(tr) -> void:
@@ -226,9 +281,9 @@ static func _test_random_route_is_seeded_and_valid(tr) -> void:
 	second.setup_new_random_route(777)
 	tr.assert_eq("random route seed keeps node ids stable", _node_ids(first.route_nodes), _node_ids(second.route_nodes))
 	tr.assert_eq("random route chapter name", first.chapter_name, "断墙外环")
-	tr.assert_eq("random route has thirteen graph nodes", first.route_nodes.size(), 13)
-	tr.assert_eq("random route initial commission board size", first.available_route_nodes().size(), 3)
-	tr.assert_eq("random route starts with normal battle", first.available_route_nodes()[0].get("node_type", ""), RunStateScript.NODE_NORMAL)
+	tr.assert_eq("random route has thirteen commission candidates", first.route_nodes.size(), 13)
+	tr.assert_eq("random route initial commission board size", first.available_commissions().size(), 3)
+	tr.assert_eq("random route starts with normal battle", first.available_commissions()[0].get("node_type", ""), RunStateScript.NODE_NORMAL)
 	tr.assert_eq("random route boss layer availability after path", _complete_first_available_path(first), RunStateScript.NODE_BOSS)
 	var layer_counts := _route_layer_counts(second.route_nodes)
 	tr.assert_eq("random route layer 1 count", layer_counts.get(1, 0), 1)
@@ -242,14 +297,195 @@ static func _test_random_route_is_seeded_and_valid(tr) -> void:
 	for node in second.route_nodes:
 		if not second.is_battle_node(node):
 			continue
+		var battle: Dictionary = node.get("battle", {})
+		var pool_key := String(battle.get("map_pool_key", ""))
+		var allowed_config_ids := second.expedition_map_pool_config_ids(second.expedition_id, pool_key)
+		tr.assert_true("random battle node has map pool key %s" % String(node.get("node_id", "")), not pool_key.is_empty())
+		tr.assert_true("random battle node uses map from pool %s" % String(node.get("node_id", "")), String(battle.get("config_id", "")) in allowed_config_ids)
 		var config := BattleConfigCatalogScript.resolve_battle_config(String(node.get("node_id", "")), node.get("battle", {}))
 		tr.assert_true("random battle node resolves config %s" % String(node.get("node_id", "")), not config.is_empty())
+		tr.assert_eq("random battle map id mirrors catalog %s" % String(node.get("node_id", "")), battle.get("map_id", ""), config.get("map_id", ""))
+		tr.assert_eq("random battle rounds mirror catalog %s" % String(node.get("node_id", "")), int(battle.get("max_rounds", 0)), int(config.get("max_rounds", 0)))
+	var supply = RunStateScript.new()
+	supply.setup_new_random_route(777, RunStateScript.EXPEDITION_SUPPLY_LINE)
+	tr.assert_eq("supply random route chapter name", supply.chapter_name, "废弃军需线")
+	for node in supply.route_nodes:
+		if not supply.is_battle_node(node):
+			continue
+		var battle: Dictionary = node.get("battle", {})
+		var pool_key := String(battle.get("map_pool_key", ""))
+		var allowed_config_ids := supply.expedition_map_pool_config_ids(supply.expedition_id, pool_key)
+		tr.assert_true("supply battle node uses supply map pool %s" % String(node.get("node_id", "")), String(battle.get("config_id", "")) in allowed_config_ids)
+
+static func _test_random_route_map_pool_contracts(tr) -> void:
+	for expedition_id in [
+		RunStateScript.EXPEDITION_BROKEN_WALL,
+		RunStateScript.EXPEDITION_RIFT_CORRIDOR,
+		RunStateScript.EXPEDITION_SUPPLY_LINE,
+	]:
+		for seed in [1, 7, 19]:
+			var run = RunStateScript.new()
+			run.setup_new_random_route(seed, expedition_id)
+			var used_normal_groups := {}
+			var contract_errors: Array[String] = []
+			for node in run.route_nodes:
+				if not run.is_battle_node(node):
+					continue
+				var battle: Dictionary = node.get("battle", {})
+				var node_id := String(node.get("node_id", ""))
+				var pool_key := String(battle.get("map_pool_key", ""))
+				var config_id := String(battle.get("config_id", ""))
+				var layer := int(node.get("layer", 0))
+				var range := _expected_map_layer_range(config_id)
+				if pool_key != _expected_map_pool_key(node):
+					contract_errors.append("%s pool key %s" % [node_id, pool_key])
+				if layer < range.x or layer > range.y:
+					contract_errors.append("%s layer %d outside %s-%s" % [node_id, layer, range.x, range.y])
+				if int(battle.get("map_pressure_cost", 99)) > _map_pressure_budget(pool_key):
+					contract_errors.append("%s pressure %d" % [node_id, int(battle.get("map_pressure_cost", 99))])
+				if String(battle.get("map_archetype", "")).is_empty():
+					contract_errors.append("%s missing archetype" % node_id)
+				if String(battle.get("map_enemy_family_hint", "")).is_empty():
+					contract_errors.append("%s missing enemy hint" % node_id)
+				if int(battle.get("map_pressure_cost", -1)) != node.get("pressure_tags", []).size():
+					contract_errors.append("%s pressure does not mirror tags" % node_id)
+				if pool_key != RunStateScript.MAP_POOL_NORMAL:
+					continue
+				var repeat_group := String(battle.get("map_no_repeat_group", ""))
+				if used_normal_groups.has(repeat_group):
+					if String(battle.get("map_assignment_relaxed", "")).is_empty():
+						contract_errors.append("%s repeat not marked relaxed" % node_id)
+				elif not String(battle.get("map_assignment_relaxed", "")).is_empty():
+					contract_errors.append("%s first repeat group use is relaxed" % node_id)
+				used_normal_groups[repeat_group] = true
+			tr.assert_true("random route map pool contracts %s seed %d: %s" % [expedition_id, seed, ", ".join(contract_errors)], contract_errors.is_empty())
+
+static func _test_map_pool_candidate_filtering_prefers_valid_entries(tr) -> void:
+	var run = RunStateScript.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 42
+	var node := {"node_type": RunStateScript.NODE_NORMAL, "layer": 3}
+	var used_repeat_groups := {"used": true}
+	var candidates := [
+		{
+			"config_id": BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+			"weight": 100,
+			"allowed_node_types": [RunStateScript.NODE_NORMAL],
+			"min_layer": 3,
+			"max_layer": 3,
+			"pressure_cost": 3,
+			"no_repeat_group": "used",
+		},
+		{
+			"config_id": BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+			"weight": 1,
+			"allowed_node_types": [RunStateScript.NODE_NORMAL],
+			"min_layer": 3,
+			"max_layer": 3,
+			"pressure_cost": 3,
+			"no_repeat_group": "fresh",
+		},
+	]
+	var strict_pick: Dictionary = run._pick_map_pool_entry_for_node(candidates, node, RunStateScript.MAP_POOL_NORMAL, {"pressure_budget": {RunStateScript.MAP_POOL_NORMAL: 3}}, used_repeat_groups, rng)
+	tr.assert_eq("map pool prefers unused repeat group", strict_pick.get("config_id", ""), BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD)
+	tr.assert_eq("unused repeat group pick is strict", strict_pick.get("map_assignment_relaxed", ""), "")
+	used_repeat_groups["fresh"] = true
+	var repeat_pick: Dictionary = run._pick_map_pool_entry_for_node(candidates, node, RunStateScript.MAP_POOL_NORMAL, {"pressure_budget": {RunStateScript.MAP_POOL_NORMAL: 3}}, used_repeat_groups, rng)
+	tr.assert_eq("exhausted repeat groups relax repeat only", repeat_pick.get("map_assignment_relaxed", ""), "repeat")
+	var pressure_pick: Dictionary = run._pick_map_pool_entry_for_node([
+		{
+			"config_id": BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+			"weight": 1,
+			"allowed_node_types": [RunStateScript.NODE_NORMAL],
+			"min_layer": 3,
+			"max_layer": 3,
+			"pressure_cost": 4,
+			"no_repeat_group": "over_budget",
+		},
+	], node, RunStateScript.MAP_POOL_NORMAL, {"pressure_budget": {RunStateScript.MAP_POOL_NORMAL: 3}}, {}, rng)
+	tr.assert_eq("over-budget fallback is marked", pressure_pick.get("map_assignment_relaxed", ""), "pressure")
+
+static func _test_battle_map_assignment_debug_report(tr) -> void:
+	var run = RunStateScript.new()
+	run.setup_new_random_route(7, RunStateScript.EXPEDITION_RIFT_CORRIDOR)
+	var rows := run.battle_map_assignment_debug_rows()
+	tr.assert_true("debug report has battle map rows", rows.size() > 0)
+	tr.assert_eq("debug report row count mirrors battle nodes", rows.size(), _battle_node_count(run.route_nodes, run))
+	var row_errors: Array[String] = []
+	for row in rows:
+		if int(row.get("run_seed", 0)) != 7:
+			row_errors.append("seed")
+		if String(row.get("expedition_id", "")) != RunStateScript.EXPEDITION_RIFT_CORRIDOR:
+			row_errors.append("expedition")
+		for field in ["node_id", "pool_key", "config_id", "archetype", "repeat_group"]:
+			if String(row.get(field, "")).is_empty():
+				row_errors.append("%s missing %s" % [String(row.get("node_id", "<missing>")), field])
+	tr.assert_true("debug rows carry required fields: %s" % ", ".join(row_errors), row_errors.is_empty())
+	var text := run.battle_map_assignment_debug_text()
+	tr.assert_true("debug text carries seed", text.contains("seed=7"))
+	tr.assert_true("debug text carries expedition", text.contains("expedition=rift_corridor"))
+	tr.assert_true("debug text carries pool", text.contains("pool="))
+	tr.assert_true("debug text carries config", text.contains("config="))
 
 static func _node_ids(nodes: Array[Dictionary]) -> Array[String]:
 	var ids: Array[String] = []
 	for node in nodes:
 		ids.append(String(node.get("node_id", "")))
 	return ids
+
+static func _run_with_four_completed_non_boss_commissions() -> RunStateScript:
+	var run = RunStateScript.new()
+	run.setup_new_demo()
+	for node_id in ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"]:
+		run.current_node_id = node_id
+		run.mark_current_node_visited()
+	return run
+
+static func _battle_node_count(nodes: Array[Dictionary], run: RunStateScript) -> int:
+	var result := 0
+	for node in nodes:
+		if run.is_battle_node(node):
+			result += 1
+	return result
+
+static func _expected_map_pool_key(node: Dictionary) -> String:
+	var node_type := String(node.get("node_type", ""))
+	match node_type:
+		RunStateScript.NODE_BOSS:
+			return RunStateScript.MAP_POOL_BOSS
+		RunStateScript.NODE_ELITE:
+			return RunStateScript.MAP_POOL_ELITE
+	if int(node.get("layer", 0)) <= 1:
+		return RunStateScript.MAP_POOL_START
+	return RunStateScript.MAP_POOL_NORMAL
+
+static func _expected_map_layer_range(config_id: String) -> Vector2i:
+	match config_id:
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL:
+			return Vector2i(1, 1)
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD:
+			return Vector2i(2, 4)
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD:
+			return Vector2i(3, 4)
+		BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE:
+			return Vector2i(3, 4)
+		BattleConfigCatalogScript.CONFIG_IRON_GATE:
+			return Vector2i(4, 4)
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL:
+			return Vector2i(6, 6)
+	return Vector2i(1, 99)
+
+static func _map_pressure_budget(pool_key: String) -> int:
+	match pool_key:
+		RunStateScript.MAP_POOL_START:
+			return 2
+		RunStateScript.MAP_POOL_NORMAL:
+			return 3
+		RunStateScript.MAP_POOL_ELITE:
+			return 3
+		RunStateScript.MAP_POOL_BOSS:
+			return 3
+	return 99
 
 static func _route_layer_counts(nodes: Array[Dictionary]) -> Dictionary:
 	var result := {}

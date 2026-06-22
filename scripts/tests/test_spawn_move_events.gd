@@ -2,30 +2,13 @@ extends RefCounted
 ## Trace event ordering when a rift spawns + immediately moves.
 ## Verifies the events that the view layer receives.
 
+const TestUnitDefs := preload("res://scripts/tests/test_unit_defs.gd")
+
 static func _make_carrion() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"carrion"
-	d.display_name = "腐食兽"
-	d.faction = UnitDef.Faction.ENEMY
-	d.max_hp = 2
-	d.move = 3
-	d.attack_kind = UnitDef.AttackKind.MELEE_BUMP
-	d.attack_damage = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.carrion_spawn()
 
 static func _make_bh() -> UnitDef:
-	var d := UnitDef.new()
-	d.def_id = &"bh"
-	d.display_name = "BH"
-	d.faction = UnitDef.Faction.WARDEN
-	d.max_hp = 2
-	d.move = 2
-	d.attack_kind = UnitDef.AttackKind.MELEE_PUSH
-	d.attack_damage = 1
-	d.attack_force = 1
-	d.attack_range = 1
-	return d
+	return TestUnitDefs.bountyhunter()
 
 static func run(tr) -> void:
 	_test_spawn_then_move_events_in_one_batch(tr)

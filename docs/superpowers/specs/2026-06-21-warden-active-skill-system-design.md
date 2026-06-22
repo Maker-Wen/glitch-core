@@ -134,7 +134,7 @@ static func primary_skill_id_for_warden(def_id: StringName) -> StringName
 
 | 技能 ID | 名称 | 目标 | 效果 | 限制 |
 |---|---|---|---|---|
-| `mage_repulsion_bolt` | 斥力弹 | 直线 3 格第一个敌人 / Boss 锚石 / 暴露心脏钟 | 1 伤，向远离自己方向推 1；攻击 Boss 部件时只造成 1 伤 | 不限次数 |
+| `mage_repulsion_bolt` | 斥力弹 | 直线无距离上限的第一个敌人 / Boss 锚石 / 暴露心脏钟 | 1 伤，向远离自己方向推 1；攻击 Boss 部件时只造成 1 伤 | 不限次数 |
 | `mage_ward_fire` | 护火 | 2 格内保护建筑 | 若受损，恢复 1 HP，不超过初始 HP；若满血，给 1 次临时护盾 | 不限次数 |
 | `mage_sigil` | 法阵 | 3 格内空地 | 放置持续 2 回合的法阵；敌人规划移动时触碰法阵，本次移动 -1 | 每场 2 次 |
 
@@ -345,4 +345,3 @@ static func primary_skill_id_for_warden(def_id: StringName) -> StringName
 8. 改 UI 技能栏、armed 模式和预览。
 9. 补单元、集成和 UI 测试。
 10. 跑 Godot 测试和关键战斗冒烟验证。
-

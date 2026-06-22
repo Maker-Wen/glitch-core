@@ -14,12 +14,15 @@ var _scene: Node = null
 var _board: DiamondBoardView = null
 var _sfx = null
 
-func bind(scene: Node, board: DiamondBoardView) -> void:
+func bind(scene: Node, board: DiamondBoardView, audio = null) -> void:
 	_scene = scene
 	_board = board
 	if _sfx == null:
 		_sfx = BattleSfxPresenterScript.new()
-	_sfx.bind(scene)
+	if audio != null:
+		_sfx.bind_audio(audio)
+	else:
+		_sfx.bind(scene)
 
 func play_attack(request: Dictionary) -> void:
 	if _board == null:

@@ -50,6 +50,7 @@ const CONFIGS := {
 		"rift_strength": 0,
 		"pressure_tags": ["基础防守", "远程线压"],
 		"terrain_roles": [
+			{"role": "hazard_preview", "hazard_type": "void_gap", "cells": [Vector2i(0, 3), Vector2i(7, 4)]},
 			{"role": "attack_lane", "cells": [Vector2i(1, 0), Vector2i(1, 1), Vector2i(1, 2), Vector2i(1, 3), Vector2i(6, 0), Vector2i(6, 1), Vector2i(6, 2), Vector2i(6, 3)]},
 			{"role": "protect_ring", "cells": [Vector2i(1, 2), Vector2i(2, 2), Vector2i(3, 2), Vector2i(1, 3), Vector2i(2, 3), Vector2i(3, 3), Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4)]},
 			{"role": "choke", "cells": [Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1), Vector2i(5, 1)]},
@@ -85,6 +86,7 @@ const CONFIGS := {
 			{"id": "s_wall_r", "pos": Vector2i(5, 1)},
 		],
 		"rifts": [],
+		"void_cells": [Vector2i(0, 3), Vector2i(7, 4)],
 		"initial_enemies": [
 			{"id": "e_rot_left", "enemy_id": "rot_beast", "pos": Vector2i(1, 0)},
 			{"id": "e_rot_right", "enemy_id": "rot_beast", "pos": Vector2i(6, 0)},
@@ -108,6 +110,7 @@ const CONFIGS := {
 		"rift_strength": 1,
 		"pressure_tags": ["基础防守", "裂隙压力", "远程线压"],
 		"terrain_roles": [
+			{"role": "hazard_preview", "hazard_type": "void_gap", "cells": [Vector2i(0, 3), Vector2i(3, 5), Vector2i(4, 5), Vector2i(7, 3)]},
 			{"role": "rift_influence", "cells": [Vector2i(3, 0), Vector2i(3, 1), Vector2i(4, 0), Vector2i(4, 1), Vector2i(3, 2), Vector2i(4, 2), Vector2i(3, 3), Vector2i(4, 3)]},
 			{"role": "protect_ring", "cells": [Vector2i(1, 2), Vector2i(2, 2), Vector2i(1, 3), Vector2i(2, 3), Vector2i(5, 2), Vector2i(6, 2), Vector2i(5, 3), Vector2i(6, 3)]},
 			{"role": "attack_lane", "cells": [Vector2i(2, 0), Vector2i(2, 1), Vector2i(6, 0), Vector2i(7, 0), Vector2i(0, 6), Vector2i(1, 6), Vector2i(6, 6), Vector2i(7, 6)]},
@@ -120,7 +123,6 @@ const CONFIGS := {
 				{"id": "lower_rift_pressure", "weight": 1, "rift_ids": ["r_lower"], "roles": ["rift_influence", "hazard_preview"]},
 			],
 			"hazard_cluster": [
-				{"id": "cracked_midline_candidate", "weight": 1, "cells": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(3, 3), Vector2i(4, 3)], "hazard_type": "cracked_ground", "stage": "preview_only"},
 			],
 			"flank_cluster": [
 				{"id": "split_bank_flanks", "weight": 1, "cells": [Vector2i(0, 6), Vector2i(7, 4), Vector2i(7, 6)], "roles": ["attack_lane"]},
@@ -158,6 +160,7 @@ const CONFIGS := {
 			{"id": "r_mid", "pos": Vector2i(3, 1)},
 			{"id": "r_lower", "pos": Vector2i(3, 3)},
 		],
+		"void_cells": [Vector2i(0, 3), Vector2i(3, 5), Vector2i(4, 5), Vector2i(7, 3)],
 		"initial_enemies": [
 			{"id": "e_rot_top", "enemy_id": "rot_beast", "pos": Vector2i(2, 0)},
 			{"id": "e_archer_low", "enemy_id": "plague_archer", "pos": Vector2i(7, 6)},
@@ -171,10 +174,6 @@ const CONFIGS := {
 			{"round": 3, "rift_id": "r_lower", "enemy_id": "bone_grub"},
 			{"round": 4, "rift_id": "r_top", "enemy_id": "rot_beast"},
 		],
-		"cracked_ground_schedule": [
-			{"round": 2, "cells": [Vector2i(4, 3), Vector2i(3, 4)]},
-			{"round": 3, "cells": [Vector2i(4, 4), Vector2i(5, 4)]},
-		],
 		"reward_tasks": ["rift_suppression", "low_loss_line", "terminal_clear"],
 		"runtime_reward_tasks": ["rift_suppression", "low_loss_line", "terminal_clear"],
 	},
@@ -187,6 +186,7 @@ const CONFIGS := {
 		"rift_strength": 1,
 		"pressure_tags": ["精英冲撞", "堵路拥挤", "裂隙压力"],
 		"terrain_roles": [
+			{"role": "hazard_preview", "hazard_type": "void_gap", "cells": [Vector2i(0, 5), Vector2i(7, 7)]},
 			{"role": "attack_lane", "cells": [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(2, 1), Vector2i(2, 2), Vector2i(2, 3), Vector2i(7, 6)]},
 			{"role": "hazard_preview", "hazard_type": "charge_lane", "cells": [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(2, 1), Vector2i(2, 2), Vector2i(2, 3)]},
 			{"role": "choke", "cells": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4), Vector2i(4, 4), Vector2i(4, 5)]},
@@ -238,6 +238,7 @@ const CONFIGS := {
 			{"id": "r_left", "pos": Vector2i(0, 3)},
 			{"id": "r_right", "pos": Vector2i(7, 3)},
 		],
+		"void_cells": [Vector2i(0, 5), Vector2i(7, 7)],
 		"initial_enemies": [
 			{"id": "e_ironhorn_left", "enemy_id": "ironhorn", "pos": Vector2i(0, 0)},
 			{"id": "e_rot_left", "enemy_id": "rot_beast", "pos": Vector2i(1, 0)},
@@ -263,6 +264,7 @@ const CONFIGS := {
 		"rift_strength": 2,
 		"pressure_tags": ["Boss 脚本", "裂隙压力", "远程线压"],
 		"terrain_roles": [
+			{"role": "hazard_preview", "hazard_type": "void_gap", "cells": [Vector2i(0, 4), Vector2i(1, 6), Vector2i(6, 6), Vector2i(7, 4)]},
 			{"role": "boss_window", "cells": [Vector2i(1, 3), Vector2i(2, 3), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(6, 3)]},
 			{"role": "attack_lane", "cells": [Vector2i(0, 2), Vector2i(0, 3), Vector2i(0, 4), Vector2i(7, 2), Vector2i(7, 3), Vector2i(7, 4), Vector2i(3, 0), Vector2i(3, 1)]},
 			{"role": "protect_ring", "cells": [Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4), Vector2i(5, 4), Vector2i(3, 5), Vector2i(4, 5)]},
@@ -315,6 +317,7 @@ const CONFIGS := {
 			{"id": "r_right", "pos": Vector2i(7, 2)},
 			{"id": "r_top", "pos": Vector2i(3, 0)},
 		],
+		"void_cells": [Vector2i(0, 4), Vector2i(1, 6), Vector2i(6, 6), Vector2i(7, 4)],
 		"initial_enemies": [
 			{"id": "e_rot_l", "enemy_id": "rot_beast", "pos": Vector2i(0, 3)},
 			{"id": "e_rot_r", "enemy_id": "rot_beast", "pos": Vector2i(7, 3)},
@@ -344,6 +347,7 @@ const CONFIGS := {
 		"pressure_tags": ["堵路拥挤", "裂隙压力", "推撞连锁"],
 		"preview_flags": ["路线地图", "石柱密集", "连锁推撞"],
 		"terrain_roles": [
+			{"role": "hazard_preview", "hazard_type": "void_gap", "cells": [Vector2i(3, 2), Vector2i(4, 2)]},
 			{"role": "attack_lane", "cells": [Vector2i(1, 0), Vector2i(2, 0), Vector2i(5, 0), Vector2i(6, 0), Vector2i(0, 3), Vector2i(7, 3), Vector2i(6, 6)]},
 			{"role": "choke", "cells": [Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1), Vector2i(5, 1), Vector2i(3, 3), Vector2i(4, 3)]},
 			{"role": "push_pocket", "cells": [Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2), Vector2i(1, 3), Vector2i(6, 3), Vector2i(3, 4), Vector2i(4, 4)]},
@@ -391,6 +395,7 @@ const CONFIGS := {
 			{"id": "r_left", "pos": Vector2i(0, 3)},
 			{"id": "r_right", "pos": Vector2i(7, 3)},
 		],
+		"void_cells": [Vector2i(3, 2), Vector2i(4, 2)],
 		"initial_enemies": [
 			{"id": "e_rot_top_l", "enemy_id": "rot_beast", "pos": Vector2i(1, 0)},
 			{"id": "e_rot_top_r", "enemy_id": "rot_beast", "pos": Vector2i(6, 0)},
@@ -518,21 +523,21 @@ static func resolve_battle_config(node_id: String, battle_ref: Dictionary) -> Di
 
 static func build_runtime_config(config: Dictionary) -> Dictionary:
 	var grid_data := build_grid(config)
-	var rift_data := build_rifts(config)
+	var grid: Grid = grid_data.get("grid")
+	var rift_data := build_rifts(config, grid)
 	return {
-		"grid": grid_data.get("grid"),
+		"grid": grid,
 		"protected_targets": grid_data.get("protected_targets", []),
-		"initial_enemies": build_initial_enemies(config),
-		"deploy_zone": build_deploy_zone(config),
+		"initial_enemies": build_initial_enemies(config, grid),
+		"deploy_zone": build_deploy_zone(config, grid),
 		"rift_positions": rift_data.get("positions", []),
 		"rift_schedule": rift_data.get("schedule", []),
-		"cracked_ground_schedule": build_cracked_ground_schedule(config, grid_data.get("grid")),
-		"bell_wave_schedule": build_bell_wave_schedule(config, grid_data.get("grid")),
+			"bell_wave_schedule": build_bell_wave_schedule(config, grid),
 		"abyss_edges": build_abyss_edges(config),
-		"scripted_spawn_schedule": build_scripted_spawns(config),
+		"scripted_spawn_schedule": build_scripted_spawns(config, grid),
 		"terrain_roles": build_terrain_roles(config),
 		"element_pools": build_element_pools(config),
-		"spawn_pools": build_spawn_pools(config),
+		"spawn_pools": build_spawn_pools(config, grid),
 		"max_rounds": int(config.get("max_rounds", 5)),
 		"reward_tasks": runtime_reward_tasks(config),
 	}
@@ -540,35 +545,51 @@ static func build_runtime_config(config: Dictionary) -> Dictionary:
 static func build_grid(config: Dictionary) -> Dictionary:
 	var grid := Grid.new()
 	var protected_targets: Array[Vector2i] = []
+	for cell in _cells(config.get("void_cells", [])):
+		grid.set_tile(cell, Grid.TileType.VOID)
 	for pillar in config.get("pillars", []):
-		grid.set_tile(_entry_pos(pillar), Grid.TileType.PILLAR)
+		var pos := _entry_pos(pillar)
+		if _is_runtime_cell_blocked_by_void(grid, pos):
+			continue
+		grid.set_tile(pos, Grid.TileType.PILLAR)
 	for target in config.get("protected_targets", []):
 		var pos := _entry_pos(target)
+		if _is_runtime_cell_blocked_by_void(grid, pos):
+			continue
 		grid.set_tile(pos, Grid.TileType.BUILDING, int(target.get("hp", Grid.DEFAULT_BUILDING_HP)))
 		protected_targets.append(pos)
 	for rift in config.get("rifts", []):
-		grid.set_tile(_entry_pos(rift), Grid.TileType.RIFT)
+		var pos := _entry_pos(rift)
+		if _is_runtime_cell_blocked_by_void(grid, pos):
+			continue
+		grid.set_tile(pos, Grid.TileType.RIFT)
 	return {"grid": grid, "protected_targets": protected_targets}
 
-static func build_initial_enemies(config: Dictionary) -> Array:
+static func build_initial_enemies(config: Dictionary, grid: Grid = null) -> Array:
 	var result: Array = []
 	for enemy in config.get("initial_enemies", []):
 		var enemy_id := String(enemy.get("enemy_id", ""))
 		var def := _enemy_def_for(enemy_id)
 		if def == null:
 			continue
+		var pos := _entry_pos(enemy)
+		if _is_runtime_cell_blocked_by_void(grid, pos):
+			continue
 		result.append({
 			"def": def,
-			"pos": _entry_pos(enemy),
+			"pos": pos,
 			"enemy_id": enemy_id,
 			"config_enemy_id": String(enemy.get("id", "")),
 		})
 	return result
 
-static func build_rifts(config: Dictionary) -> Dictionary:
+static func build_rifts(config: Dictionary, grid: Grid = null) -> Dictionary:
 	var positions: Array[Vector2i] = []
 	for rift in config.get("rifts", []):
-		positions.append(_entry_pos(rift))
+		var rift_pos := _entry_pos(rift)
+		if _is_runtime_cell_blocked_by_void(grid, rift_pos):
+			continue
+		positions.append(rift_pos)
 	var schedule: Array = []
 	for entry in config.get("rift_schedule", []):
 		var enemy_id := String(entry.get("enemy_id", ""))
@@ -578,7 +599,7 @@ static func build_rifts(config: Dictionary) -> Dictionary:
 		var pos := _entry_pos(entry)
 		if pos == Vector2i(-1, -1):
 			pos = _rift_pos_for_id(config, String(entry.get("rift_id", "")))
-		if pos == Vector2i(-1, -1):
+		if pos == Vector2i(-1, -1) or _is_runtime_cell_blocked_by_void(grid, pos):
 			continue
 		schedule.append({
 			"round": int(entry.get("round", 0)),
@@ -589,7 +610,7 @@ static func build_rifts(config: Dictionary) -> Dictionary:
 		})
 	return {"positions": positions, "schedule": schedule}
 
-static func build_scripted_spawns(config: Dictionary) -> Array:
+static func build_scripted_spawns(config: Dictionary, grid: Grid = null) -> Array:
 	var schedule: Array = []
 	for entry in config.get("scripted_spawns", []):
 		var enemy_id := String(entry.get("enemy_id", ""))
@@ -597,7 +618,7 @@ static func build_scripted_spawns(config: Dictionary) -> Array:
 		if def == null:
 			continue
 		var pos := _entry_pos(entry)
-		if pos == Vector2i(-1, -1):
+		if pos == Vector2i(-1, -1) or _is_runtime_cell_blocked_by_void(grid, pos):
 			continue
 		schedule.append({
 			"round": int(entry.get("round", 0)),
@@ -608,9 +629,6 @@ static func build_scripted_spawns(config: Dictionary) -> Array:
 			"config_spawn_id": String(entry.get("id", "")),
 		})
 	return schedule
-
-static func build_cracked_ground_schedule(config: Dictionary, grid: Grid = null) -> Array:
-	return _build_unit_hazard_schedule(config, "cracked_ground_schedule", BattleEngine.HAZARD_CRACKED_GROUND, grid)
 
 static func build_bell_wave_schedule(config: Dictionary, grid: Grid = null) -> Array:
 	return _build_unit_hazard_schedule(config, "bell_wave_schedule", BattleEngine.HAZARD_BELL_WAVE, grid)
@@ -657,15 +675,22 @@ static func build_abyss_edges(config: Dictionary) -> Dictionary:
 			result[cell] = dirs
 	return result
 
-static func build_deploy_zone(config: Dictionary = {}) -> Array[Vector2i]:
+static func build_deploy_zone(config: Dictionary = {}, grid: Grid = null) -> Array[Vector2i]:
 	var deploy_zone: Array[Vector2i] = []
+	var has_configured_deploy_zone := config.has("deploy_zone")
 	for cell in config.get("deploy_zone", []):
-		deploy_zone.append(_cell(cell))
-	if not deploy_zone.is_empty():
+		var pos := _cell(cell)
+		if _is_runtime_cell_blocked_by_void(grid, pos):
+			continue
+		deploy_zone.append(pos)
+	if has_configured_deploy_zone:
 		return deploy_zone
 	for y in [6, 7]:
 		for x in range(Grid.SIZE):
-			deploy_zone.append(Vector2i(x, y))
+			var pos := Vector2i(x, y)
+			if _is_runtime_cell_blocked_by_void(grid, pos):
+				continue
+			deploy_zone.append(pos)
 	return deploy_zone
 
 static func build_terrain_roles(config: Dictionary) -> Array:
@@ -695,13 +720,13 @@ static func build_element_pools(config: Dictionary) -> Dictionary:
 			result[String(pool_id)] = entries
 	return result
 
-static func build_spawn_pools(config: Dictionary) -> Dictionary:
+static func build_spawn_pools(config: Dictionary, grid: Grid = null) -> Dictionary:
 	var result := {}
 	var pools: Dictionary = config.get("spawn_pools", {})
 	for pool_id in pools.keys():
 		var entry: Dictionary = pools.get(pool_id, {})
-		var cells := _cells(entry.get("cells", []))
-		var rift_ids := _strings_from_array(entry.get("rift_ids", []))
+		var cells := _runtime_available_cells(_cells(entry.get("cells", [])), grid)
+		var rift_ids := _runtime_available_rift_ids(config, _strings_from_array(entry.get("rift_ids", [])), grid)
 		if cells.is_empty() and rift_ids.is_empty():
 			continue
 		result[String(pool_id)] = {
@@ -752,6 +777,30 @@ static func _cells(values) -> Array[Vector2i]:
 		if _cell_in_bounds(cell):
 			result.append(cell)
 	return result
+
+static func _runtime_available_cells(cells: Array[Vector2i], grid: Grid = null) -> Array[Vector2i]:
+	if grid == null:
+		return cells
+	var result: Array[Vector2i] = []
+	for cell in cells:
+		if _is_runtime_cell_blocked_by_void(grid, cell):
+			continue
+		result.append(cell)
+	return result
+
+static func _runtime_available_rift_ids(config: Dictionary, rift_ids: Array[String], grid: Grid = null) -> Array[String]:
+	if grid == null:
+		return rift_ids
+	var result: Array[String] = []
+	for rift_id in rift_ids:
+		var pos := _rift_pos_for_id(config, rift_id)
+		if _is_runtime_cell_blocked_by_void(grid, pos):
+			continue
+		result.append(rift_id)
+	return result
+
+static func _is_runtime_cell_blocked_by_void(grid: Grid, cell: Vector2i) -> bool:
+	return grid != null and grid.in_bounds(cell) and grid.get_tile(cell) == Grid.TileType.VOID
 
 static func _cell_in_bounds(cell: Vector2i) -> bool:
 	return cell.x >= 0 and cell.x < Grid.SIZE and cell.y >= 0 and cell.y < Grid.SIZE
