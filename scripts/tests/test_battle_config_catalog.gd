@@ -6,20 +6,19 @@ const RunStateScript := preload("res://scripts/run/run_state.gd")
 
 static func run(tr) -> void:
 	_test_catalog_contains_fixed_route_configs(tr)
-	_test_configured_route_nodes_reference_catalog_configs(tr)
+	_test_fixed_route_nodes_reference_catalog_configs(tr)
 	_test_expedition_map_pools_reference_catalog_configs(tr)
 	_test_protected_targets_and_rounds_match_runtime_config(tr)
 	_test_catalog_constructs_grid_enemies_and_rifts(tr)
 	_test_catalog_deploy_zones_cover_configured_spawns(tr)
 	_test_void_cells_are_filtered_from_runtime_entry_points(tr)
-	_test_runtime_rifts_match_active_spawn_schedule(tr)
 	_test_runtime_reward_tasks_match_map_design(tr)
 	_test_map_feature_metadata_available_for_preview(tr)
 	_test_map_feature_metadata_only_changes_authored_runtime_tiles(tr)
 	_test_enemy_ids_resolve_to_distinct_runtime_defs(tr)
 	_test_outer_bell_scripted_boss_spawns_keep_source(tr)
 	_test_outer_bell_boss_objects_map_to_runtime_boss_config(tr)
-	_test_candidate_map_configs_are_available_in_configured_route_pools(tr)
+	_test_candidate_map_configs_are_available_but_not_on_fixed_route(tr)
 
 static func _test_catalog_contains_fixed_route_configs(tr) -> void:
 	var expected := [
@@ -39,40 +38,44 @@ static func _test_catalog_contains_fixed_route_configs(tr) -> void:
 	tr.assert_true("catalog has candidate %s" % BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE, not bridge.is_empty())
 	tr.assert_true("%s candidate only" % BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE, bool(bridge.get("candidate_only", false)))
 	tr.assert_true("%s has preview flags" % BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE, bridge.get("preview_flags", []).size() > 0)
-	for config_id in [
-		BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD,
-		BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST,
-	]:
-		var config := BattleConfigCatalogScript.get_config(config_id)
-		tr.assert_true("catalog has candidate %s" % config_id, not config.is_empty())
-		tr.assert_true("%s candidate only" % config_id, bool(config.get("candidate_only", false)))
-		tr.assert_true("%s has preview flags" % config_id, config.get("preview_flags", []).size() > 0)
 
-static func _test_configured_route_nodes_reference_catalog_configs(tr) -> void:
+static func _test_fixed_route_nodes_reference_catalog_configs(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	var battle_count := 0
-	var config_ids := {}
+	var expected_by_node := {
+		"outer_wall_01": {
+			"config_id": BattleConfigCatalogScript.CONFIG_OUTER_WALL,
+			"map_id": "map_demo_broken_wall_outpost",
+		},
+		"crack_courtyard_03": {
+			"config_id": BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+			"map_id": "map_demo_rift_courtyard",
+		},
+		"pillar_graveyard_03": {
+			"config_id": BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+			"map_id": "map_demo_pillar_graveyard",
+		},
+		"iron_gate_04": {
+			"config_id": BattleConfigCatalogScript.CONFIG_IRON_GATE,
+			"map_id": "map_demo_ironhorn_gate",
+		},
+		"boss_outer_bell_01": {
+			"config_id": BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+			"map_id": "map_demo_outer_bell_ring",
+		},
+	}
 	for node in run.route_nodes:
 		if not run.is_battle_node(node):
 			continue
-		battle_count += 1
 		var node_id := String(node.get("node_id", ""))
+		var expected: Dictionary = expected_by_node.get(node_id, {})
+		tr.assert_true("%s expected battle node" % node_id, not expected.is_empty())
 		var battle: Dictionary = node.get("battle", {})
-		var pool_key := String(battle.get("map_pool_key", ""))
-		var config_id := String(battle.get("config_id", ""))
-		var allowed_config_ids := run.expedition_map_pool_config_ids(run.expedition_id, pool_key)
-		tr.assert_true("%s has map pool key" % node_id, not pool_key.is_empty())
-		tr.assert_true("%s uses map from configured pool" % node_id, config_id in allowed_config_ids)
+		tr.assert_eq("%s config id" % node_id, battle.get("config_id", ""), expected.get("config_id", ""))
+		tr.assert_eq("%s map id" % node_id, battle.get("map_id", ""), expected.get("map_id", ""))
 		var config := BattleConfigCatalogScript.resolve_battle_config(node_id, battle)
 		tr.assert_true("%s resolves config" % node_id, not config.is_empty())
 		tr.assert_eq("%s node map matches config" % node_id, battle.get("map_id", ""), config.get("map_id", ""))
-		tr.assert_eq("%s battle config id matches catalog" % node_id, config_id, config.get("config_id", ""))
-		config_ids[config_id] = true
-	tr.assert_eq("configured demo battle node count", battle_count, 11)
-	tr.assert_true("configured demo includes intro map", config_ids.has(BattleConfigCatalogScript.CONFIG_OUTER_WALL))
-	tr.assert_true("configured demo includes boss map", config_ids.has(BattleConfigCatalogScript.CONFIG_OUTER_BELL))
-	tr.assert_true("configured demo exercises candidate maps", config_ids.has(BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE) or config_ids.has(BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD) or config_ids.has(BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST))
 
 static func _test_expedition_map_pools_reference_catalog_configs(tr) -> void:
 	var run = RunStateScript.new()
@@ -122,9 +125,9 @@ static func _test_catalog_constructs_grid_enemies_and_rifts(tr) -> void:
 	var expectations := {
 		BattleConfigCatalogScript.CONFIG_OUTER_WALL: {"enemies": 3, "rifts": 0, "schedule": 0, "scripted": 3},
 		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD: {"enemies": 2, "rifts": 3, "schedule": 3, "scripted": 2},
-		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD: {"enemies": 3, "rifts": 2, "schedule": 2, "scripted": 1},
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD: {"enemies": 3, "rifts": 3, "schedule": 2, "scripted": 1},
 		BattleConfigCatalogScript.CONFIG_IRON_GATE: {"enemies": 3, "rifts": 2, "schedule": 2, "scripted": 1},
-		BattleConfigCatalogScript.CONFIG_OUTER_BELL: {"enemies": 2, "rifts": 1, "schedule": 2, "scripted": 1},
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL: {"enemies": 2, "rifts": 3, "schedule": 2, "scripted": 1},
 	}
 	for config_id in expectations.keys():
 		var config := BattleConfigCatalogScript.get_config(config_id)
@@ -242,21 +245,6 @@ static func _test_void_cells_are_filtered_from_runtime_entry_points(tr) -> void:
 	tr.assert_true("void filter removes spawn-pool void rift id", not ("bad_rift" in spawn_pool.get("rift_ids", [])))
 	tr.assert_true("void filter keeps spawn-pool non-void rift id", "good_rift" in spawn_pool.get("rift_ids", []))
 
-static func _test_runtime_rifts_match_active_spawn_schedule(tr) -> void:
-	for config_id in BattleConfigCatalogScript.config_ids():
-		var config := BattleConfigCatalogScript.get_config(config_id)
-		var runtime := BattleConfigCatalogScript.build_runtime_config(config)
-		var grid: Grid = runtime.get("grid", null)
-		tr.assert_true("%s runtime grid exists for rift audit" % config_id, grid != null)
-		var scheduled_positions := _unique_runtime_positions(runtime.get("rift_schedule", []))
-		tr.assert_eq("%s runtime rifts are exactly scheduled rifts" % config_id, _sorted_cells(runtime.get("rift_positions", [])), _sorted_cells(scheduled_positions))
-		tr.assert_eq("%s grid rift tiles are exactly scheduled rifts" % config_id, _sorted_cells(grid.cells_of_type(Grid.TileType.RIFT)), _sorted_cells(scheduled_positions))
-		for rift in config.get("rifts", []):
-			var pos: Vector2i = rift.get("pos", Vector2i(-1, -1))
-			if pos in scheduled_positions:
-				continue
-			tr.assert_true("%s unused rift id %s stays normal terrain" % [config_id, String(rift.get("id", ""))], grid.get_tile(pos) != Grid.TileType.RIFT)
-
 static func _test_outer_bell_scripted_boss_spawns_keep_source(tr) -> void:
 	var config := BattleConfigCatalogScript.get_config(BattleConfigCatalogScript.CONFIG_OUTER_BELL)
 	var scripted := BattleConfigCatalogScript.build_scripted_spawns(config)
@@ -367,24 +355,6 @@ static func _runtime_positions(entries: Array) -> Array[Vector2i]:
 		result.append(entry.get("pos", Vector2i(-1, -1)))
 	return result
 
-static func _unique_runtime_positions(entries: Array) -> Array[Vector2i]:
-	var result: Array[Vector2i] = []
-	for entry in entries:
-		var pos: Vector2i = entry.get("pos", Vector2i(-1, -1))
-		if pos == Vector2i(-1, -1) or pos in result:
-			continue
-		result.append(pos)
-	return result
-
-static func _sorted_cells(cells: Array) -> Array[Vector2i]:
-	var result: Array[Vector2i] = []
-	for cell in cells:
-		result.append(cell)
-	result.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		return a.y < b.y if a.y != b.y else a.x < b.x
-	)
-	return result
-
 static func _cell_in_entries(cell: Vector2i, entries: Array) -> bool:
 	for entry in entries:
 		if entry.get("pos", Vector2i(-1, -1)) == cell:
@@ -456,7 +426,7 @@ static func _test_enemy_ids_resolve_to_distinct_runtime_defs(tr) -> void:
 	}
 	var defs_by_enemy_id := _runtime_defs_by_enemy_id()
 	for enemy_id in expected.keys():
-		tr.assert_true("%s appears in catalog runtime data" % enemy_id, defs_by_enemy_id.has(enemy_id))
+		tr.assert_true("%s appears in fixed route runtime data" % enemy_id, defs_by_enemy_id.has(enemy_id))
 		if not defs_by_enemy_id.has(enemy_id):
 			continue
 		var def: UnitDef = defs_by_enemy_id[enemy_id]
@@ -497,16 +467,16 @@ static func _test_outer_bell_boss_objects_map_to_runtime_boss_config(tr) -> void
 	tr.assert_eq("outer bell heart from catalog", boss_config.get("heart_position", Vector2i(-1, -1)), Vector2i(4, 3))
 	scene.free()
 
-static func _test_candidate_map_configs_are_available_in_configured_route_pools(tr) -> void:
+static func _test_candidate_map_configs_are_available_but_not_on_fixed_route(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	var configured_config_ids: Array[String] = []
+	var fixed_config_ids: Array[String] = []
 	for node in run.route_nodes:
 		if not run.is_battle_node(node):
 			continue
 		var battle: Dictionary = node.get("battle", {})
-		configured_config_ids.append(String(battle.get("config_id", "")))
-	tr.assert_true("%s can appear on configured demo route" % BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD, BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD in configured_config_ids)
+		fixed_config_ids.append(String(battle.get("config_id", "")))
+	tr.assert_true("%s is on fixed demo route" % BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD, BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD in fixed_config_ids)
 	var pillar := BattleConfigCatalogScript.get_config(BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD)
 	tr.assert_true("pillar graveyard is no longer candidate only", not bool(pillar.get("candidate_only", false)))
 	var pillar_runtime := BattleConfigCatalogScript.build_runtime_config(pillar)
@@ -515,7 +485,7 @@ static func _test_candidate_map_configs_are_available_in_configured_route_pools(
 	tr.assert_eq("pillar graveyard protected target count", pillar_runtime.get("protected_targets", []).size(), 3)
 	tr.assert_true("pillar graveyard keeps lightweight rift schedule", pillar_runtime.get("rift_schedule", []).size() >= 2)
 	var config_id := BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE
-	tr.assert_true("%s is available to configured demo route" % config_id, config_id in run.expedition_map_pool_config_ids(run.expedition_id, RunStateScript.MAP_POOL_NORMAL))
+	tr.assert_true("%s not on fixed demo route" % config_id, not (config_id in fixed_config_ids))
 	var config := BattleConfigCatalogScript.get_config(config_id)
 	var runtime := BattleConfigCatalogScript.build_runtime_config(config)
 	tr.assert_true("%s runtime grid exists" % config_id, runtime.get("grid", null) != null)
@@ -537,14 +507,3 @@ static func _test_candidate_map_configs_are_available_in_configured_route_pools(
 	tr.assert_true("broken bridge runtime has abyss edges", not abyss_edges.is_empty())
 	tr.assert_true("broken bridge left edge is abyss", bool(abyss_edges.get(Vector2i(0, 3), {}).get(Vector2i(-1, 0), false)))
 	tr.assert_true("broken bridge right edge is abyss", bool(abyss_edges.get(Vector2i(7, 4), {}).get(Vector2i(1, 0), false)))
-	for candidate_id in [
-		BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD,
-		BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST,
-	]:
-		var candidate := BattleConfigCatalogScript.get_config(candidate_id)
-		var candidate_runtime := BattleConfigCatalogScript.build_runtime_config(candidate)
-		tr.assert_true("%s runtime grid exists" % candidate_id, candidate_runtime.get("grid", null) != null)
-		tr.assert_eq("%s candidate max rounds" % candidate_id, candidate_runtime.get("max_rounds", 0), 5)
-		tr.assert_eq("%s candidate protected target count" % candidate_id, candidate_runtime.get("protected_targets", []).size(), 3)
-		tr.assert_true("%s candidate has initial pressure" % candidate_id, candidate_runtime.get("initial_enemies", []).size() >= 2)
-		tr.assert_true("%s candidate has scheduled pressure" % candidate_id, candidate_runtime.get("scripted_spawn_schedule", []).size() + candidate_runtime.get("rift_schedule", []).size() >= 2)

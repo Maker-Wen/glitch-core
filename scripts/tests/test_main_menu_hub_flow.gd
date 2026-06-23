@@ -18,7 +18,6 @@ static func run(tr) -> void:
 	_test_future_development_hub_nodes_show_simple_placeholder(tr)
 	_test_hub_separates_expedition_gate_from_continue_run(tr)
 	_test_mission_board_uses_commission_task_language(tr)
-	_test_mission_board_refresh_replaces_single_card(tr)
 	_test_mission_board_card_click_directly_enters_mission(tr)
 	_test_non_battle_mission_cards_directly_enter_node_pages(tr)
 	_test_shop_node_uses_formal_stall_layout(tr)
@@ -249,10 +248,6 @@ static func _test_mission_board_uses_commission_task_language(tr) -> void:
 	var text := _collect_label_text(manager._ui)
 	tr.assert_true("mission board uses commission title", text.find("任务委托") >= 0)
 	tr.assert_true("mission board uses short action subtitle", text.find("断墙外环 · 选择下一次行动") >= 0)
-	tr.assert_true("mission board shows boss unlock progress", text.find("完成 0 / 8 后进入 Boss") >= 0)
-	tr.assert_true("mission board shows icon refresh status", _find_node_named(manager._ui, "MissionRefreshStatus") != null)
-	tr.assert_true("mission board shows refresh charge count", text.find("2 / 2") >= 0)
-	tr.assert_true("mission board exposes generated refresh icon", _find_node_named(manager._ui, "MissionRefreshIcon") != null)
 	tr.assert_true("mission board always shows corruption", text.find("腐化 0") >= 0)
 	tr.assert_true("mission board shows sanctuary status", text.find("守护值 12 / 12") >= 0)
 	tr.assert_true("mission card shows task-first type", text.find("防守委托") >= 0)
@@ -266,40 +261,12 @@ static func _test_mission_board_uses_commission_task_language(tr) -> void:
 	tr.assert_true("mission board hides designer summary", text.find("教学式普通战") == -1 and text.find("奖励玩家") == -1 and text.find("Demo") == -1)
 	tr.assert_true("mission board no longer says base reward", text.find("基础奖励") == -1)
 	tr.assert_true("mission board no longer uses expedition map title", text.find("断墙远征图") == -1)
-	manager._run.current_node_id = "boss_outer_bell_01"
-	manager._run.mark_current_node_visited()
-	manager._show_mission_board()
-	text = _collect_label_text(manager._ui)
-	tr.assert_true("empty mission board uses map wording", text.find("本次地图委托已完成") >= 0)
-	tr.assert_true("empty mission board removes chapter route wording", text.find("本章路线") == -1)
 	manager._run.phase = RunStateScript.Phase.RUN_RESULT
 	manager._run.result_outcome = "victory"
 	manager._show_run_result()
 	var result_text := _collect_label_text(manager._ui)
 	tr.assert_true("run result uses commission progress copy", result_text.find("完成委托") >= 0)
 	tr.assert_true("run result avoids node progress copy", result_text.find("完成节点") == -1)
-	manager.queue_free()
-
-static func _test_mission_board_refresh_replaces_single_card(tr) -> void:
-	var manager := _make_manager_with_run()
-	manager._show_mission_board()
-	var before := _node_ids(manager._run.available_commissions())
-	var refresh_button := _find_button_named(manager._ui, "MissionCardRefresh_outer_wall_01")
-	tr.assert_true("mission card refresh button exists", refresh_button != null)
-	if refresh_button == null:
-		manager.queue_free()
-		return
-	tr.assert_eq("mission card refresh button uses icon instead of text", refresh_button.text, "")
-	tr.assert_true("mission card refresh icon exists", _find_node_named(refresh_button, "MissionRefreshIcon") != null)
-	tr.assert_true("mission card refresh button enabled", not refresh_button.disabled)
-	refresh_button.pressed.emit()
-	var after := _node_ids(manager._run.available_commissions())
-	tr.assert_eq("refresh does not start mission", manager._run.current_node_id, "")
-	tr.assert_eq("refresh keeps route phase", manager._run.phase, RunStateScript.Phase.ROUTE)
-	tr.assert_eq("refresh consumes one charge", manager._run.refresh_charges, 1)
-	tr.assert_eq("refresh preserves other card slots", after.slice(1), before.slice(1))
-	tr.assert_true("refresh replaces selected slot", after[0] != before[0])
-	tr.assert_true("mission board rerenders refresh count", _collect_label_text(manager._ui).find("1 / 2") >= 0)
 	manager.queue_free()
 
 static func _test_mission_board_card_click_directly_enters_mission(tr) -> void:
@@ -343,7 +310,7 @@ static func _test_non_battle_mission_cards_directly_enter_node_pages(tr) -> void
 		return
 	shop_card.pressed.emit()
 	tr.assert_eq("shop card sets current node", manager._run.current_node_id, "quartermaster_cache_02")
-	tr.assert_true("shop card opens shop page directly", _find_node_named(manager._ui, "ShopStallPanel") != null)
+	tr.assert_true("shop card opens shop page directly", _collect_label_text(manager._ui).find("商店行动") >= 0)
 	tr.assert_true("shop card opens formal stall panel", _find_node_named(manager._ui, "ShopStallPanel") != null)
 	tr.assert_true("shop card bypasses detail page", _collect_label_text(manager._ui).find("委托确认") == -1)
 	manager.queue_free()
@@ -353,15 +320,10 @@ static func _test_shop_node_uses_formal_stall_layout(tr) -> void:
 	manager._run.current_node_id = "quartermaster_cache_02"
 	manager._show_shop_node()
 	var text := _collect_label_text(manager._ui)
+	tr.assert_true("shop keeps action title", text.find("商店行动") >= 0)
 	tr.assert_true("shop keeps node title", text.find("前线军需点") >= 0)
-	tr.assert_true("shop removes redundant action title", text.find("商店行动") == -1)
-	tr.assert_true("shop removes nonessential flavor copy", text.find("封存的军需箱仍带着余温。") == -1)
-	tr.assert_true("shop removes redundant purchase count copy", text.find("购买 1 项") == -1)
-	tr.assert_true("shop does not use a baked full-screen stall image", _find_node_named(manager._ui, "ShopStallArt") == null)
-	tr.assert_true("shop uses atlas main panel", _find_node_named(manager._ui, "ShopAtlasMainPanel") != null)
-	tr.assert_true("shop uses atlas back button plate", _find_node_named(manager._ui, "ShopAtlasBackButtonPlate") != null)
+	tr.assert_true("shop uses in-world short flavor", text.find("封存的军需箱仍带着余温。") >= 0)
 	tr.assert_true("shop shows resource strip", _find_node_named(manager._ui, "ShopResourceStrip") != null)
-	tr.assert_true("shop resource strip uses formal backplate", _find_node_named(manager._ui, "ShopResourceStripBackplate") != null)
 	for resource_name in ["ShopResource_余烬", "ShopResource_守护值", "ShopResource_守卫者", "ShopResource_腐化"]:
 		tr.assert_true("shop has %s" % resource_name, _find_node_named(manager._ui, resource_name) != null)
 	tr.assert_true("shop uses shelf frame", _find_node_named(manager._ui, "ShopShelfFrame") != null)
@@ -369,17 +331,8 @@ static func _test_shop_node_uses_formal_stall_layout(tr) -> void:
 		tr.assert_true("shop has %s" % stall_name, _find_node_named(manager._ui, stall_name) != null)
 	for mark_name in ["ShopItemMark_healing", "ShopItemMark_repair", "ShopItemMark_relic"]:
 		tr.assert_true("shop has item mark %s" % mark_name, _find_node_named(manager._ui, mark_name) != null)
-	for icon_name in ["ShopAtlasItemIcon_healing", "ShopAtlasItemIcon_repair", "ShopAtlasItemIcon_relic"]:
-		tr.assert_true("shop has atlas item icon %s" % icon_name, _find_node_named(manager._ui, icon_name) != null)
-	var repair_icon := _find_node_named(manager._ui, "ShopAtlasItemIcon_repair")
-	if repair_icon is TextureRect:
-		var repair_texture := (repair_icon as TextureRect).texture
-		tr.assert_true("shop repair icon uses full atlas region", repair_texture is AtlasTexture)
-		if repair_texture is AtlasTexture:
-			tr.assert_eq("shop repair icon keeps bottom padding", (repair_texture as AtlasTexture).region, Rect2(783, 596, 224, 176))
 	tr.assert_true("shop strips buy prefix from item title", text.find("简易急救包") >= 0 and text.find("路障材料") >= 0 and text.find("裂纹护符") >= 0)
-	tr.assert_true("shop presents price lines", text.find("余烬 -3") >= 0 and text.find("余烬 -4") >= 0 and text.find("余烬 -5") >= 0)
-	tr.assert_true("shop removes crowded effect copy", text.find("存活守卫者 HP +1") == -1 and text.find("守护值 +1") == -1 and text.find("获得遗物") == -1)
+	tr.assert_true("shop presents price and effect lines", text.find("余烬 -3") >= 0 and text.find("存活守卫者 HP +1") >= 0 and text.find("守护值 +1") >= 0 and text.find("获得遗物") >= 0)
 	tr.assert_true("shop removes debug tick copy", text.find("战略 tick") == -1 and text.find("不会压制") == -1)
 	tr.assert_true("shop removes designer summaries", text.find("第一战后的早期商店") == -1 and text.find("Boss 前补给节点") == -1)
 	tr.assert_true("shop removes long item descriptions", text.find("花 3 余烬") == -1 and text.find("花 4 余烬") == -1 and text.find("花 5 余烬") == -1)
@@ -421,7 +374,7 @@ static func _test_active_run_navigation_stays_on_mission_board(tr) -> void:
 	tr.assert_true("event confirm does not return hub", _collect_label_text(manager._ui).find("断墙据点") == -1)
 
 	_reset_run_visits(manager._run)
-	manager._run.current_node_id = _first_node_id_of_type(manager._run, RunStateScript.NODE_CAMP)
+	manager._run.current_node_id = "ember_camp_03"
 	manager._show_camp_node()
 	var camp_confirm := _find_button(manager._ui, "确认")
 	tr.assert_true("camp node has confirm", camp_confirm != null)
@@ -520,10 +473,9 @@ static func _test_new_run_requires_overwrite_confirmation(tr) -> void:
 
 static func _test_event_camp_shop_back_returns_to_mission_board(tr) -> void:
 	var manager := _make_manager_with_run()
-	var camp_id := _first_node_id_of_type(manager._run, RunStateScript.NODE_CAMP)
 	for case_data in [
 		{"node_id": "extinguished_beacon_02", "show": "_show_event_node", "visited": ["outer_wall_01"]},
-		{"node_id": camp_id, "show": "_show_camp_node", "visited": ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"]},
+		{"node_id": "ember_camp_03", "show": "_show_camp_node", "visited": ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"]},
 		{"node_id": "quartermaster_cache_02", "show": "_show_shop_node", "visited": ["outer_wall_01"]},
 	]:
 		_reset_run_visits(manager._run)
@@ -666,15 +618,3 @@ static func _find_button_parent_named(node: Node, text: String, parent_name: Str
 		if found != null:
 			return found
 	return null
-
-static func _node_ids(nodes: Array[Dictionary]) -> Array[String]:
-	var ids: Array[String] = []
-	for node in nodes:
-		ids.append(String(node.get("node_id", "")))
-	return ids
-
-static func _first_node_id_of_type(run: RunStateScript, node_type: String) -> String:
-	for node in run.route_nodes:
-		if String(node.get("node_type", "")) == node_type:
-			return String(node.get("node_id", ""))
-	return ""

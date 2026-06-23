@@ -1,7 +1,10 @@
-[gd_resource type="Theme" load_steps=2 format=3 uid="uid://cdu1yispl3run"]
+[gd_resource type="Theme" format=3 uid="uid://cdu1yispl3run"]
 
-[ext_resource type="FontFile" path="res://art/fonts/NotoSansSC-VF.ttf" id="1_cjk_font"]
+[sub_resource type="SystemFont" id="SystemFont_cjk"]
+font_names = PackedStringArray("PingFang SC", "Hiragino Sans GB", "STHeiti", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "sans-serif")
+font_weight = 400
+subpixel_positioning = 1
 
 [resource]
-default_font = ExtResource("1_cjk_font")
+default_font = SubResource("SystemFont_cjk")
 default_font_size = 18

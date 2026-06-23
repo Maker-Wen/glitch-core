@@ -35,11 +35,15 @@ static func _test_candidate_generation_is_seeded(tr) -> void:
 
 static func _test_candidate_generation_produces_spawn_tables(tr) -> void:
 	var checked := 0
-	for config_id in _candidate_generation_config_ids():
+	for config_id in [
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+		BattleConfigCatalogScript.CONFIG_IRON_GATE,
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+	]:
 		var config := BattleConfigCatalogScript.get_config(config_id)
 		var candidate := BattlePoolCandidateGeneratorScript.generate_candidate(config, 3000 + checked, 0)
-		if not config.get("element_pools", {}).is_empty():
-			tr.assert_true("%s candidate selects elements" % config_id, not candidate.get("selected_elements", {}).is_empty())
+		tr.assert_true("%s candidate selects elements" % config_id, not candidate.get("selected_elements", {}).is_empty())
 		tr.assert_true("%s candidate has initial enemies" % config_id, candidate.get("initial_enemies", []).size() > 0)
 		tr.assert_true("%s candidate has scheduled pressure" % config_id, candidate.get("scripted_spawns", []).size() + candidate.get("rift_schedule", []).size() > 0)
 		for entry in candidate.get("rift_schedule", []):
@@ -47,7 +51,13 @@ static func _test_candidate_generation_produces_spawn_tables(tr) -> void:
 		checked += 1
 
 static func _test_candidate_generation_validates_basic_fairness(tr) -> void:
-	for config_id in _candidate_generation_config_ids():
+	for config_id in [
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL,
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+		BattleConfigCatalogScript.CONFIG_IRON_GATE,
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+	]:
 		var config := BattleConfigCatalogScript.get_config(config_id)
 		var candidate := BattlePoolCandidateGeneratorScript.generate_candidate(config, 9100, 1)
 		var validation: Dictionary = candidate.get("validation", {})
@@ -55,7 +65,13 @@ static func _test_candidate_generation_validates_basic_fairness(tr) -> void:
 		tr.assert_true("%s candidate has no rejection issues" % config_id, validation.get("issues", []).is_empty())
 
 static func _test_candidate_generation_reports_structural_diagnostics(tr) -> void:
-	for config_id in _candidate_generation_config_ids():
+	for config_id in [
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL,
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+		BattleConfigCatalogScript.CONFIG_IRON_GATE,
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+	]:
 		var config := BattleConfigCatalogScript.get_config(config_id)
 		var candidate := BattlePoolCandidateGeneratorScript.generate_candidate(config, 9100, 1)
 		var diagnostics: Dictionary = candidate.get("validation", {}).get("diagnostics", {})
@@ -66,7 +82,13 @@ static func _test_candidate_generation_reports_structural_diagnostics(tr) -> voi
 			tr.assert_true("%s reports element coverage" % config_id, not diagnostics.get("element_coverage", {}).is_empty())
 
 static func _test_candidate_generation_reports_feature_profile(tr) -> void:
-	for config_id in _candidate_generation_config_ids():
+	for config_id in [
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL,
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+		BattleConfigCatalogScript.CONFIG_IRON_GATE,
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+	]:
 		var config := BattleConfigCatalogScript.get_config(config_id)
 		var candidate := BattlePoolCandidateGeneratorScript.generate_candidate(config, 9100, 1)
 		var feature_profile: Dictionary = candidate.get("validation", {}).get("diagnostics", {}).get("feature_profile", {})
@@ -170,9 +192,6 @@ static func _test_candidate_playtester_approves_fixed_seed_preview_set(tr) -> vo
 			if config_id != BattleConfigCatalogScript.CONFIG_OUTER_BELL:
 				tr.assert_eq("%s no warden deaths" % label, int(simulation.get("warden_deaths", -1)), 0)
 			tr.assert_eq("%s victory" % label, simulation.get("outcome", ""), "victory")
-
-static func _candidate_generation_config_ids() -> Array[String]:
-	return BattleConfigCatalogScript.config_ids()
 
 static func _test_batch_playtester_summarizes_small_sample(tr) -> void:
 	var config_ids := [

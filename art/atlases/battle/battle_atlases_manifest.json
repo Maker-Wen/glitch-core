@@ -386,30 +386,6 @@
 					"w": 64,
 					"h": 64
 				}
-			},
-			"cooldown_ring": {
-				"id": "cooldown_ring",
-				"source": "res://art/ui/battle_hud/icons/cooldown_ring_gpt.png",
-				"atlas": "res://art/atlases/battle/battle_ui.png",
-				"texture": "res://art/atlases/battle/battle_ui.cooldown_ring.tres",
-				"region": {
-					"x": 0,
-					"y": 68,
-					"w": 64,
-					"h": 64
-				}
-			},
-			"cooldown_ring_muted": {
-				"id": "cooldown_ring_muted",
-				"source": "res://art/ui/battle_hud/icons/cooldown_ring_muted_gpt.png",
-				"atlas": "res://art/atlases/battle/battle_ui.png",
-				"texture": "res://art/atlases/battle/battle_ui.cooldown_ring_muted.tres",
-				"region": {
-					"x": 68,
-					"y": 68,
-					"w": 64,
-					"h": 64
-				}
 			}
 		}
 	}

@@ -53,8 +53,6 @@ const ATLASES := {
 			{"id": "move_icon", "source": "res://art/ui/battle_hud/icons/move_icon_gpt-image-2.png"},
 			{"id": "relic_icon", "source": "res://art/ui/battle_hud/icons/relic_icon_gpt-image-2.png"},
 			{"id": "wait_icon", "source": "res://art/ui/battle_hud/icons/wait_icon_gpt-image-2.png"},
-			{"id": "cooldown_ring", "source": "res://art/ui/battle_hud/icons/cooldown_ring_gpt.png"},
-			{"id": "cooldown_ring_muted", "source": "res://art/ui/battle_hud/icons/cooldown_ring_muted_gpt.png"},
 		],
 	},
 }

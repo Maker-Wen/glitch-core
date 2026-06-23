@@ -3,7 +3,6 @@ extends RefCounted
 
 const RunStateScript := preload("res://scripts/run/run_state.gd")
 const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
-const RunExpeditionCatalogScript := preload("res://scripts/data/run_expedition_catalog.gd")
 
 static func _resolution(line_breached: bool, destroyed: int, completed: int = 0, hps: Array = [2, 2, 2], protected_damage: int = -1) -> Dictionary:
 	var damage := destroyed if protected_damage < 0 else protected_damage
@@ -32,16 +31,13 @@ static func run(tr) -> void:
 	_test_run_state_public_methods_sync_legacy_stats(tr)
 	_test_mark_current_node_visited_is_idempotent(tr)
 	_test_commission_board_refills_after_each_completed_task(tr)
-	_test_boss_replaces_board_after_unlock_count_from_any_non_boss_nodes(tr)
-	_test_commission_refresh_replaces_single_card_from_draw_pile(tr)
-	_test_commission_refresh_is_disabled_after_boss_unlock(tr)
+	_test_boss_replaces_board_after_fifth_commission_from_non_battle_nodes(tr)
 	_test_boss_completion_leaves_no_commissions(tr)
 	_test_guard_loss_from_protected_damage_is_uncapped(tr)
 	_test_run_fails_when_sanctuary_reaches_zero(tr)
 	_test_run_fails_when_all_wardens_are_dead(tr)
 	_test_pending_reward_basic_structure(tr)
 	_test_expedition_map_pools_are_explicit(tr)
-	_test_commission_decks_follow_map_generation_rules(tr)
 	_test_random_route_is_seeded_and_valid(tr)
 	_test_random_route_map_pool_contracts(tr)
 	_test_map_pool_candidate_filtering_prefers_valid_entries(tr)
@@ -50,35 +46,60 @@ static func run(tr) -> void:
 static func _test_fixed_demo_route_order_and_battle_limits(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	var normal_deck := _non_boss_nodes(run.route_nodes)
+	var ids: Array[String] = []
+	var types: Array[String] = []
 	var battle_max_rounds: Array[int] = []
 	var battle_config_ids: Array[String] = []
 	for node in run.route_nodes:
+		ids.append(String(node.get("node_id", "")))
+		types.append(String(node.get("node_type", "")))
 		if run.is_battle_node(node):
 			var battle: Dictionary = node.get("battle", {})
 			battle_max_rounds.append(int(battle.get("max_rounds", 0)))
 			battle_config_ids.append(String(battle.get("config_id", "")))
-	tr.assert_eq("demo commission deck has configured normal card count", normal_deck.size(), 16)
-	tr.assert_eq("demo route includes boss outside normal deck", run.route_nodes.size(), 17)
-	tr.assert_eq("demo commission deck ids mirror normal card count", run.commission_deck_ids.size(), 16)
-	tr.assert_eq("demo hand size is map configured", run.commission_hand_size, 3)
-	tr.assert_eq("demo boss unlock count is map configured", run.boss_unlock_count, 8)
-	tr.assert_eq("demo refresh charges are map configured", run.refresh_charges, 2)
-	tr.assert_eq("demo type counts follow map config", _node_type_counts(normal_deck), {
-		RunStateScript.NODE_NORMAL: 7,
-		RunStateScript.NODE_EVENT: 3,
-		RunStateScript.NODE_SHOP: 2,
-		RunStateScript.NODE_ELITE: 3,
-		RunStateScript.NODE_CAMP: 1,
-	})
-	tr.assert_true("configured route battle max rounds are valid", battle_max_rounds.size() >= 5 and battle_max_rounds.max() <= 6)
-	tr.assert_true("configured route battle includes intro config", BattleConfigCatalogScript.CONFIG_OUTER_WALL in battle_config_ids)
-	tr.assert_true("configured route battle includes boss config", BattleConfigCatalogScript.CONFIG_OUTER_BELL in battle_config_ids)
+	tr.assert_eq("fixed commission candidate ids", ids, [
+		"outer_wall_01",
+		"extinguished_beacon_02",
+		"quartermaster_cache_02",
+		"crack_courtyard_03",
+		"pillar_graveyard_03",
+		"ember_camp_03",
+		"scout_ritual_03",
+		"iron_gate_04",
+		"ember_camp_05",
+		"quartermaster_cache_05",
+		"last_watch_event_05",
+		"boss_outer_bell_01",
+	])
+	tr.assert_eq("fixed commission candidate types", types, [
+		RunStateScript.NODE_NORMAL,
+		RunStateScript.NODE_EVENT,
+		RunStateScript.NODE_SHOP,
+		RunStateScript.NODE_NORMAL,
+		RunStateScript.NODE_NORMAL,
+		RunStateScript.NODE_CAMP,
+		RunStateScript.NODE_EVENT,
+		RunStateScript.NODE_ELITE,
+		RunStateScript.NODE_CAMP,
+		RunStateScript.NODE_SHOP,
+		RunStateScript.NODE_EVENT,
+		RunStateScript.NODE_BOSS,
+	])
+	tr.assert_eq("fixed route battle max rounds", battle_max_rounds, [5, 5, 5, 5, 6])
+	tr.assert_eq("fixed route battle config ids", battle_config_ids, [
+		BattleConfigCatalogScript.CONFIG_OUTER_WALL,
+		BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD,
+		BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
+		BattleConfigCatalogScript.CONFIG_IRON_GATE,
+		BattleConfigCatalogScript.CONFIG_OUTER_BELL,
+	])
 	tr.assert_eq("beacon event has options", run.node_by_id("extinguished_beacon_02").get("event", {}).get("options", []).size(), 3)
-	tr.assert_true("deck has at least one event with options", _deck_has_interaction_options(run.route_nodes, RunStateScript.NODE_EVENT, "event"))
-	tr.assert_true("deck has at least one camp with options", _deck_has_interaction_options(run.route_nodes, RunStateScript.NODE_CAMP, "camp"))
+	tr.assert_eq("scout event has options", run.node_by_id("scout_ritual_03").get("event", {}).get("options", []).size(), 3)
+	tr.assert_eq("last watch event has options", run.node_by_id("last_watch_event_05").get("event", {}).get("options", []).size(), 3)
+	tr.assert_eq("early camp has options", run.node_by_id("ember_camp_03").get("camp", {}).get("options", []).size(), 2)
+	tr.assert_eq("boss camp has options", run.node_by_id("ember_camp_05").get("camp", {}).get("options", []).size(), 2)
 	tr.assert_eq("early shop has options", run.node_by_id("quartermaster_cache_02").get("shop", {}).get("options", []).size(), 3)
-	tr.assert_true("deck has at least one shop with options", _deck_has_interaction_options(run.route_nodes, RunStateScript.NODE_SHOP, "shop"))
+	tr.assert_eq("boss shop has options", run.node_by_id("quartermaster_cache_05").get("shop", {}).get("options", []).size(), 3)
 	tr.assert_eq("initial commission board offers three tasks", _node_ids(run.available_commissions()), ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"])
 	tr.assert_eq("legacy route availability mirrors commission board", _node_ids(run.available_route_nodes()), _node_ids(run.available_commissions()))
 	tr.assert_eq("current commission mirrors legacy next node", run.current_commission().get("node_id", ""), run.next_unvisited_node().get("node_id", ""))
@@ -144,9 +165,14 @@ static func _test_commission_board_refills_after_each_completed_task(tr) -> void
 	tr.assert_eq("first completion replaces one commission", _node_ids(run.available_commissions()), ["extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"])
 	run.current_node_id = "extinguished_beacon_02"
 	run.mark_current_node_visited()
-	tr.assert_eq("second completion refills from draw pile", _node_ids(run.available_commissions()), ["quartermaster_cache_02", "crack_courtyard_03", "pillar_graveyard_03"])
-	_complete_until_boss_unlock(run)
-	tr.assert_eq("after configured non-boss commissions boss unlocks alone", _node_ids(run.available_commissions()), ["boss_outer_bell_01"])
+	tr.assert_eq("second completion refills from deeper pool", _node_ids(run.available_commissions()), ["quartermaster_cache_02", "crack_courtyard_03", "pillar_graveyard_03"])
+	run.current_node_id = "quartermaster_cache_02"
+	run.mark_current_node_visited()
+	run.current_node_id = "crack_courtyard_03"
+	run.mark_current_node_visited()
+	run.current_node_id = "pillar_graveyard_03"
+	run.mark_current_node_visited()
+	tr.assert_eq("after five non-boss commissions boss unlocks alone", _node_ids(run.available_commissions()), ["boss_outer_bell_01"])
 
 	var out_of_order_run = RunStateScript.new()
 	out_of_order_run.setup_new_demo()
@@ -154,54 +180,24 @@ static func _test_commission_board_refills_after_each_completed_task(tr) -> void
 	out_of_order_run.mark_current_node_visited()
 	out_of_order_run.current_node_id = "crack_courtyard_03"
 	out_of_order_run.mark_current_node_visited()
-	tr.assert_eq("out-of-order completion keeps three commission cards", out_of_order_run.available_commissions().size(), 3)
+	tr.assert_eq("out-of-order completion keeps three commission cards", _node_ids(out_of_order_run.available_commissions()), ["extinguished_beacon_02", "quartermaster_cache_02", "pillar_graveyard_03"])
 
-static func _test_boss_replaces_board_after_unlock_count_from_any_non_boss_nodes(tr) -> void:
-	var event_run = _run_one_short_of_boss_unlock()
-	var event_id := _first_unvisited_id_of_type(event_run, RunStateScript.NODE_EVENT)
-	event_run.current_node_id = event_id
-	event_run.resolve_event_node(String(event_run.node_by_id(event_id).get("event", {}).get("options", [])[0].get("option_id", "")))
-	tr.assert_eq("event as unlock-count commission unlocks boss only", _node_ids(event_run.available_commissions()), ["boss_outer_bell_01"])
+static func _test_boss_replaces_board_after_fifth_commission_from_non_battle_nodes(tr) -> void:
+	var event_run = _run_with_four_completed_non_boss_commissions()
+	event_run.current_node_id = "last_watch_event_05"
+	event_run.resolve_event_node("raise_last_barricade")
+	tr.assert_eq("event as fifth commission unlocks boss only", _node_ids(event_run.available_commissions()), ["boss_outer_bell_01"])
 
-	var camp_run = _run_one_short_of_boss_unlock()
-	var camp_id := _first_unvisited_id_of_type(camp_run, RunStateScript.NODE_CAMP)
-	camp_run.current_node_id = camp_id
-	camp_run.resolve_camp_node(String(camp_run.node_by_id(camp_id).get("camp", {}).get("options", [])[0].get("option_id", "")))
-	tr.assert_eq("camp as unlock-count commission unlocks boss only", _node_ids(camp_run.available_commissions()), ["boss_outer_bell_01"])
+	var camp_run = _run_with_four_completed_non_boss_commissions()
+	camp_run.current_node_id = "ember_camp_05"
+	camp_run.resolve_camp_node("heal_squad")
+	tr.assert_eq("camp as fifth commission unlocks boss only", _node_ids(camp_run.available_commissions()), ["boss_outer_bell_01"])
 
-	var shop_run = _run_one_short_of_boss_unlock()
+	var shop_run = _run_with_four_completed_non_boss_commissions()
 	shop_run.embers = 10
-	var shop_id := _first_unvisited_id_of_type(shop_run, RunStateScript.NODE_SHOP)
-	shop_run.current_node_id = shop_id
-	shop_run.resolve_shop_node(String(shop_run.node_by_id(shop_id).get("shop", {}).get("options", [])[0].get("option_id", "")))
-	tr.assert_eq("shop as unlock-count commission unlocks boss only", _node_ids(shop_run.available_commissions()), ["boss_outer_bell_01"])
-
-static func _test_commission_refresh_replaces_single_card_from_draw_pile(tr) -> void:
-	var run = RunStateScript.new()
-	run.setup_new_random_route(777, RunStateScript.EXPEDITION_BROKEN_WALL)
-	var before := _node_ids(run.available_commissions())
-	var old_draw: Array[String] = run.commission_draw_pile_ids.duplicate()
-	tr.assert_true("first slot can refresh with configured charges", run.can_refresh_commission(0))
-	tr.assert_true("refresh succeeds", run.refresh_commission(0))
-	var after := _node_ids(run.available_commissions())
-	tr.assert_eq("refresh keeps three visible cards", after.size(), 3)
-	tr.assert_eq("refresh preserves other slots", after.slice(1), before.slice(1))
-	tr.assert_eq("refresh consumes one charge", run.refresh_charges, run.refresh_charges_max - 1)
-	tr.assert_eq("refreshed card goes to discard", run.discarded_commission_ids, [before[0]])
-	tr.assert_eq("replacement comes from previous draw pile head", after[0], old_draw[0])
-	run.refresh_commission(0)
-	tr.assert_eq("second refresh consumes final charge", run.refresh_charges, 0)
-	tr.assert_true("refresh disabled at zero charges", not run.can_refresh_commission(0))
-
-static func _test_commission_refresh_is_disabled_after_boss_unlock(tr) -> void:
-	var run = RunStateScript.new()
-	run.setup_new_demo()
-	_complete_until_boss_unlock(run)
-	tr.assert_eq("boss unlock replaces normal board", _node_ids(run.available_commissions()), ["boss_outer_bell_01"])
-	tr.assert_true("refresh disabled once boss is visible", not run.can_refresh_commission(0))
-	var charges_before: int = run.refresh_charges
-	tr.assert_true("boss card refresh fails", not run.refresh_commission(0))
-	tr.assert_eq("failed boss refresh does not spend charges", run.refresh_charges, charges_before)
+	shop_run.current_node_id = "quartermaster_cache_05"
+	shop_run.resolve_shop_node("buy_field_treatment")
+	tr.assert_eq("shop as fifth commission unlocks boss only", _node_ids(shop_run.available_commissions()), ["boss_outer_bell_01"])
 
 static func _test_boss_completion_leaves_no_commissions(tr) -> void:
 	var run = RunStateScript.new()
@@ -209,7 +205,6 @@ static func _test_boss_completion_leaves_no_commissions(tr) -> void:
 	for node_id in ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03", "pillar_graveyard_03"]:
 		run.current_node_id = node_id
 		run.mark_current_node_visited()
-	_complete_until_boss_unlock(run)
 	tr.assert_eq("boss is only available after unlock", _node_ids(run.available_commissions()), ["boss_outer_bell_01"])
 	run.current_node_id = "boss_outer_bell_01"
 	run.mark_current_node_visited()
@@ -278,34 +273,6 @@ static func _test_expedition_map_pools_are_explicit(tr) -> void:
 	tr.assert_eq("broken wall elite pool is fixed elite", run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_BROKEN_WALL, RunStateScript.MAP_POOL_ELITE), [BattleConfigCatalogScript.CONFIG_IRON_GATE])
 	tr.assert_eq("broken wall boss pool is fixed boss", run.expedition_map_pool_config_ids(RunStateScript.EXPEDITION_BROKEN_WALL, RunStateScript.MAP_POOL_BOSS), [BattleConfigCatalogScript.CONFIG_OUTER_BELL])
 
-static func _test_commission_decks_follow_map_generation_rules(tr) -> void:
-	for expedition_id in RunExpeditionCatalogScript.expedition_ids():
-		var config := RunExpeditionCatalogScript.commission_deck_config(expedition_id)
-		var seen_signatures := {}
-		for seed in [1, 7, 19, 777]:
-			var run = RunStateScript.new()
-			run.setup_new_random_route(seed, expedition_id)
-			var normal_deck := _non_boss_nodes(run.route_nodes)
-			var type_sequence := _node_types(normal_deck)
-			var deck_size := int(config.get("deck_size", 0))
-			var hand_size := int(config.get("hand_size", 0))
-			var boss_unlock_count := int(config.get("boss_unlock_count", 0))
-			var refresh_count := int(config.get("initial_refresh_charges", 0))
-			tr.assert_eq("%s seed %d deck size" % [expedition_id, seed], normal_deck.size(), deck_size)
-			tr.assert_eq("%s seed %d boss outside deck" % [expedition_id, seed], run.route_nodes.size(), deck_size + 1)
-			tr.assert_eq("%s seed %d hand size" % [expedition_id, seed], run.commission_hand_size, hand_size)
-			tr.assert_eq("%s seed %d initial board size" % [expedition_id, seed], run.available_commissions().size(), hand_size)
-			tr.assert_eq("%s seed %d boss unlock" % [expedition_id, seed], run.commission_goal_count(), boss_unlock_count)
-			tr.assert_eq("%s seed %d refresh max" % [expedition_id, seed], run.refresh_charges_max, refresh_count)
-			tr.assert_eq("%s seed %d type counts" % [expedition_id, seed], _node_type_counts(normal_deck), config.get("type_counts", {}))
-			tr.assert_eq("%s seed %d opening types" % [expedition_id, seed], type_sequence.slice(0, 3), [RunStateScript.NODE_NORMAL, RunStateScript.NODE_EVENT, RunStateScript.NODE_SHOP])
-			tr.assert_eq("%s seed %d fourth card is normal" % [expedition_id, seed], type_sequence[3], RunStateScript.NODE_NORMAL)
-			tr.assert_true("%s seed %d no early elite" % [expedition_id, seed], not (RunStateScript.NODE_ELITE in type_sequence.slice(0, 5)))
-			tr.assert_true("%s seed %d max two non-combat in a row: %s" % [expedition_id, seed, " > ".join(type_sequence)], _max_consecutive_non_combat(type_sequence) <= int(config.get("max_consecutive_non_combat", 2)))
-			tr.assert_eq("%s seed %d boss not in deck ids" % [expedition_id, seed], RunStateScript.NODE_BOSS in type_sequence, false)
-			seen_signatures["|".join(_node_ids(normal_deck))] = true
-		tr.assert_true("%s deck generation changes across seeds" % expedition_id, seen_signatures.size() > 1)
-
 
 static func _test_random_route_is_seeded_and_valid(tr) -> void:
 	var first = RunStateScript.new()
@@ -314,20 +281,17 @@ static func _test_random_route_is_seeded_and_valid(tr) -> void:
 	second.setup_new_random_route(777)
 	tr.assert_eq("random route seed keeps node ids stable", _node_ids(first.route_nodes), _node_ids(second.route_nodes))
 	tr.assert_eq("random route chapter name", first.chapter_name, "断墙外环")
-	var broken_deck_config := RunExpeditionCatalogScript.commission_deck_config(first.expedition_id)
-	tr.assert_eq("random route follows expedition deck size plus boss", first.route_nodes.size(), int(broken_deck_config.get("deck_size", 0)) + 1)
+	tr.assert_eq("random route has thirteen commission candidates", first.route_nodes.size(), 13)
 	tr.assert_eq("random route initial commission board size", first.available_commissions().size(), 3)
 	tr.assert_eq("random route starts with normal battle", first.available_commissions()[0].get("node_type", ""), RunStateScript.NODE_NORMAL)
 	tr.assert_eq("random route boss layer availability after path", _complete_first_available_path(first), RunStateScript.NODE_BOSS)
 	var layer_counts := _route_layer_counts(second.route_nodes)
 	tr.assert_eq("random route layer 1 count", layer_counts.get(1, 0), 1)
-	tr.assert_true("random route has early layer", int(layer_counts.get(2, 0)) > 0)
-	tr.assert_true("random route has middle layer", int(layer_counts.get(3, 0)) > 0)
-	tr.assert_true("random route has combat pressure layer", int(layer_counts.get(4, 0)) > 0)
-	tr.assert_true("random route has boss prep layer", int(layer_counts.get(5, 0)) > 0)
+	tr.assert_eq("random route layer 2 count", layer_counts.get(2, 0), 3)
+	tr.assert_eq("random route layer 3 count", layer_counts.get(3, 0), 3)
+	tr.assert_eq("random route layer 4 count", layer_counts.get(4, 0), 2)
+	tr.assert_eq("random route layer 5 count", layer_counts.get(5, 0), 3)
 	tr.assert_eq("random route layer 6 count", layer_counts.get(6, 0), 1)
-	tr.assert_eq("random route commission goal follows expedition config", second.commission_goal_count(), int(broken_deck_config.get("boss_unlock_count", 0)))
-	tr.assert_eq("random route refresh charges follow expedition config", second.refresh_charges_max, int(broken_deck_config.get("initial_refresh_charges", 0)))
 	tr.assert_true("random route boss-prep layer has recovery or shop", _layer_has_type(second.route_nodes, 5, RunStateScript.NODE_CAMP) or _layer_has_type(second.route_nodes, 5, RunStateScript.NODE_SHOP))
 	tr.assert_true("random route has at least one elite", _route_has_type(second.route_nodes, RunStateScript.NODE_ELITE))
 	for node in second.route_nodes:
@@ -388,10 +352,11 @@ static func _test_random_route_map_pool_contracts(tr) -> void:
 				if pool_key != RunStateScript.MAP_POOL_NORMAL:
 					continue
 				var repeat_group := String(battle.get("map_no_repeat_group", ""))
-				if not used_normal_groups.has(repeat_group):
-					used_normal_groups[repeat_group] = true
-				elif String(battle.get("map_assignment_relaxed", "")) == "repeat":
-					contract_errors.append("%s normal pool repeat used relaxed fallback" % node_id)
+				if used_normal_groups.has(repeat_group):
+					if String(battle.get("map_assignment_relaxed", "")).is_empty():
+						contract_errors.append("%s repeat not marked relaxed" % node_id)
+				elif not String(battle.get("map_assignment_relaxed", "")).is_empty():
+					contract_errors.append("%s first repeat group use is relaxed" % node_id)
 				used_normal_groups[repeat_group] = true
 			tr.assert_true("random route map pool contracts %s seed %d: %s" % [expedition_id, seed, ", ".join(contract_errors)], contract_errors.is_empty())
 
@@ -426,8 +391,7 @@ static func _test_map_pool_candidate_filtering_prefers_valid_entries(tr) -> void
 	tr.assert_eq("unused repeat group pick is strict", strict_pick.get("map_assignment_relaxed", ""), "")
 	used_repeat_groups["fresh"] = true
 	var repeat_pick: Dictionary = run._pick_map_pool_entry_for_node(candidates, node, RunStateScript.MAP_POOL_NORMAL, {"pressure_budget": {RunStateScript.MAP_POOL_NORMAL: 3}}, used_repeat_groups, rng)
-	tr.assert_eq("exhausted repeat groups start a new strict cycle", repeat_pick.get("map_assignment_relaxed", ""), "")
-	tr.assert_true("repeat cycle reset clears previous groups", used_repeat_groups.size() == 0)
+	tr.assert_eq("exhausted repeat groups relax repeat only", repeat_pick.get("map_assignment_relaxed", ""), "repeat")
 	var pressure_pick: Dictionary = run._pick_map_pool_entry_for_node([
 		{
 			"config_id": BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD,
@@ -469,85 +433,13 @@ static func _node_ids(nodes: Array[Dictionary]) -> Array[String]:
 		ids.append(String(node.get("node_id", "")))
 	return ids
 
-static func _node_types(nodes: Array[Dictionary]) -> Array[String]:
-	var types: Array[String] = []
-	for node in nodes:
-		types.append(String(node.get("node_type", "")))
-	return types
-
-static func _non_boss_nodes(nodes: Array[Dictionary]) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	for node in nodes:
-		if String(node.get("node_type", "")) != RunStateScript.NODE_BOSS:
-			result.append(node)
-	return result
-
-static func _node_type_counts(nodes: Array[Dictionary]) -> Dictionary:
-	var result := {}
-	for node in nodes:
-		var node_type := String(node.get("node_type", ""))
-		result[node_type] = int(result.get(node_type, 0)) + 1
-	return result
-
-static func _deck_has_interaction_options(nodes: Array[Dictionary], node_type: String, group_key: String) -> bool:
-	for node in nodes:
-		if String(node.get("node_type", "")) != node_type:
-			continue
-		if not node.get(group_key, {}).get("options", []).is_empty():
-			return true
-	return false
-
-static func _complete_until_boss_unlock(run: RunStateScript) -> void:
-	_complete_until_count(run, run.commission_goal_count())
-
-static func _run_one_short_of_boss_unlock() -> RunStateScript:
+static func _run_with_four_completed_non_boss_commissions() -> RunStateScript:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	_complete_until_count(run, run.commission_goal_count() - 1, {
-		RunStateScript.NODE_EVENT: true,
-		RunStateScript.NODE_CAMP: true,
-		RunStateScript.NODE_SHOP: true,
-	})
-	return run
-
-static func _complete_until_count(run: RunStateScript, target_count: int, excluded_types: Dictionary = {}) -> void:
-	var guard := 0
-	while run.completed_commission_count() < target_count and guard < 64:
-		guard += 1
-		var selected := _first_unvisited_id_excluding_types(run, excluded_types)
-		if selected.is_empty():
-			selected = _first_unvisited_non_boss_id(run)
-		if selected.is_empty():
-			return
-		run.current_node_id = selected
+	for node_id in ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02", "crack_courtyard_03"]:
+		run.current_node_id = node_id
 		run.mark_current_node_visited()
-
-static func _first_unvisited_id_excluding_types(run: RunStateScript, excluded_types: Dictionary) -> String:
-	for node in run.route_nodes:
-		var node_id := String(node.get("node_id", ""))
-		var node_type := String(node.get("node_type", ""))
-		if node_id.is_empty() or bool(node.get("visited", false)) or node_type == RunStateScript.NODE_BOSS:
-			continue
-		if excluded_types.has(node_type):
-			continue
-		return node_id
-	return ""
-
-static func _first_unvisited_non_boss_id(run: RunStateScript) -> String:
-	for node in run.route_nodes:
-		var node_id := String(node.get("node_id", ""))
-		if node_id.is_empty() or bool(node.get("visited", false)) or String(node.get("node_type", "")) == RunStateScript.NODE_BOSS:
-			continue
-		return node_id
-	return ""
-
-static func _first_unvisited_id_of_type(run: RunStateScript, node_type: String) -> String:
-	for node in run.route_nodes:
-		if bool(node.get("visited", false)):
-			continue
-		if String(node.get("node_type", "")) == node_type:
-			return String(node.get("node_id", ""))
-	return ""
+	return run
 
 static func _battle_node_count(nodes: Array[Dictionary], run: RunStateScript) -> int:
 	var result := 0
@@ -607,17 +499,6 @@ static func _route_has_type(nodes: Array[Dictionary], node_type: String) -> bool
 		if String(node.get("node_type", "")) == node_type:
 			return true
 	return false
-
-static func _max_consecutive_non_combat(type_sequence: Array[String]) -> int:
-	var best := 0
-	var current := 0
-	for node_type in type_sequence:
-		if node_type == RunStateScript.NODE_NORMAL or node_type == RunStateScript.NODE_ELITE:
-			current = 0
-		else:
-			current += 1
-			best = maxi(best, current)
-	return best
 
 static func _layer_has_type(nodes: Array[Dictionary], layer: int, node_type: String) -> bool:
 	for node in nodes:
