@@ -1,5 +1,5 @@
 extends RefCounted
-## Regression coverage for the fixed demo Run state and Run-to-battle HP handoff.
+## Regression coverage for commission-deck Run state and Run-to-battle HP handoff.
 
 const RunStateScript := preload("res://scripts/run/run_state.gd")
 const SkillCatalog := preload("res://scripts/battle/warden_skill_catalog.gd")
@@ -54,7 +54,7 @@ static func run(tr) -> void:
 	_test_fixed_reward_claim_ignores_obsolete_choice_id(tr)
 	_test_elite_reward_uses_fixed_reward_list(tr)
 	_test_three_tasks_offer_guardian_recovery(tr)
-	_test_full_sanctuary_recovery_conversion_uses_chapter_slot(tr)
+	_test_full_sanctuary_recovery_conversion_uses_map_slot(tr)
 	_test_fixed_battle_reward_has_no_choice_groups(tr)
 	_test_normal_reward_offers_skill_upgrade_without_hp_gain(tr)
 	_test_skill_upgrade_options_continue_after_first_skill_upgrade(tr)
@@ -71,38 +71,18 @@ static func run(tr) -> void:
 static func _test_demo_route_shape(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	tr.assert_eq("demo route has twelve commission candidates", run.route_nodes.size(), 12)
-	var expected_types := [
-		RunStateScript.NODE_NORMAL,
-		RunStateScript.NODE_EVENT,
-		RunStateScript.NODE_SHOP,
-		RunStateScript.NODE_NORMAL,
-		RunStateScript.NODE_NORMAL,
-		RunStateScript.NODE_CAMP,
-		RunStateScript.NODE_EVENT,
-		RunStateScript.NODE_ELITE,
-		RunStateScript.NODE_CAMP,
-		RunStateScript.NODE_SHOP,
-		RunStateScript.NODE_EVENT,
-		RunStateScript.NODE_BOSS,
-	]
-	var expected_ids := [
-		"outer_wall_01",
-		"extinguished_beacon_02",
-		"quartermaster_cache_02",
-		"crack_courtyard_03",
-		"pillar_graveyard_03",
-		"ember_camp_03",
-		"scout_ritual_03",
-		"iron_gate_04",
-		"ember_camp_05",
-		"quartermaster_cache_05",
-		"last_watch_event_05",
-		"boss_outer_bell_01",
-	]
-	for i in range(expected_types.size()):
-		tr.assert_eq("demo route type %d" % (i + 1), run.route_nodes[i].node_type, expected_types[i])
-		tr.assert_eq("demo route id %d" % (i + 1), run.route_nodes[i].node_id, expected_ids[i])
+	tr.assert_eq("demo route follows configured deck plus boss", run.route_nodes.size(), 17)
+	tr.assert_eq("demo deck ids exclude boss", run.commission_deck_ids.size(), 16)
+	tr.assert_eq("demo boss unlock count", run.commission_goal_count(), 8)
+	tr.assert_eq("demo refresh charges", run.refresh_charges_max, 2)
+	tr.assert_eq("demo route type mix", _node_type_counts(run.route_nodes), {
+		RunStateScript.NODE_NORMAL: 7,
+		RunStateScript.NODE_EVENT: 3,
+		RunStateScript.NODE_SHOP: 2,
+		RunStateScript.NODE_ELITE: 3,
+		RunStateScript.NODE_CAMP: 1,
+		RunStateScript.NODE_BOSS: 1,
+	})
 	tr.assert_eq("initial commission board", _node_ids(run.available_route_nodes()), ["outer_wall_01", "extinguished_beacon_02", "quartermaster_cache_02"])
 	tr.assert_eq("initial sanctuary", run.sanctuary_integrity, 12)
 	tr.assert_eq("initial alive wardens", run.alive_warden_count(), 3)
@@ -250,12 +230,13 @@ static func _test_three_tasks_offer_guardian_recovery(tr) -> void:
 	run.apply_battle_resolution(_summary(true, 1, 3, 2))
 	run.pending_reward = run.build_pending_reward(node, run.last_resolution)
 	tr.assert_eq("three tasks creates fixed recovery", _fixed_reward_amount_for_type(run.pending_reward, "sanctuary_integrity"), 1)
+	tr.assert_eq("three tasks recovery uses map wording", _fixed_reward_reason_for_type(run.pending_reward, "sanctuary_integrity"), "本次地图首次完美守住防线")
 	tr.assert_true("three tasks marks fixed recovery modifier", _has_modifier(run.pending_reward, "guardian_recovery_fixed"))
 	run.claim_pending_reward("")
 	tr.assert_eq("fixed recovery restores sanctuary", run.sanctuary_integrity, 12)
-	tr.assert_true("chapter recovery marked used", run.chapter_guardian_reward_used)
+	tr.assert_true("map recovery marked used", run.chapter_guardian_reward_used)
 
-static func _test_full_sanctuary_recovery_conversion_uses_chapter_slot(tr) -> void:
+static func _test_full_sanctuary_recovery_conversion_uses_map_slot(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
 	var node: Dictionary = run.next_unvisited_node()
@@ -265,7 +246,7 @@ static func _test_full_sanctuary_recovery_conversion_uses_chapter_slot(tr) -> vo
 	tr.assert_true("full sanctuary converts recovery to embers", _has_modifier(run.pending_reward, "guardian_recovery_converted"))
 	tr.assert_true("converted recovery does not mark slot before claim", not run.chapter_guardian_reward_used)
 	run.claim_pending_reward("")
-	tr.assert_true("converted recovery marks chapter slot used", run.chapter_guardian_reward_used)
+	tr.assert_true("converted recovery marks map slot used", run.chapter_guardian_reward_used)
 	tr.assert_eq("converted recovery pays extra embers", run.embers, 16)
 
 static func _test_fixed_battle_reward_has_no_choice_groups(tr) -> void:
@@ -309,9 +290,7 @@ static func _test_protected_damage_spends_sanctuary_without_immediate_defeat(tr)
 static func _test_boss_reward_can_finish_route(tr) -> void:
 	var run = RunStateScript.new()
 	run.setup_new_demo()
-	for node_id in ["outer_wall_01", "extinguished_beacon_02", "ember_camp_03", "iron_gate_04", "ember_camp_05"]:
-		run.current_node_id = node_id
-		run.mark_current_node_visited()
+	_complete_until_boss_unlock(run)
 	var boss: Dictionary = run.next_unvisited_node()
 	tr.assert_eq("boss is final unvisited node", boss.node_type, RunStateScript.NODE_BOSS)
 	run.current_node_id = boss.node_id
@@ -447,8 +426,34 @@ static func _fixed_reward_amount_for_type(reward: Dictionary, reward_type: Strin
 			return int(fixed_reward.get("amount", 0))
 	return 0
 
+static func _fixed_reward_reason_for_type(reward: Dictionary, reward_type: String) -> String:
+	for fixed_reward in reward.get("fixed_rewards", []):
+		if String(fixed_reward.get("reward_type", "")) == reward_type:
+			return String(fixed_reward.get("reason", ""))
+	return ""
+
+static func _complete_until_boss_unlock(run: RunStateScript) -> void:
+	var guard := 0
+	while run.completed_commission_count() < run.commission_goal_count() and guard < 64:
+		guard += 1
+		var available := run.available_route_nodes()
+		if available.is_empty():
+			return
+		var node: Dictionary = available[0]
+		if String(node.get("node_type", "")) == RunStateScript.NODE_BOSS:
+			return
+		run.current_node_id = String(node.get("node_id", ""))
+		run.mark_current_node_visited()
+
 static func _node_ids(nodes: Array[Dictionary]) -> Array[String]:
 	var ids: Array[String] = []
 	for node in nodes:
 		ids.append(String(node.get("node_id", "")))
 	return ids
+
+static func _node_type_counts(nodes: Array[Dictionary]) -> Dictionary:
+	var result := {}
+	for node in nodes:
+		var node_type := String(node.get("node_type", ""))
+		result[node_type] = int(result.get(node_type, 0)) + 1
+	return result

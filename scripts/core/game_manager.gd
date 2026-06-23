@@ -10,6 +10,35 @@ const MAIN_MENU_BACKGROUND_REGION := Rect2(1210, 0, 1542, 1536)
 const BATTLE_DEBRIEF_PANEL_PATH := "res://art/ui/battle_result/battle_result_debrief_panel_gpt-image-2.png"
 const HUB_BACKGROUND_PATH := "res://art/ui/hub/main_hub_multi_node_gpt_v1.png"
 const EXPEDITION_MAP_BACKGROUND_PATH := "res://art/ui/expedition/expedition_tactical_map_gpt.png"
+const MISSION_BOARD_FULL_ASSET_PATH := "res://art/ui/mission_board/generated/mission_board_full_asset_v2.png"
+const MISSION_BOARD_UI_ATLAS_PATH := "res://art/ui/mission_board/mission_board_ui_atlas_gpt_v2.png"
+const MISSION_CARD_FRAME_PATH := "res://art/ui/mission_board/mission_card_frame_simple_v1.png"
+const MISSION_REFRESH_ICON_PATH := "res://art/ui/mission_board/mission_refresh_icon_gpt_v3_128.png"
+const UI_FONT := preload("res://art/fonts/NotoSansSC-VF.ttf")
+const MISSION_ATLAS_PANEL := Rect2(100, 414, 305, 516)
+const MISSION_ATLAS_CARD := Rect2(103, 98, 212, 268)
+const MISSION_ATLAS_STATUS_CHIP := Rect2(607, 99, 179, 56)
+const MISSION_ATLAS_NOTICE := Rect2(447, 859, 210, 70)
+const MISSION_ATLAS_REFRESH_BUTTON := Rect2(762, 548, 78, 78)
+const MISSION_ATLAS_DIVIDER := Rect2(475, 714, 173, 30)
+const SHOP_UI_ATLAS_PATH := "res://art/ui/shop/shop_ui_atlas_simple_v3.png"
+const SHOP_ATLAS_MAIN_PANEL := Rect2(19, 17, 490, 289)
+const SHOP_ATLAS_RESOURCE_STRIP := Rect2(527, 101, 482, 124)
+const SHOP_ATLAS_RESOURCE_CHIP := Rect2(321, 378, 126, 129)
+const SHOP_ATLAS_ITEM_CARD := Rect2(38, 328, 180, 244)
+const SHOP_ATLAS_BUTTON_NORMAL := Rect2(528, 412, 224, 75)
+const SHOP_ATLAS_BUTTON_DISABLED := Rect2(14, 650, 229, 83)
+const SHOP_ATLAS_BUTTON_HOVER := Rect2(788, 412, 218, 75)
+const SHOP_ATLAS_BUTTON_BACK := Rect2(282, 633, 180, 108)
+const SHOP_ATLAS_ICON_HEALING := Rect2(568, 599, 139, 158)
+const SHOP_ATLAS_ICON_REPAIR := Rect2(783, 596, 224, 176)
+const SHOP_ATLAS_ICON_RELIC := Rect2(54, 799, 139, 196)
+const SHOP_ATLAS_ICON_EMBER := Rect2(306, 809, 145, 149)
+const SHOP_ATLAS_SHELF_BEAM := Rect2(529, 859, 221, 70)
+const SHOP_ATLAS_CORNER_ORNAMENT := Rect2(827, 797, 134, 143)
+const SHOP_ATLAS_DIVIDER := Rect2(529, 859, 221, 70)
+const SHOP_RESOURCE_PLAQUE_PATH := "res://art/ui/shop/generated/shop_resource_compact_plaque_gpt_v1.png"
+const SHOP_ITEM_DISPLAY_SLOT_PATH := "res://art/ui/shop/generated/shop_item_display_slot_gpt_v1.png"
 
 const COLOR_BG := Color(0.035, 0.032, 0.040, 1.0)
 const COLOR_PANEL := Color(0.070, 0.060, 0.066, 0.96)
@@ -21,6 +50,14 @@ const COLOR_DANGER := Color(0.96, 0.34, 0.30, 1.0)
 const COLOR_AMBER := Color(1.00, 0.72, 0.34, 1.0)
 const COLOR_GOOD := Color(0.48, 0.82, 0.56, 1.0)
 const COLOR_PARCHMENT := Color(0.78, 0.67, 0.48, 1.0)
+const SHOP_TEXT_HEADER := Color(0.98, 0.70, 0.30, 1.0)
+const SHOP_TEXT_PRIMARY := Color(0.94, 0.86, 0.70, 1.0)
+const SHOP_TEXT_BODY := Color(0.86, 0.78, 0.62, 1.0)
+const SHOP_TEXT_MUTED := Color(0.68, 0.62, 0.52, 1.0)
+const SHOP_TEXT_PRICE := Color(1.0, 0.64, 0.24, 1.0)
+const SHOP_TEXT_DISABLED := Color(0.44, 0.40, 0.35, 0.92)
+const SHOP_TEXT_OUTLINE := Color(0.030, 0.020, 0.012, 0.96)
+const SHOP_TEXT_SHADOW := Color(0.0, 0.0, 0.0, 0.78)
 const UI_SAFE_MARGIN := 56.0
 const UI_BUTTON_MIN_HEIGHT := 48.0
 const HUB_NODE_BROKEN_WALL_GATE := "broken_wall_gate"
@@ -54,6 +91,14 @@ var _pending_overwrite_run = null
 var _ui: Control = null
 var _battle: BattleScene = null
 var _selecting_new_run_map: bool = false
+var _shop_ui_atlas_source: Texture2D = null
+var _shop_resource_plaque_source: Texture2D = null
+var _shop_item_display_slot_source: Texture2D = null
+var _shop_fonts: Dictionary = {}
+var _mission_board_full_asset_source: Texture2D = null
+var _mission_board_ui_atlas_source: Texture2D = null
+var _mission_card_frame_source: Texture2D = null
+var _mission_refresh_icon_source: Texture2D = null
 
 func _ready() -> void:
 	_show_main_menu()
@@ -353,26 +398,36 @@ func _show_mission_board() -> void:
 	_run.phase = RunStateScript.Phase.ROUTE
 	var root := _make_root()
 	_add_hub_backdrop(root)
-	_add_mission_board_summary(root)
-	var panel := _panel(root, Rect2(96, 112, 1040, 500), Color(0.070, 0.056, 0.048, 0.97))
-	_label(panel, "任务委托", Rect2(28, 24, 260, 34), 29, COLOR_AMBER)
-	_label(panel, "%s · 选择下一次行动" % _run.expedition_name, Rect2(30, 64, 520, 26), 17, COLOR_MUTED)
-	var cards_y := 134.0
+	_decor_rect(root, HUB_VIEWPORT_RECT, Color(0.0, 0.0, 0.0, 0.26)).name = "MissionBoardBackdropGrade"
+	var panel := _add_mission_atlas_panel(root, Rect2(48, 44, 1184, 616))
+	_mission_board_text(panel, "任务委托", Rect2(106, 64, 314, 34), 30, Color(0.42, 0.27, 0.14, 1.0), HORIZONTAL_ALIGNMENT_CENTER, 1)
+	_mission_board_text(panel, "%s · 选择下一次行动" % _run.expedition_name, Rect2(116, 98, 294, 20), 15, Color(0.36, 0.25, 0.16, 0.96), HORIZONTAL_ALIGNMENT_CENTER, 0)
+	_mission_board_text(panel, "完成 %d / %d 后进入 Boss" % [
+		_run.completed_commission_count(),
+		_run.commission_goal_count(),
+	], Rect2(768, 72, 154, 24), 14, Color(0.38, 0.26, 0.16, 1.0), HORIZONTAL_ALIGNMENT_CENTER, 0)
+	_add_mission_refresh_status(panel, Rect2(952, 72, 136, 24))
+	_add_mission_board_summary(panel, Rect2(66, 168, 620, 48))
+	var cards_y := 258.0
+	var card_h := 298.0
 	if not _run.last_route_notice.is_empty():
-		_add_route_notice(panel, Rect2(30, 98, 980, 58), _run.last_route_notice)
-		cards_y = 172.0
+		_add_route_notice(panel, Rect2(84, 216, 1010, 42), _run.last_route_notice)
+		cards_y = 288.0
+		card_h = 264.0
 	var available: Array[Dictionary] = _run.available_commissions()
 	if available.is_empty():
-		_label(panel, "本章路线已完成。", Rect2(360, 214, 260, 30), 22, COLOR_TEXT)
-		_button(panel, "查看 Run 结算", Rect2(392, 270, 180, UI_BUTTON_MIN_HEIGHT), _show_run_result)
+		_label(panel, "本次地图委托已完成。", Rect2(420, 318, 344, 34), 24, COLOR_TEXT)
+		_button(panel, "查看 Run 结算", Rect2(494, 380, 196, UI_BUTTON_MIN_HEIGHT), _show_run_result)
 	else:
-		var card_w := 306.0
-		var card_h := 250.0
+		var card_w := 304.0
+		var card_gap := 50.0
 		for i in range(available.size()):
 			var node: Dictionary = available[i]
 			var col := i % 3
 			var row := int(i / 3)
-			_add_mission_card(panel, node, Rect2(30 + col * 326, cards_y + row * 268, card_w, card_h))
+			var card_rect := Rect2(76 + col * (card_w + card_gap), cards_y + row * (card_h + 22.0), card_w, card_h)
+			_add_mission_card(panel, node, card_rect)
+			_add_mission_card_refresh_button(panel, node, card_rect, i)
 
 func _cancel_current_node_and_show_mission_board() -> void:
 	if _run != null:
@@ -388,6 +443,13 @@ func _start_mission_from_board(node_id: String) -> void:
 		return
 	_run.current_node_id = node_id
 	_execute_current_node()
+
+func _refresh_mission_card(slot_index: int) -> void:
+	if _run == null:
+		_show_main_menu()
+		return
+	_run.refresh_commission(slot_index)
+	_show_mission_board()
 
 func _execute_current_node() -> void:
 	var node: Dictionary = _run.current_node()
@@ -504,138 +566,341 @@ func _show_shop_node() -> void:
 		return
 	var root := _make_root()
 	_add_hub_backdrop(root)
-	_decor_rect(root, HUB_VIEWPORT_RECT, Color(0.010, 0.007, 0.005, 0.48))
-	_add_top_bar(root)
-	_label(root, "商店行动", Rect2(72, 92, 420, 38), 28, COLOR_AMBER)
-	var shop_panel := _panel(root, Rect2(72, 142, 1136, 448), Color(0.052, 0.041, 0.035, 0.985))
-	shop_panel.name = "ShopStallPanel"
-	_add_shop_panel_decoration(shop_panel, Vector2(1136, 448))
-	_label(shop_panel, String(node.get("title", "")), Rect2(36, 26, 360, 40), 31, COLOR_TEXT)
-	_label(shop_panel, "封存的军需箱仍带着余温。", Rect2(404, 36, 360, 26), 17, COLOR_MUTED)
-	_label(shop_panel, "购买 1 项", Rect2(940, 34, 150, 28), 20, COLOR_AMBER)
-	_add_shop_resource_strip(shop_panel, Rect2(34, 84, 1068, 58))
-	_add_shop_shelf_frame(shop_panel, Rect2(30, 160, 1076, 246))
+	_decor_rect(root, HUB_VIEWPORT_RECT, Color(0.010, 0.007, 0.005, 0.30))
+	var shop_panel := _add_shop_atlas_panel(root, Rect2(40, 46, 1200, 570))
+	_shop_label(shop_panel, String(node.get("title", "")), Rect2(70, 54, 430, 52), 38, SHOP_TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_LEFT, 2, 720)
+	_add_shop_resource_strip(shop_panel, Rect2(64, 126, 1072, 78))
+	_add_shop_shelf_frame(shop_panel, Rect2(64, 222, 1072, 304))
 	var shop_data: Dictionary = node.get("shop", {})
 	var options: Array = shop_data.get("options", [])
-	var card_w := 328.0
-	var gap := 30.0
+	var card_w := 320.0
+	var gap := 56.0
 	for option in shop_data.get("options", []):
 		var index := options.find(option)
 		var option_id := String(option.get("option_id", ""))
 		var effects: Array = option.get("effects", [])
 		var can_afford: bool = _run.can_afford_effects(effects)
-		var card_rect := Rect2(54 + index * (card_w + gap), 178, card_w, 206)
+		var card_rect := Rect2(66 + index * (card_w + gap), 244, card_w, 254)
 		_add_shop_stall_card(shop_panel, card_rect, option, can_afford, func(id := option_id): _resolve_shop_choice(id))
-	_button(root, "返回任务布告", Rect2(72, 610, 150, 48), _cancel_current_node_and_show_mission_board)
+	_add_shop_atlas_button(root, "ShopBackToMissionBoard", "返回任务布告", Rect2(42, 642, 58, 56), _cancel_current_node_and_show_mission_board, false, true)
 
 func _resolve_shop_choice(option_id: String) -> void:
 	_run.resolve_shop_node(option_id)
 	_show_mission_board()
 
-func _add_shop_panel_decoration(parent: Control, size: Vector2) -> void:
-	_decor_rect(parent, Rect2(0, 0, size.x, 6), Color(1.0, 0.55, 0.18, 0.30)).name = "ShopPanelTopGlow"
-	_decor_rect(parent, Rect2(0, size.y - 10, size.x, 10), Color(0.0, 0.0, 0.0, 0.32)).name = "ShopPanelBottomShade"
-	_decor_rect(parent, Rect2(20, 72, size.x - 40, 1), Color(1.0, 0.67, 0.30, 0.28)).name = "ShopTitleHairline"
-	_decor_rect(parent, Rect2(22, 22, 5, 28), COLOR_AMBER).name = "ShopTitleAccent"
-	_decor_rect(parent, Rect2(size.x - 176, 24, 126, 2), Color(1.0, 0.68, 0.26, 0.24)).name = "ShopLedgerRule"
+func _add_shop_atlas_panel(parent: Control, rect: Rect2) -> Control:
+	var panel := Control.new()
+	panel.name = "ShopStallPanel"
+	panel.position = rect.position
+	panel.size = rect.size
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(panel)
+	_decor_rect(panel, Rect2(18, 24, rect.size.x - 36, rect.size.y - 18), Color(0.0, 0.0, 0.0, 0.42)).name = "ShopPanelDropShadow"
+	_add_shop_ninepatch_rect(panel, "ShopAtlasMainPanel", Rect2(Vector2.ZERO, rect.size), SHOP_ATLAS_MAIN_PANEL, Vector4(54, 54, 58, 58), Color.WHITE)
+	_decor_rect(panel, Rect2(54, 128, rect.size.x - 108, rect.size.y - 198), Color(0.010, 0.014, 0.014, 0.14)).name = "ShopPanelContentShade"
+	return panel
 
 func _add_shop_resource_strip(parent: Control, rect: Rect2) -> void:
-	var strip := _panel(parent, rect, Color(0.036, 0.030, 0.028, 0.96))
+	var strip := Control.new()
+	strip.position = rect.position
+	strip.size = rect.size
 	strip.name = "ShopResourceStrip"
-	_decor_rect(strip, Rect2(0, 0, rect.size.x, 2), Color(1.0, 0.70, 0.30, 0.28)).name = "ShopResourceTopLine"
-	_decor_rect(strip, Rect2(0, rect.size.y - 2, rect.size.x, 2), Color(0.0, 0.0, 0.0, 0.24)).name = "ShopResourceBottomLine"
-	var chip_w := 246.0
-	var gap := 22.0
-	_add_shop_resource_chip(strip, Rect2(18, 10, chip_w, 38), "余烬", "%d" % _run.embers, COLOR_AMBER)
-	_add_shop_resource_chip(strip, Rect2(18 + (chip_w + gap), 10, chip_w, 38), "守护值", "%d / %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], COLOR_GOOD)
-	_add_shop_resource_chip(strip, Rect2(18 + (chip_w + gap) * 2, 10, chip_w, 38), "守卫者", "%d / 3" % _run.alive_warden_count(), COLOR_TEXT)
-	_add_shop_resource_chip(strip, Rect2(18 + (chip_w + gap) * 3, 10, chip_w, 38), "腐化", "%d" % _run.corruption, COLOR_DANGER if _run.corruption > 0 else COLOR_PARCHMENT)
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(strip)
+	_decor_rect(strip, Rect2(34, 22, rect.size.x - 68, rect.size.y - 24), Color(0.0, 0.0, 0.0, 0.18)).name = "ShopResourceStripShadow"
+	_decor_rect(strip, Rect2(44, 28, rect.size.x - 88, 1), Color(0.82, 0.64, 0.38, 0.16)).name = "ShopResourceStripBackplate"
+	var margin := 18.0
+	var gap := 14.0
+	var chip_w := (rect.size.x - margin * 2.0 - gap * 3.0) / 4.0
+	var chip_h := rect.size.y - 16.0
+	var chip_y := 8.0
+	_add_shop_resource_chip(strip, Rect2(margin, chip_y, chip_w, chip_h), "余烬", "%d" % _run.embers, COLOR_AMBER)
+	_add_shop_resource_chip(strip, Rect2(margin + (chip_w + gap), chip_y, chip_w, chip_h), "守护值", "%d / %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], COLOR_GOOD)
+	_add_shop_resource_chip(strip, Rect2(margin + (chip_w + gap) * 2.0, chip_y, chip_w, chip_h), "守卫者", "%d / 3" % _run.alive_warden_count(), SHOP_TEXT_PRIMARY)
+	_add_shop_resource_chip(strip, Rect2(margin + (chip_w + gap) * 3.0, chip_y, chip_w, chip_h), "腐化", "%d" % _run.corruption, COLOR_DANGER if _run.corruption > 0 else COLOR_PARCHMENT)
 
 func _add_shop_resource_chip(parent: Control, rect: Rect2, title: String, value: String, accent: Color) -> void:
-	var chip := _panel(parent, rect, Color(0.075, 0.058, 0.045, 0.92))
+	var chip := Control.new()
+	chip.position = rect.position
+	chip.size = rect.size
 	chip.name = "ShopResource_%s" % title
-	_decor_rect(chip, Rect2(0, 0, 4, rect.size.y), accent).name = "ShopResourceAccent"
-	_label(chip, title, Rect2(14, 9, 78, 20), 15, COLOR_MUTED)
-	_label(chip, value, Rect2(104, 7, rect.size.x - 118, 24), 19, accent)
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(chip)
+	_decor_rect(chip, Rect2(14, 14, rect.size.x - 28, rect.size.y - 12), Color(0.0, 0.0, 0.0, 0.24)).name = "ShopResourcePlaqueShadow"
+	var plate := _add_shop_resource_plaque_rect(chip, "ShopResourcePlaque_%s" % title, Rect2(Vector2.ZERO, rect.size), Color.WHITE)
+	if plate == null:
+		_add_shop_ninepatch_rect(chip, "ShopResourcePlaque_%s" % title, Rect2(Vector2.ZERO, rect.size), SHOP_ATLAS_RESOURCE_STRIP, Vector4(62, 34, 62, 34), Color(0.96, 0.86, 0.66, 0.78))
+	_decor_rect(chip, Rect2(42, rect.size.y - 18, 28, 2), Color(accent.r, accent.g, accent.b, 0.42)).name = "ShopResourceAccent"
+	_shop_label(chip, title, Rect2(42, 17, 86, 22), 14, SHOP_TEXT_BODY, HORIZONTAL_ALIGNMENT_LEFT, 1, 500)
+	_shop_label(chip, value, Rect2(124, 17, rect.size.x - 170, 28), 22, accent, HORIZONTAL_ALIGNMENT_RIGHT, 1, 700)
 
 func _add_shop_shelf_frame(parent: Control, rect: Rect2) -> void:
-	var shelf := _panel(parent, rect, Color(0.030, 0.024, 0.022, 0.76))
+	var shelf := Control.new()
+	shelf.position = rect.position
+	shelf.size = rect.size
 	shelf.name = "ShopShelfFrame"
-	_decor_rect(shelf, Rect2(0, 0, rect.size.x, 10), Color(0.23, 0.13, 0.060, 0.92)).name = "ShopShelfTopBeam"
-	_decor_rect(shelf, Rect2(14, 14, rect.size.x - 28, 24), Color(0.090, 0.048, 0.024, 0.92)).name = "ShopShelfCanopy"
-	var stripe_w := (rect.size.x - 52.0) / 12.0
-	for i in range(12):
-		var stripe_color := Color(0.24, 0.13, 0.055, 0.70) if i % 2 == 0 else Color(0.12, 0.065, 0.032, 0.82)
-		_decor_rect(shelf, Rect2(26 + i * stripe_w, 15, stripe_w - 3, 22), stripe_color).name = "ShopShelfCanopyStripe"
-	_decor_rect(shelf, Rect2(22, 42, rect.size.x - 44, 4), Color(1.0, 0.62, 0.22, 0.18)).name = "ShopShelfLampLine"
-	_decor_rect(shelf, Rect2(22, 132, rect.size.x - 44, 34), Color(0.0, 0.0, 0.0, 0.24)).name = "ShopShelfRearShadow"
-	_decor_rect(shelf, Rect2(0, rect.size.y - 14, rect.size.x, 14), Color(0.16, 0.085, 0.040, 0.94)).name = "ShopShelfCounterLip"
-	_decor_rect(shelf, Rect2(0, rect.size.y - 3, rect.size.x, 3), Color(1.0, 0.62, 0.22, 0.20)).name = "ShopShelfCounterGlow"
-	for x in [352.0, 710.0]:
-		_decor_rect(shelf, Rect2(x, 18, 2, rect.size.y - 38), Color(1.0, 0.56, 0.20, 0.18)).name = "ShopShelfDivider"
+	shelf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(shelf)
+	_decor_rect(shelf, Rect2(14, 18, rect.size.x - 28, rect.size.y - 36), Color(0.0, 0.0, 0.0, 0.08)).name = "ShopShelfBackcloth"
+	_decor_rect(shelf, Rect2(44, 58, rect.size.x - 88, 1), Color(0.74, 0.58, 0.34, 0.14)).name = "ShopShelfTopRule"
+	_add_shop_atlas_rect(shelf, "ShopAtlasShelfBeamBottom", Rect2(32, rect.size.y - 40, rect.size.x - 64, 34), SHOP_ATLAS_SHELF_BEAM, Color(0.88, 0.82, 0.74, 0.62))
+	for i in range(2):
+		var x := (rect.size.x / 3.0) * float(i + 1)
+		_decor_rect(shelf, Rect2(x - 1.0, 84, 2, rect.size.y - 142), Color(0.78, 0.62, 0.36, 0.07)).name = "ShopShelfDivider%d" % i
 
 func _add_shop_stall_card(parent: Control, rect: Rect2, option: Dictionary, can_afford: bool, callback: Callable) -> Control:
 	var effects: Array = option.get("effects", [])
 	var kind := _shop_item_kind(effects)
 	var accent := _shop_item_accent(kind)
-	var card_fill := Color(0.079, 0.061, 0.049, 0.98) if can_afford else Color(0.044, 0.038, 0.036, 0.94)
-	var card := _panel(parent, rect, card_fill)
-	card.name = "ShopStall_%s" % String(option.get("option_id", "unknown"))
-	_decor_rect(card, Rect2(0, 0, rect.size.x, 5), accent).name = "ShopStallAccent"
-	_decor_rect(card, Rect2(10, 14, rect.size.x - 20, 118), Color(0.018, 0.016, 0.015, 0.50)).name = "ShopStallBackcloth"
-	_decor_rect(card, Rect2(15, 17, 4, 106), Color(0.18, 0.10, 0.047, 0.80)).name = "ShopStallPostLeft"
-	_decor_rect(card, Rect2(rect.size.x - 19, 17, 4, 106), Color(0.18, 0.10, 0.047, 0.80)).name = "ShopStallPostRight"
-	_decor_rect(card, Rect2(22, 118, rect.size.x - 44, 9), Color(0.25, 0.13, 0.055, 0.90)).name = "ShopStallDisplayShelf"
-	_decor_rect(card, Rect2(32, 128, rect.size.x - 64, 3), Color(1.0, 0.63, 0.24, 0.18)).name = "ShopStallShelfGlow"
-	_decor_rect(card, Rect2(26, 143, 116, 30), Color(0.030, 0.026, 0.023, 0.92)).name = "ShopStallPriceTag"
-	_decor_rect(card, Rect2(0, rect.size.y - 6, rect.size.x, 6), Color(0.0, 0.0, 0.0, 0.26)).name = "ShopStallBaseShade"
-	_add_shop_item_mark(card, Rect2(22, 26, 86, 86), kind, can_afford)
-	_label(card, _shop_item_title(option), Rect2(124, 24, 180, 30), 23, accent if can_afford else COLOR_MUTED)
-	_label(card, _shop_price_text(effects), Rect2(126, 60, 150, 24), 18, COLOR_AMBER if can_afford else COLOR_MUTED)
-	_label(card, _shop_effect_text(effects), Rect2(126, 92, 176, 46), 16, COLOR_TEXT if can_afford else COLOR_MUTED)
-	if not can_afford:
-		_label(card, "余烬不足", Rect2(24, 148, 100, 24), 15, COLOR_MUTED)
-	var buy_button := _button(card, "购买", Rect2(204, 144, 94, 42), callback)
-	buy_button.name = "ShopBuy_%s" % String(option.get("option_id", "unknown"))
-	buy_button.disabled = not can_afford
-	if can_afford:
-		_apply_button_style(buy_button, Color(0.18, 0.105, 0.045, 0.98), Color(0.86, 0.52, 0.20, 0.92), 2)
+	var option_id := String(option.get("option_id", "unknown"))
+	var alpha := 1.0 if can_afford else 0.54
+	var card := Control.new()
+	card.position = rect.position
+	card.size = rect.size
+	card.name = "ShopStall_%s" % option_id
+	parent.add_child(card)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_decor_rect(card, Rect2(24, 18, rect.size.x - 48, rect.size.y - 24), Color(0.0, 0.0, 0.0, 0.16 * alpha)).name = "ShopStallCardShadow"
+	var slot := _add_shop_item_display_slot_rect(card, "ShopItemDisplaySlot_%s" % option_id, Rect2(6, 0, rect.size.x - 12, rect.size.y - 2), Color(1.0, 0.95, 0.82, 0.74 * alpha))
+	if slot == null:
+		_add_shop_ninepatch_rect(card, "ShopAtlasItemCard_%s" % option_id, Rect2(18, 8, rect.size.x - 36, rect.size.y - 20), SHOP_ATLAS_ITEM_CARD, Vector4(30, 36, 30, 36), Color(1.0, 0.96, 0.86, 0.38 * alpha))
+	var icon_w: float = min(rect.size.x * 0.42, 132.0)
+	var icon_h: float = min(rect.size.y * 0.37, 102.0)
+	_add_shop_item_mark(card, Rect2((rect.size.x - icon_w) * 0.5, 32, icon_w, icon_h), kind, can_afford)
+	_shop_label(card, _shop_item_title(option), Rect2(58, 164, rect.size.x - 116, 32), 21, SHOP_TEXT_HEADER if can_afford else SHOP_TEXT_DISABLED, HORIZONTAL_ALIGNMENT_CENTER, 1, 700)
+	var action_y := rect.size.y - 44
+	_add_shop_atlas_rect(card, "ShopAtlasPriceEmber_%s" % option_id, Rect2(51, action_y + 10, 18, 18), SHOP_ATLAS_ICON_EMBER, Color(1, 1, 1, alpha), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+	_shop_label(card, _shop_price_text(effects), Rect2(75, action_y + 6, 104, 30), 17, SHOP_TEXT_PRICE if can_afford else SHOP_TEXT_DISABLED, HORIZONTAL_ALIGNMENT_LEFT, 1, 650)
+	_add_shop_atlas_button(card, "ShopBuy_%s" % option_id, "购买", Rect2(rect.size.x - 132, action_y - 4, 108, 48), callback, not can_afford)
 	return card
 
 func _add_shop_item_mark(parent: Control, rect: Rect2, kind: String, can_afford: bool) -> void:
-	var accent := _shop_item_accent(kind)
-	var alpha := 1.0 if can_afford else 0.46
-	var holder := _panel(parent, rect, Color(0.020, 0.018, 0.017, 0.96))
+	var alpha := 1.0 if can_afford else 0.48
+	var holder := Control.new()
+	holder.position = rect.position
+	holder.size = rect.size
 	holder.name = "ShopItemMark_%s" % kind
-	_decor_rect(holder, Rect2(8, 8, rect.size.x - 16, rect.size.y - 16), Color(accent.r, accent.g, accent.b, 0.13 * alpha)).name = "ShopItemInnerGlow"
-	_decor_rect(holder, Rect2(15, rect.size.y - 20, rect.size.x - 30, 6), Color(0.0, 0.0, 0.0, 0.34 * alpha)).name = "ShopItemCastShadow"
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(holder)
+	_decor_rect(holder, Rect2(rect.size.x * 0.30, rect.size.y - 12, rect.size.x * 0.40, 4), Color(0.0, 0.0, 0.0, 0.18 * alpha)).name = "ShopItemCastShadow"
+	_add_shop_atlas_rect(holder, "ShopAtlasItemIcon_%s" % kind, Rect2(Vector2.ZERO, rect.size), _shop_item_icon_region(kind), Color(1, 1, 1, alpha), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+
+func _shop_atlas_texture(region: Rect2) -> Texture2D:
+	if _shop_ui_atlas_source == null:
+		_shop_ui_atlas_source = _load_texture_from_path(SHOP_UI_ATLAS_PATH)
+	if _shop_ui_atlas_source == null:
+		return null
+	var texture := AtlasTexture.new()
+	texture.atlas = _shop_ui_atlas_source
+	texture.region = region
+	return texture
+
+func _add_shop_atlas_rect(parent: Control, name: String, rect: Rect2, region: Rect2, tint: Color = Color.WHITE, stretch: int = TextureRect.STRETCH_SCALE) -> TextureRect:
+	var texture := _shop_atlas_texture(region)
+	if texture == null:
+		return null
+	var image := TextureRect.new()
+	image.name = name
+	image.position = rect.position
+	image.size = rect.size
+	image.texture = texture
+	image.modulate = tint
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = stretch
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	return image
+
+func _add_shop_ninepatch_rect(parent: Control, name: String, rect: Rect2, region: Rect2, margins: Vector4, tint: Color = Color.WHITE) -> NinePatchRect:
+	var texture := _shop_atlas_texture(region)
+	if texture == null:
+		return null
+	var image := NinePatchRect.new()
+	image.name = name
+	image.position = rect.position
+	image.size = rect.size
+	image.texture = texture
+	image.modulate = tint
+	image.patch_margin_left = int(margins.x)
+	image.patch_margin_top = int(margins.y)
+	image.patch_margin_right = int(margins.z)
+	image.patch_margin_bottom = int(margins.w)
+	image.axis_stretch_horizontal = NinePatchRect.AXIS_STRETCH_MODE_STRETCH
+	image.axis_stretch_vertical = NinePatchRect.AXIS_STRETCH_MODE_STRETCH
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	return image
+
+func _shop_resource_plaque_texture() -> Texture2D:
+	if _shop_resource_plaque_source == null:
+		_shop_resource_plaque_source = _load_texture_from_path(SHOP_RESOURCE_PLAQUE_PATH)
+	return _shop_resource_plaque_source
+
+func _add_shop_resource_plaque_rect(parent: Control, name: String, rect: Rect2, tint: Color = Color.WHITE) -> TextureRect:
+	var texture := _shop_resource_plaque_texture()
+	if texture == null:
+		return null
+	var image := TextureRect.new()
+	image.name = name
+	image.position = rect.position
+	image.size = rect.size
+	image.texture = texture
+	image.modulate = tint
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	return image
+
+func _shop_item_display_slot_texture() -> Texture2D:
+	if _shop_item_display_slot_source == null:
+		_shop_item_display_slot_source = _load_texture_from_path(SHOP_ITEM_DISPLAY_SLOT_PATH)
+	return _shop_item_display_slot_source
+
+func _add_shop_item_display_slot_rect(parent: Control, name: String, rect: Rect2, tint: Color = Color.WHITE) -> TextureRect:
+	var texture := _shop_item_display_slot_texture()
+	if texture == null:
+		return null
+	var image := TextureRect.new()
+	image.name = name
+	image.position = rect.position
+	image.size = rect.size
+	image.texture = texture
+	image.modulate = tint
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	return image
+
+func _add_shop_outline(parent: Control, name: String, rect: Rect2, color: Color, width: int) -> void:
+	var outline := ReferenceRect.new()
+	outline.name = name
+	outline.position = rect.position
+	outline.size = rect.size
+	outline.border_color = color
+	outline.border_width = width
+	outline.editor_only = false
+	outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(outline)
+
+func _add_shop_atlas_button(parent: Control, name: String, text: String, rect: Rect2, callback: Callable, disabled: bool = false, back_button: bool = false) -> Button:
+	var suffix := name
+	if suffix.begins_with("ShopBuy_"):
+		suffix = suffix.substr(8)
+	var plate_name := "ShopAtlasBackButtonPlate" if back_button else "ShopAtlasBuyButtonPlate_%s" % suffix
+	var normal_region := SHOP_ATLAS_BUTTON_BACK if back_button else SHOP_ATLAS_BUTTON_NORMAL
+	var plate_rect := Rect2(rect.position, Vector2(58, rect.size.y)) if back_button else rect
+	var plate := _add_shop_atlas_rect(parent, plate_name, plate_rect, SHOP_ATLAS_BUTTON_DISABLED if disabled else normal_region, Color(1, 1, 1, 0.74 if disabled else 1.0))
+	var back_label: Label = null
+	var button_label: Label = null
+	if back_button and rect.size.x > 82.0:
+		back_label = _shop_label(parent, text, Rect2(rect.position + Vector2(58, 6), Vector2(rect.size.x - 48, rect.size.y - 12)), 17, SHOP_TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_LEFT, 1, 600)
+		back_label.name = "ShopBackButtonLabel"
+	elif not back_button:
+		button_label = _shop_label(parent, text, Rect2(rect.position + Vector2(7, 4), rect.size - Vector2(14, 8)), 16, SHOP_TEXT_PRIMARY, HORIZONTAL_ALIGNMENT_CENTER, 1, 600)
+		button_label.name = "ShopButtonLabel_%s" % suffix
+	var button := _button(parent, text, rect, callback)
+	button.name = name
+	button.disabled = disabled
+	button.add_theme_font_size_override("font_size", 17 if back_button else 16)
+	if plate != null:
+		_apply_shop_overlay_button_style(button)
+		_hide_shop_overlay_button_text(button)
+		var update_plate := func() -> void:
+			if button.disabled:
+				plate.texture = _shop_atlas_texture(SHOP_ATLAS_BUTTON_DISABLED)
+				plate.modulate = Color(1, 1, 1, 0.70)
+				if back_label != null:
+					back_label.modulate = SHOP_TEXT_DISABLED
+				if button_label != null:
+					button_label.modulate = SHOP_TEXT_DISABLED
+			elif button.is_hovered() or button.has_focus():
+				plate.texture = _shop_atlas_texture(SHOP_ATLAS_BUTTON_BACK if back_button else SHOP_ATLAS_BUTTON_HOVER)
+				plate.modulate = Color(1.0, 0.96, 0.86, 1.0)
+				if back_label != null:
+					back_label.modulate = SHOP_TEXT_HEADER
+				if button_label != null:
+					button_label.modulate = SHOP_TEXT_HEADER
+			else:
+				plate.texture = _shop_atlas_texture(normal_region)
+				plate.modulate = Color.WHITE
+				if back_label != null:
+					back_label.modulate = SHOP_TEXT_PRIMARY
+				if button_label != null:
+					button_label.modulate = SHOP_TEXT_PRIMARY
+		button.mouse_entered.connect(update_plate)
+		button.mouse_exited.connect(update_plate)
+		button.focus_entered.connect(update_plate)
+		button.focus_exited.connect(update_plate)
+		button.button_down.connect(func() -> void:
+			plate.modulate = Color(0.82, 0.78, 0.72, 1.0)
+		)
+		button.button_up.connect(update_plate)
+		update_plate.call()
+	return button
+
+func _apply_shop_overlay_button_style(button: Button) -> void:
+	var clear := _button_stylebox(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0)
+	button.add_theme_stylebox_override("normal", clear)
+	button.add_theme_stylebox_override("hover", clear)
+	button.add_theme_stylebox_override("pressed", clear)
+	button.add_theme_stylebox_override("disabled", clear)
+	button.add_theme_stylebox_override("focus", clear)
+	button.add_theme_color_override("font_color", COLOR_TEXT)
+	button.add_theme_color_override("font_hover_color", COLOR_AMBER)
+	button.add_theme_color_override("font_pressed_color", COLOR_TEXT)
+	button.add_theme_color_override("font_disabled_color", Color(0.56, 0.52, 0.46, 0.88))
+
+func _hide_shop_overlay_button_text(button: Button) -> void:
+	var transparent := Color(1, 1, 1, 0)
+	button.add_theme_color_override("font_color", transparent)
+	button.add_theme_color_override("font_hover_color", transparent)
+	button.add_theme_color_override("font_pressed_color", transparent)
+	button.add_theme_color_override("font_disabled_color", transparent)
+	button.add_theme_color_override("font_focus_color", transparent)
+
+func _shop_label(
+	parent: Node,
+	text: String,
+	rect: Rect2,
+	font_size: int,
+	color: Color = SHOP_TEXT_PRIMARY,
+	horizontal_alignment: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT,
+	outline_size: int = 1,
+	weight: int = 500
+) -> Label:
+	var label := _label(parent, text, rect, font_size, color)
+	label.add_theme_font_override("font", _shop_font(weight))
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", SHOP_TEXT_OUTLINE)
+	label.add_theme_color_override("font_shadow_color", SHOP_TEXT_SHADOW)
+	label.add_theme_constant_override("outline_size", outline_size)
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = true
+	label.horizontal_alignment = horizontal_alignment
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+func _shop_font(weight: int) -> Font:
+	var key := str(weight)
+	if _shop_fonts.has(key):
+		return _shop_fonts[key]
+	_shop_fonts[key] = UI_FONT
+	return UI_FONT
+
+func _shop_item_icon_region(kind: String) -> Rect2:
 	match kind:
 		"healing":
-			_decor_rect(holder, Rect2(26, 58, 34, 8), Color(0.18, 0.13, 0.09, 0.86 * alpha)).name = "ShopHealBottleBase"
-			_decor_rect(holder, Rect2(28, 18, 30, 50), Color(0.72, 0.84, 0.66, 0.86 * alpha)).name = "ShopHealBottle"
-			_decor_rect(holder, Rect2(34, 10, 18, 12), Color(0.44, 0.60, 0.42, 0.86 * alpha)).name = "ShopHealCap"
-			_decor_rect(holder, Rect2(49, 24, 5, 30), Color(0.94, 1.0, 0.78, 0.24 * alpha)).name = "ShopHealBottleHighlight"
-			_decor_rect(holder, Rect2(39, 29, 8, 28), Color(0.08, 0.18, 0.12, 0.88 * alpha)).name = "ShopHealCrossV"
-			_decor_rect(holder, Rect2(29, 39, 28, 8), Color(0.08, 0.18, 0.12, 0.88 * alpha)).name = "ShopHealCrossH"
+			return SHOP_ATLAS_ICON_HEALING
 		"repair":
-			_decor_rect(holder, Rect2(16, 58, 54, 7), Color(0.18, 0.10, 0.055, 0.84 * alpha)).name = "ShopRepairStackShadow"
-			_decor_rect(holder, Rect2(18, 42, 50, 14), Color(0.74, 0.45, 0.20, 0.90 * alpha)).name = "ShopRepairPlankA"
-			_decor_rect(holder, Rect2(22, 24, 42, 12), Color(0.60, 0.34, 0.15, 0.90 * alpha)).name = "ShopRepairPlankB"
-			_decor_rect(holder, Rect2(15, 33, 54, 7), Color(0.86, 0.56, 0.25, 0.78 * alpha)).name = "ShopRepairPlankC"
-			_decor_rect(holder, Rect2(24, 20, 8, 42), Color(0.24, 0.19, 0.16, 0.88 * alpha)).name = "ShopRepairStrapA"
-			_decor_rect(holder, Rect2(56, 22, 8, 38), Color(0.24, 0.19, 0.16, 0.88 * alpha)).name = "ShopRepairStrapB"
+			return SHOP_ATLAS_ICON_REPAIR
 		"relic":
-			var gem := _decor_rect(holder, Rect2(32, 22, 24, 24), Color(0.42, 0.62, 0.74, 0.88 * alpha))
-			gem.name = "ShopRelicGem"
-			gem.pivot_offset = Vector2(12, 12)
-			gem.rotation = 0.785
-			_decor_rect(holder, Rect2(29, 47, 28, 10), Color(0.10, 0.16, 0.18, 0.82 * alpha)).name = "ShopRelicSocket"
-			_decor_rect(holder, Rect2(26, 55, 34, 6), Color(0.88, 0.58, 0.24, 0.82 * alpha)).name = "ShopRelicBase"
-			_decor_rect(holder, Rect2(39, 14, 7, 54), Color(0.66, 0.84, 0.94, 0.34 * alpha)).name = "ShopRelicLight"
-		_:
-			_decor_rect(holder, Rect2(20, 28, 46, 34), Color(0.70, 0.48, 0.24, 0.84 * alpha)).name = "ShopSupplyBox"
-			_decor_rect(holder, Rect2(20, 40, 46, 6), Color(0.24, 0.18, 0.13, 0.86 * alpha)).name = "ShopSupplyBand"
-	_decor_rect(holder, Rect2(10, rect.size.y - 12, rect.size.x - 20, 2), Color(1.0, 0.80, 0.44, 0.20 * alpha)).name = "ShopItemFootGlow"
+			return SHOP_ATLAS_ICON_RELIC
+	return SHOP_ATLAS_ICON_EMBER
 
 func _shop_item_kind(effects: Array) -> String:
 	for effect in effects:
@@ -940,16 +1205,61 @@ func _add_hub_summary(root: Control) -> void:
 	_label(bar, "余烬 %d" % _run.embers, Rect2(20, 15, 112, 26), 17, COLOR_TEXT)
 	_label(bar, "守卫者 %d / 3" % _run.alive_warden_count(), Rect2(166, 15, 154, 26), 17, COLOR_TEXT)
 
-func _add_mission_board_summary(root: Control) -> void:
-	var bar := _panel(root, HUB_SUMMARY_RECT, Color(0.045, 0.038, 0.036, 0.96))
+func _add_mission_board_summary(parent: Control, rect: Rect2) -> void:
+	var bar := Control.new()
 	bar.name = "MissionBoardSummary"
+	bar.position = rect.position
+	bar.size = rect.size
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(bar)
+	_add_mission_board_label_plate(bar, Rect2(Vector2.ZERO, rect.size), Color(0.92, 0.62, 0.28, 1.0), "MissionSummaryBase")
 	if _run == null:
 		return
 	_sync_run_warden_base_stats()
-	_label(bar, "余烬 %d" % _run.embers, Rect2(20, 15, 112, 26), 17, COLOR_TEXT)
-	_label(bar, "守护值 %d / %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], Rect2(152, 15, 170, 26), 17, COLOR_TEXT)
-	_label(bar, "守卫者 %d / 3" % _run.alive_warden_count(), Rect2(350, 15, 154, 26), 17, COLOR_TEXT)
-	_label(bar, "腐化 %d" % _run.corruption, Rect2(532, 15, 112, 26), 17, COLOR_TEXT)
+	var gap := 14.0
+	var chip_w := (rect.size.x - 36.0 - gap * 3.0) / 4.0
+	_add_mission_summary_chip(bar, Rect2(18, 8, chip_w, 42), "余烬 %d" % _run.embers, COLOR_AMBER)
+	_add_mission_summary_chip(bar, Rect2(18 + (chip_w + gap), 8, chip_w, 42), "守护值 %d / %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], COLOR_GOOD)
+	_add_mission_summary_chip(bar, Rect2(18 + (chip_w + gap) * 2, 8, chip_w, 42), "守卫者 %d / 3" % _run.alive_warden_count(), COLOR_TEXT)
+	_add_mission_summary_chip(bar, Rect2(18 + (chip_w + gap) * 3, 8, chip_w, 42), "腐化 %d" % _run.corruption, COLOR_DANGER if _run.corruption > 0 else COLOR_PARCHMENT)
+
+func _add_mission_summary_chip(parent: Control, rect: Rect2, text: String, accent: Color) -> void:
+	var chip := Control.new()
+	chip.name = "MissionSummaryChip_%s" % text.get_slice(" ", 0)
+	chip.position = rect.position
+	chip.size = rect.size
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(chip)
+	_add_mission_board_label_plate(chip, Rect2(Vector2.ZERO, rect.size), accent, "MissionSummaryChipPlate")
+	_decor_rect(chip, Rect2(18, 11, 4, rect.size.y - 22), Color(accent.r, accent.g, accent.b, 0.90)).name = "MissionSummaryChipAccent"
+	_mission_board_text(chip, text, Rect2(32, 9, rect.size.x - 48, rect.size.y - 18), 17, Color(0.94, 0.86, 0.70, 1.0), HORIZONTAL_ALIGNMENT_LEFT, 1)
+
+func _add_mission_board_label_plate(parent: Control, rect: Rect2, accent: Color, name: String) -> Control:
+	var plate := Panel.new()
+	plate.name = name
+	plate.position = rect.position
+	plate.size = rect.size
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_theme_stylebox_override("panel", _mission_label_plate_stylebox(accent))
+	parent.add_child(plate)
+	_decor_rect(plate, Rect2(14, 9, 4, rect.size.y - 18), Color(accent.r, accent.g, accent.b, 0.70)).name = "%sAccent" % name
+	return plate
+
+func _mission_board_text(parent: Node, text: String, rect: Rect2, font_size: int, color: Color, alignment: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, outline_size: int = 1) -> Label:
+	var label := _label(parent, text, rect, font_size, color)
+	label.modulate = Color.WHITE
+	label.horizontal_alignment = alignment
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_override("font", _shop_font(600 if font_size >= 24 else 500))
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.032, 0.020, 0.012, 0.92))
+	label.add_theme_constant_override("outline_size", outline_size)
+	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.70))
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 1)
+	return label
 
 func _show_unavailable_hub_feature(feature_name: String) -> void:
 	var root := _make_root()
@@ -966,9 +1276,9 @@ func _run_summary_line() -> String:
 	var next: Dictionary = _run.current_commission()
 	var next_title := String(next.get("title", "已完成"))
 	return "%s · 进度 %d/%d\n守护值 %d/%d   余烬 %d   腐化 %d\n下一任务：%s" % [
-		_run.chapter_name,
-		_run.visited_nodes.size(),
-		_run.route_nodes.size(),
+		_run.expedition_name,
+		_run.completed_commission_count(),
+		_run.commission_goal_count(),
 		_run.sanctuary_integrity,
 		_run.sanctuary_integrity_max,
 		_run.embers,
@@ -996,47 +1306,262 @@ func _add_mission_card(parent: Control, node: Dictionary, rect: Rect2) -> void:
 	card.pressed.connect(func(id := node_id): _start_mission_from_board(id))
 	_apply_mission_card_style(card, node_type)
 	parent.add_child(card)
-	var accent_rule := ColorRect.new()
-	accent_rule.position = Vector2(0, 0)
-	accent_rule.size = Vector2(rect.size.x, 5)
-	accent_rule.color = accent
-	accent_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(accent_rule)
 	var selection_glow := ColorRect.new()
 	selection_glow.name = "MissionCardSelectionGlow"
 	selection_glow.anchor_right = 1.0
 	selection_glow.anchor_bottom = 1.0
 	selection_glow.offset_right = 0.0
 	selection_glow.offset_bottom = 0.0
-	selection_glow.color = Color(accent.r, accent.g, accent.b, 0.09)
+	selection_glow.color = Color(accent.r, accent.g, accent.b, 0.075)
 	selection_glow.visible = false
 	selection_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(selection_glow)
-	var inner := ReferenceRect.new()
-	inner.anchor_right = 1.0
-	inner.anchor_bottom = 1.0
-	inner.offset_left = 8
-	inner.offset_top = 8
-	inner.offset_right = -8
-	inner.offset_bottom = -8
-	inner.border_width = 1.0
-	inner.border_color = Color(accent.r, accent.g, accent.b, 0.28)
-	inner.editor_only = false
-	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(inner)
+	var inner := _add_mission_outline(card, "MissionCardInnerLine", Rect2(14, 14, rect.size.x - 28, rect.size.y - 28), Color(accent.r, accent.g, accent.b, 0.0), 1)
 	_bind_mission_card_selection_state(card, selection_glow, inner, accent)
-	_card_label(card, String(node.get("title", "")), Rect2(20, 20, rect.size.x - 40, 34), 24, COLOR_TEXT)
-	_card_label(card, _mission_type_title(node), Rect2(20, 62, 142, 24), 17, accent)
-	_card_label(card, _mission_risk_label(node), Rect2(166, 62, 120, 24), 17, _mission_risk_color(node))
-	_card_label(card, _mission_card_intel(node), Rect2(20, 106, rect.size.x - 40, 54), 18, COLOR_TEXT)
-	_card_label(card, _mission_card_reward_line(node), Rect2(20, rect.size.y - 52, rect.size.x - 40, 28), 18, COLOR_PARCHMENT)
+	_decor_rect(card, Rect2(20, 34, 4, rect.size.y - 68), Color(accent.r, accent.g, accent.b, 0.62)).name = "MissionCardAccent"
+	_mission_card_text(card, String(node.get("title", "")), Rect2(34, 22, rect.size.x - 66, 30), 20, Color(0.44, 0.29, 0.15, 1.0), HORIZONTAL_ALIGNMENT_LEFT, 1)
+	_mission_card_text(card, _mission_type_title(node), Rect2(34, 58, 82, 20), 12, Color(accent.r * 0.72, accent.g * 0.72, accent.b * 0.72, 0.96), HORIZONTAL_ALIGNMENT_LEFT, 0)
+	_mission_card_text(card, _mission_risk_label(node), Rect2(rect.size.x - 88, 58, 58, 20), 12, Color(0.50, 0.34, 0.18, 0.90), HORIZONTAL_ALIGNMENT_RIGHT, 0)
+	_mission_card_text(card, _mission_card_intel(node), Rect2(34, 96, rect.size.x - 68, 56), 16, Color(0.36, 0.25, 0.15, 1.0), HORIZONTAL_ALIGNMENT_LEFT, 1)
+	_add_mission_card_stamp(card, node_type, Rect2(34, rect.size.y - 84, rect.size.x - 68, 26), accent)
+	_mission_card_text(card, _mission_card_reward_line(node), Rect2(34, rect.size.y - 44, rect.size.x - 72, 22), 13, Color(0.58, 0.36, 0.10, 1.0), HORIZONTAL_ALIGNMENT_LEFT, 0)
+
+func _add_mission_card_content_plate(parent: Control, rect: Rect2, accent: Color) -> void:
+	_decor_rect(parent, Rect2(rect.position + Vector2(0, 2), rect.size), Color(0.0, 0.0, 0.0, 0.04)).name = "MissionCardContentShadow"
+	_decor_rect(parent, rect, Color(0.035, 0.024, 0.016, 0.08)).name = "MissionCardReadabilityShade"
+
+func _add_mission_body_plate(parent: Control, rect: Rect2, accent: Color) -> void:
+	_decor_rect(parent, Rect2(rect.position + Vector2(0, 1), rect.size), Color(0.0, 0.0, 0.0, 0.04)).name = "MissionBodyPlateShadow"
+	_decor_rect(parent, rect, Color(0.030, 0.022, 0.015, 0.11)).name = "MissionBodyPlate"
+	_decor_rect(parent, Rect2(rect.position, Vector2(4, rect.size.y)), Color(accent.r, accent.g, accent.b, 0.48)).name = "MissionBodyPlateAccent"
+
+func _mission_card_text(parent: Node, text: String, rect: Rect2, font_size: int, color: Color, alignment: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, outline_size: int = 2) -> Label:
+	var label := _label(parent, text, rect, font_size, color)
+	label.modulate = Color.WHITE
+	label.horizontal_alignment = alignment
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_override("font", _shop_font(600 if font_size >= 24 else 500))
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.030, 0.018, 0.010, 0.96))
+	label.add_theme_constant_override("outline_size", outline_size)
+	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.84))
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	return label
+
+func _add_mission_card_stamp(parent: Control, node_type: String, rect: Rect2, accent: Color) -> void:
+	var stamp := Control.new()
+	stamp.name = "MissionCardStamp_%s" % node_type
+	stamp.position = rect.position
+	stamp.size = rect.size
+	stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(stamp)
+	var symbol_rect := Rect2(rect.size.x - 48, 1, 28, 28)
+	var symbol_color := Color(accent.r, accent.g, accent.b, 0.13)
+	match node_type:
+		RunStateScript.NODE_EVENT:
+			_add_mission_stamp_diamond(stamp, symbol_rect, symbol_color)
+		RunStateScript.NODE_CAMP:
+			_add_mission_stamp_cross(stamp, symbol_rect, symbol_color)
+		RunStateScript.NODE_SHOP:
+			_add_mission_stamp_crate(stamp, symbol_rect, symbol_color)
+		RunStateScript.NODE_ELITE, RunStateScript.NODE_BOSS:
+			_add_mission_stamp_warning(stamp, symbol_rect, symbol_color)
+		_:
+			_add_mission_stamp_shield(stamp, symbol_rect, symbol_color)
+
+func _add_mission_stamp_shield(parent: Control, rect: Rect2, color: Color) -> void:
+	_decor_rect(parent, Rect2(rect.position + Vector2(11, 7), Vector2(20, 6)), color).name = "MissionStampShieldTop"
+	_decor_rect(parent, Rect2(rect.position + Vector2(8, 14), Vector2(26, 14)), Color(color.r, color.g, color.b, color.a * 0.76)).name = "MissionStampShieldBody"
+	_decor_rect(parent, Rect2(rect.position + Vector2(14, 28), Vector2(14, 7)), Color(color.r, color.g, color.b, color.a * 0.58)).name = "MissionStampShieldPoint"
+	_decor_rect(parent, Rect2(rect.position + Vector2(20, 11), Vector2(3, 23)), Color(0.0, 0.0, 0.0, 0.15)).name = "MissionStampShieldCrease"
+
+func _add_mission_stamp_diamond(parent: Control, rect: Rect2, color: Color) -> void:
+	var gem := _decor_rect(parent, Rect2(rect.position + Vector2(12, 12), Vector2(18, 18)), color)
+	gem.name = "MissionStampDiamond"
+	gem.pivot_offset = Vector2(9, 9)
+	gem.rotation = 0.785
+	_decor_rect(parent, Rect2(rect.position + Vector2(20, 5), Vector2(3, 32)), Color(color.r, color.g, color.b, color.a * 0.70)).name = "MissionStampRuneV"
+	_decor_rect(parent, Rect2(rect.position + Vector2(8, 20), Vector2(26, 3)), Color(color.r, color.g, color.b, color.a * 0.58)).name = "MissionStampRuneH"
+
+func _add_mission_stamp_cross(parent: Control, rect: Rect2, color: Color) -> void:
+	_decor_rect(parent, Rect2(rect.position + Vector2(18, 7), Vector2(7, 28)), color).name = "MissionStampCrossV"
+	_decor_rect(parent, Rect2(rect.position + Vector2(8, 17), Vector2(27, 7)), Color(color.r, color.g, color.b, color.a * 0.82)).name = "MissionStampCrossH"
+	_decor_rect(parent, Rect2(rect.position + Vector2(12, 30), Vector2(20, 4)), Color(0.0, 0.0, 0.0, 0.16)).name = "MissionStampCrossBase"
+
+func _add_mission_stamp_crate(parent: Control, rect: Rect2, color: Color) -> void:
+	_decor_rect(parent, Rect2(rect.position + Vector2(8, 14), Vector2(27, 22)), color).name = "MissionStampCrateBody"
+	_decor_rect(parent, Rect2(rect.position + Vector2(8, 14), Vector2(27, 4)), Color(color.r, color.g, color.b, color.a * 1.15)).name = "MissionStampCrateLid"
+	_decor_rect(parent, Rect2(rect.position + Vector2(19, 14), Vector2(4, 22)), Color(0.0, 0.0, 0.0, 0.14)).name = "MissionStampCrateStrapV"
+	_decor_rect(parent, Rect2(rect.position + Vector2(8, 24), Vector2(27, 4)), Color(0.0, 0.0, 0.0, 0.13)).name = "MissionStampCrateStrapH"
+
+func _add_mission_stamp_warning(parent: Control, rect: Rect2, color: Color) -> void:
+	var slash_a := _decor_rect(parent, Rect2(rect.position + Vector2(8, 20), Vector2(28, 6)), color)
+	slash_a.name = "MissionStampWarningSlashA"
+	slash_a.rotation = -0.58
+	var slash_b := _decor_rect(parent, Rect2(rect.position + Vector2(9, 15), Vector2(28, 6)), Color(color.r, color.g, color.b, color.a * 0.76))
+	slash_b.name = "MissionStampWarningSlashB"
+	slash_b.rotation = 0.58
+	_decor_rect(parent, Rect2(rect.position + Vector2(19, 8), Vector2(5, 26)), Color(color.r, color.g, color.b, color.a * 0.58)).name = "MissionStampWarningCore"
+
+func _add_mission_card_refresh_button(parent: Control, node: Dictionary, rect: Rect2, slot_index: int) -> void:
+	if _run == null or String(node.get("node_type", "")) == RunStateScript.NODE_BOSS:
+		return
+	var side := 46.0
+	var button_rect := Rect2(rect.position.x + rect.size.x - side - 20, rect.position.y + rect.size.y - side - 20, side, side)
+	_decor_rect(parent, Rect2(button_rect.position + Vector2(3, 4), button_rect.size - Vector2(1, 1)), Color(0.0, 0.0, 0.0, 0.18)).name = "MissionRefreshButtonShadow"
+	_add_mission_atlas_rect(parent, "MissionRefreshButtonPlate_%s" % String(node.get("node_id", "")), button_rect, MISSION_ATLAS_REFRESH_BUTTON, Color(0.38, 0.28, 0.18, 0.26))
+	var refresh_button := _button(parent, "", button_rect, func(): _refresh_mission_card(slot_index))
+	refresh_button.name = "MissionCardRefresh_%s" % String(node.get("node_id", ""))
+	refresh_button.disabled = not _run.can_refresh_commission(slot_index)
+	refresh_button.tooltip_text = "消耗 1 次刷新，替换这张委托卡。"
+	_apply_icon_button_style(refresh_button)
+	_add_mission_refresh_icon(refresh_button, Rect2(7, 7, 32, 32), refresh_button.disabled)
+
+func _add_mission_refresh_status(parent: Control, rect: Rect2) -> void:
+	if _run == null:
+		return
+	var status := Control.new()
+	status.name = "MissionRefreshStatus"
+	status.position = rect.position
+	status.size = rect.size
+	status.tooltip_text = "剩余单卡刷新次数。"
+	status.mouse_filter = Control.MOUSE_FILTER_PASS
+	parent.add_child(status)
+	var icon_size := minf(22.0, rect.size.y - 4.0)
+	_add_mission_refresh_icon(status, Rect2(10, (rect.size.y - icon_size) * 0.5, icon_size, icon_size), _run.refresh_charges <= 0)
+	_mission_board_text(status, "%d / %d" % [_run.refresh_charges, _run.refresh_charges_max], Rect2(38, 2, rect.size.x - 42, rect.size.y - 4), 14, Color(0.66, 0.49, 0.31, 1.0), HORIZONTAL_ALIGNMENT_LEFT, 1)
+
+func _mission_board_atlas_texture(region: Rect2) -> Texture2D:
+	if _mission_board_ui_atlas_source == null:
+		_mission_board_ui_atlas_source = _load_texture_from_path(MISSION_BOARD_UI_ATLAS_PATH)
+	if _mission_board_ui_atlas_source == null:
+		return null
+	var texture := AtlasTexture.new()
+	texture.atlas = _mission_board_ui_atlas_source
+	texture.region = region
+	return texture
+
+func _mission_board_full_asset_texture() -> Texture2D:
+	if _mission_board_full_asset_source == null:
+		_mission_board_full_asset_source = _load_texture_from_path(MISSION_BOARD_FULL_ASSET_PATH)
+	return _mission_board_full_asset_source
+
+func _add_mission_atlas_rect(parent: Control, name: String, rect: Rect2, region: Rect2, tint: Color = Color.WHITE, stretch: int = TextureRect.STRETCH_SCALE) -> TextureRect:
+	var texture := _mission_board_atlas_texture(region)
+	if texture == null:
+		return null
+	var image := TextureRect.new()
+	image.name = name
+	image.position = rect.position
+	image.size = rect.size
+	image.texture = texture
+	image.modulate = tint
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = stretch
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	return image
+
+func _mission_card_frame_texture() -> Texture2D:
+	if _mission_card_frame_source == null:
+		_mission_card_frame_source = _load_texture_from_path(MISSION_CARD_FRAME_PATH)
+	return _mission_card_frame_source
+
+func _add_mission_card_frame(parent: Control, rect: Rect2) -> bool:
+	var texture := _mission_card_frame_texture()
+	if texture == null:
+		return false
+	var image := NinePatchRect.new()
+	image.name = "MissionCardFrameArt"
+	image.position = rect.position
+	image.size = rect.size
+	image.texture = texture
+	image.patch_margin_left = 64
+	image.patch_margin_top = 64
+	image.patch_margin_right = 64
+	image.patch_margin_bottom = 64
+	image.axis_stretch_horizontal = NinePatchRect.AXIS_STRETCH_MODE_STRETCH
+	image.axis_stretch_vertical = NinePatchRect.AXIS_STRETCH_MODE_STRETCH
+	image.modulate = Color(1.0, 0.94, 0.84, 0.92)
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	return true
+
+func _add_mission_atlas_panel(parent: Control, rect: Rect2) -> Control:
+	var panel := Control.new()
+	panel.name = "MissionBoardPanel"
+	panel.position = rect.position
+	panel.size = rect.size
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(panel)
+	_decor_rect(panel, Rect2(22, 24, rect.size.x - 44, rect.size.y - 20), Color(0.0, 0.0, 0.0, 0.34)).name = "MissionBoardPanelShadow"
+	var texture := _mission_board_full_asset_texture()
+	if texture != null:
+		var art := TextureRect.new()
+		art.name = "MissionBoardFullAsset"
+		art.position = Vector2.ZERO
+		art.size = rect.size
+		art.texture = texture
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_SCALE
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(art)
+	else:
+		_decor_rect(panel, Rect2(28, 24, rect.size.x - 56, rect.size.y - 44), Color(0.030, 0.034, 0.034, 0.94)).name = "MissionBoardCoolBase"
+	return panel
+
+func _add_mission_outline(parent: Control, name: String, rect: Rect2, color: Color, width: int) -> ReferenceRect:
+	var outline := ReferenceRect.new()
+	outline.name = name
+	outline.position = rect.position
+	outline.size = rect.size
+	outline.border_color = color
+	outline.border_width = width
+	outline.editor_only = false
+	outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(outline)
+	return outline
+
+func _add_mission_tag_plate(parent: Control, rect: Rect2, tint: Color) -> void:
+	_decor_rect(parent, Rect2(rect.position + Vector2(0, 1), rect.size), Color(0.0, 0.0, 0.0, 0.18)).name = "MissionTagPlateShadow"
+	_decor_rect(parent, rect, tint).name = "MissionTagPlate"
+
+func _mission_refresh_icon_texture() -> Texture2D:
+	if _mission_refresh_icon_source == null:
+		_mission_refresh_icon_source = _load_texture_from_path(MISSION_REFRESH_ICON_PATH)
+	return _mission_refresh_icon_source
+
+func _add_mission_refresh_icon(parent: Control, rect: Rect2, disabled: bool) -> void:
+	var texture := _mission_refresh_icon_texture()
+	if texture == null:
+		var fallback := ColorRect.new()
+		fallback.name = "MissionRefreshIconFallback"
+		fallback.position = rect.position
+		fallback.size = rect.size
+		fallback.color = Color(COLOR_AMBER.r, COLOR_AMBER.g, COLOR_AMBER.b, 0.45 if disabled else 0.82)
+		fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(fallback)
+		return
+	var icon := TextureRect.new()
+	icon.name = "MissionRefreshIcon"
+	icon.position = rect.position
+	icon.size = rect.size
+	icon.texture = texture
+	icon.modulate = Color(1, 1, 1, 0.42) if disabled else Color.WHITE
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(icon)
 
 func _bind_mission_card_selection_state(card: Button, glow: Control, inner: ReferenceRect, accent: Color) -> void:
 	var update_state := func() -> void:
 		var selected := card.is_hovered() or card.has_focus()
 		glow.visible = selected
 		inner.border_width = 2.0 if selected else 1.0
-		inner.border_color = Color(accent.r, accent.g, accent.b, 0.64 if selected else 0.28)
+		inner.border_color = Color(accent.r, accent.g, accent.b, 0.36 if selected else 0.0)
 	card.mouse_entered.connect(update_state)
 	card.mouse_exited.connect(update_state)
 	card.focus_entered.connect(update_state)
@@ -1458,10 +1983,10 @@ func _reward_item_display(reward_item: Dictionary) -> Dictionary:
 			}
 		"chapter_reward":
 			return {
-				"title": String(reward_item.get("title", "章节奖励")),
+				"title": String(reward_item.get("title", "Boss 奖励")),
 				"amount_text": "",
 				"description": reason,
-				"icon_text": "章",
+				"icon_text": "奖",
 				"amount_color": COLOR_AMBER,
 			}
 	return {
@@ -1528,7 +2053,7 @@ func _show_run_result() -> void:
 	_label(root, "Run 结算", Rect2(82, 92, 420, 38), 30, COLOR_AMBER)
 	var panel := _panel(root, Rect2(82, 156, 620, 420), COLOR_PANEL)
 	_label(panel, "防线守住" if victory else "Run 失败", Rect2(30, 28, 500, 48), 36, COLOR_GOOD if victory else COLOR_DANGER)
-	_label(panel, "%s · 完成委托 %d / %d" % [_run.chapter_name, _run.visited_nodes.size(), _run.route_nodes.size()], Rect2(32, 94, 520, 28), 18, COLOR_TEXT)
+	_label(panel, "%s · 完成委托 %d / %d" % [_run.expedition_name, _run.completed_commission_count(), _run.commission_goal_count()], Rect2(32, 94, 520, 28), 18, COLOR_TEXT)
 	_label(panel, "守护值 %d / %d   余烬 %d   腐化 %d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max, _run.embers, _run.corruption], Rect2(32, 136, 520, 28), 18, COLOR_AMBER)
 	_label(panel, "遗物：%s" % _relic_summary(), Rect2(32, 178, 540, 52), 17, COLOR_MUTED)
 	var y := 252.0
@@ -1557,7 +2082,7 @@ func _add_top_bar(root: Control) -> void:
 	if _run == null:
 		return
 	_sync_run_warden_base_stats()
-	_label(bar, "第 %d 章 · %s" % [_run.chapter_index, _run.chapter_name], Rect2(24, 18, 240, 26), 18, COLOR_AMBER)
+	_label(bar, _run.expedition_name, Rect2(24, 18, 240, 26), 18, COLOR_AMBER)
 	_label(bar, "守护值 %d/%d" % [_run.sanctuary_integrity, _run.sanctuary_integrity_max], Rect2(286, 18, 130, 26), 17, COLOR_TEXT)
 	_label(bar, "余烬 %d" % _run.embers, Rect2(436, 18, 110, 26), 17, COLOR_TEXT)
 	_label(bar, "腐化 %d" % _run.corruption, Rect2(556, 18, 110, 26), 17, COLOR_TEXT)
@@ -1717,6 +2242,16 @@ func _apply_button_style(button: Button, fill: Color = Color(0.12, 0.085, 0.055,
 	button.add_theme_color_override("font_pressed_color", COLOR_TEXT)
 	button.add_theme_color_override("font_disabled_color", Color(0.45, 0.42, 0.38, 0.80))
 
+func _apply_icon_button_style(button: Button) -> void:
+	button.custom_minimum_size = Vector2(58, 58)
+	button.focus_mode = Control.FOCUS_ALL
+	button.add_theme_font_size_override("font_size", 1)
+	_apply_clear_button_style(button)
+	button.add_theme_color_override("font_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_hover_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_pressed_color", Color.TRANSPARENT)
+	button.add_theme_color_override("font_disabled_color", Color.TRANSPARENT)
+
 func _apply_expedition_region_style(button: Button, fill: Color) -> void:
 	button.custom_minimum_size = Vector2(132, 76)
 	button.focus_mode = Control.FOCUS_ALL
@@ -1733,37 +2268,18 @@ func _apply_expedition_region_style(button: Button, fill: Color) -> void:
 func _apply_mission_card_style(button: Button, node_type: String) -> void:
 	button.custom_minimum_size = Vector2(240, 188)
 	button.focus_mode = Control.FOCUS_ALL
-	var fill := Color(0.115, 0.086, 0.060, 0.98)
-	var accent := _mission_accent(node_type)
-	var border := Color(0.48, 0.32, 0.17, 0.82)
-	button.add_theme_stylebox_override("normal", _mission_card_stylebox(fill, border, 2, 0, false))
-	button.add_theme_stylebox_override("hover", _mission_card_stylebox(fill.lightened(0.07), Color(1.0, 0.68, 0.25, 0.98), 3, -3, true))
-	button.add_theme_stylebox_override("focus", _mission_card_stylebox(fill.lightened(0.07), Color(1.0, 0.68, 0.25, 0.98), 3, -3, true))
-	button.add_theme_stylebox_override("pressed", _mission_card_stylebox(fill.darkened(0.08), accent.darkened(0.12), 3, 1, false))
+	_apply_clear_button_style(button)
 	button.add_theme_color_override("font_color", Color(1, 1, 1, 0))
 	button.add_theme_color_override("font_hover_color", Color(1, 1, 1, 0))
 	button.add_theme_color_override("font_pressed_color", Color(1, 1, 1, 0))
 
-func _mission_card_stylebox(fill: Color, border: Color, border_width: int, state_offset: int, selected: bool) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.border_width_left = border_width
-	style.border_width_top = border_width
-	style.border_width_right = border_width
-	style.border_width_bottom = border_width + 1
-	style.corner_radius_top_left = 7
-	style.corner_radius_top_right = 7
-	style.corner_radius_bottom_right = 7
-	style.corner_radius_bottom_left = 7
-	style.content_margin_left = 0
-	style.content_margin_right = 0
-	style.content_margin_top = 0
-	style.content_margin_bottom = 0
-	style.shadow_color = Color(1.0, 0.42, 0.12, 0.30) if selected else Color(0.0, 0.0, 0.0, 0.46)
-	style.shadow_size = 12 if selected else 7
-	style.shadow_offset = Vector2(0, 5 + state_offset)
-	return style
+func _apply_clear_button_style(button: Button) -> void:
+	var clear := _button_stylebox(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0)
+	button.add_theme_stylebox_override("normal", clear)
+	button.add_theme_stylebox_override("hover", clear)
+	button.add_theme_stylebox_override("pressed", clear)
+	button.add_theme_stylebox_override("disabled", clear)
+	button.add_theme_stylebox_override("focus", clear)
 
 func _expedition_region_stylebox(fill: Color, border: Color, border_width: int, state_offset: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -1802,6 +2318,27 @@ func _button_stylebox(fill: Color, border: Color, border_width: int) -> StyleBox
 	style.content_margin_right = 12
 	style.content_margin_top = 8
 	style.content_margin_bottom = 8
+	return style
+
+func _mission_label_plate_stylebox(accent: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.30, 0.205, 0.125, 0.76)
+	style.border_color = Color(0.88, 0.58, 0.26, 0.34)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 2
+	style.corner_radius_top_left = 7
+	style.corner_radius_top_right = 7
+	style.corner_radius_bottom_right = 7
+	style.corner_radius_bottom_left = 7
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
+	style.shadow_size = 5
+	style.shadow_offset = Vector2(2, 3)
+	style.content_margin_left = 16
+	style.content_margin_right = 14
+	style.content_margin_top = 7
+	style.content_margin_bottom = 7
 	return style
 
 func _effects_text(effects: Array) -> String:

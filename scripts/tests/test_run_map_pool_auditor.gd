@@ -33,6 +33,7 @@ static func _test_default_audit_covers_all_expeditions(tr) -> void:
 	tr.assert_eq("default audit expedition count", report.get("expedition_ids", []).size(), RunExpeditionCatalogScript.expedition_ids().size())
 	tr.assert_eq("default audit run count", int(report.get("total_runs", 0)), RunExpeditionCatalogScript.expedition_ids().size() * RunMapPoolAuditorScript.DEFAULT_SEEDS.size())
 	tr.assert_true("default audit has battles", int(report.get("total_battles", 0)) > 0)
+	tr.assert_eq("default audit has no relaxed map assignments", int(report.get("total_relaxed", -1)), 0)
 	for expedition_id in RunExpeditionCatalogScript.expedition_ids():
 		tr.assert_true("default audit includes %s" % expedition_id, report.get("expeditions", {}).has(expedition_id))
 

@@ -7,6 +7,8 @@ const CONFIG_IRON_GATE := "battle_iron_gate_04"
 const CONFIG_OUTER_BELL := "battle_boss_outer_bell_01"
 const CONFIG_PILLAR_GRAVEYARD := "battle_pillar_graveyard_03"
 const CONFIG_BROKEN_BRIDGE_EDGE := "battle_candidate_broken_bridge_edge"
+const CONFIG_SUPPLY_RELAY_YARD := "battle_candidate_supply_relay_yard"
+const CONFIG_BONE_RIFT_NEST := "battle_candidate_bone_rift_nest"
 
 const NODE_TO_CONFIG := {
 	"outer_wall_01": CONFIG_OUTER_WALL,
@@ -449,6 +451,11 @@ const CONFIGS := {
 			"rift_pool": {"rift_ids": ["r_top_l", "r_bottom_r"], "enemy_weights": {"rot_beast": 2, "bone_grub": 1}, "rounds": [2, 3, 4], "warns_before_spawn": true, "max_per_round": 1},
 		},
 		"warden_spawns": [Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6)],
+		"deploy_zone": [
+			Vector2i(1, 4), Vector2i(2, 4), Vector2i(5, 4), Vector2i(6, 4),
+			Vector2i(1, 5), Vector2i(2, 5), Vector2i(5, 5), Vector2i(6, 5),
+			Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6),
+		],
 		"protected_targets": [
 			{"id": "b_left", "kind": "building", "pos": Vector2i(2, 3), "hp": 2},
 			{"id": "b_right", "kind": "building", "pos": Vector2i(5, 3), "hp": 2},
@@ -488,6 +495,151 @@ const CONFIGS := {
 		"design_notes": [
 			"候补地图，左右边缘接入 abyss_edge 运行时标记，用于推撞处决和战术边界显示。",
 			"普通战版本移除早期铁角兽，避免第一章候补池过压。",
+		],
+	},
+	"battle_candidate_supply_relay_yard": {
+		"config_id": "battle_candidate_supply_relay_yard",
+		"node_id": "",
+		"map_id": "map_demo_supply_relay_yard",
+		"display_name": "军需中继场",
+		"candidate_only": true,
+		"max_rounds": 5,
+		"rift_strength": 0,
+		"pressure_tags": ["侧翼包抄", "护壳推进", "补给防线"],
+		"preview_flags": ["候补地图", "补给线", "护壳推进"],
+		"terrain_roles": [
+			{"role": "attack_lane", "cells": [Vector2i(1, 0), Vector2i(2, 0), Vector2i(5, 0), Vector2i(6, 0), Vector2i(0, 4), Vector2i(7, 4), Vector2i(1, 6), Vector2i(6, 6)]},
+			{"role": "choke", "cells": [Vector2i(2, 2), Vector2i(5, 2), Vector2i(3, 3), Vector2i(4, 3)]},
+			{"role": "protect_ring", "cells": [Vector2i(2, 3), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(2, 4), Vector2i(4, 4), Vector2i(5, 4)]},
+			{"role": "push_pocket", "cells": [Vector2i(0, 4), Vector2i(1, 4), Vector2i(6, 4), Vector2i(7, 4)]},
+			{"role": "deploy_buffer", "cells": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5), Vector2i(5, 5), Vector2i(6, 5), Vector2i(2, 6), Vector2i(5, 6)]},
+		],
+		"element_pools": {
+			"blocker_cluster": [
+				{"id": "relay_crate_lanes", "weight": 2, "cells": [Vector2i(2, 2), Vector2i(5, 2), Vector2i(3, 3), Vector2i(4, 3)], "roles": ["choke"]},
+			],
+			"push_cluster": [
+				{"id": "supply_side_pockets", "weight": 1, "cells": [Vector2i(0, 4), Vector2i(1, 4), Vector2i(6, 4), Vector2i(7, 4)], "roles": ["push_pocket"]},
+			],
+			"flank_cluster": [
+				{"id": "double_supply_flanks", "weight": 1, "cells": [Vector2i(1, 6), Vector2i(6, 6)], "roles": ["attack_lane"]},
+			],
+		},
+		"spawn_pools": {
+			"front_lane_pool": {"cells": [Vector2i(1, 0), Vector2i(6, 0)], "enemy_weights": {"rot_beast": 3}, "rounds": [1], "warns_before_spawn": false, "max_per_round": 1},
+			"shell_push_pool": {"cells": [Vector2i(2, 0), Vector2i(5, 0)], "enemy_weights": {"shell_beetle": 1, "rot_beast": 1}, "rounds": [2], "warns_before_spawn": false, "max_per_round": 1},
+			"flank_pool": {"cells": [Vector2i(1, 6), Vector2i(6, 6)], "enemy_weights": {"rot_beast": 2, "plague_archer": 1}, "rounds": [3, 4], "warns_before_spawn": false, "max_per_round": 1},
+		},
+		"deploy_zone": [
+			Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5), Vector2i(5, 5), Vector2i(6, 5),
+			Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6), Vector2i(6, 6),
+		],
+		"warden_spawns": [Vector2i(2, 5), Vector2i(4, 5), Vector2i(5, 5)],
+		"protected_targets": [
+			{"id": "b_supply_l", "kind": "building", "pos": Vector2i(2, 3), "hp": 2},
+			{"id": "b_supply_c", "kind": "building", "pos": Vector2i(3, 3), "hp": 2},
+			{"id": "b_supply_r", "kind": "building", "pos": Vector2i(5, 3), "hp": 2},
+		],
+		"pillars": [
+			{"id": "s_crate_l", "pos": Vector2i(2, 2)},
+			{"id": "s_crate_r", "pos": Vector2i(5, 2)},
+			{"id": "s_mid_l", "pos": Vector2i(3, 4)},
+			{"id": "s_mid_r", "pos": Vector2i(6, 3)},
+		],
+		"rifts": [],
+		"void_cells": [],
+		"initial_enemies": [
+			{"id": "e_rot_left", "enemy_id": "rot_beast", "pos": Vector2i(1, 0)},
+			{"id": "e_rot_right", "enemy_id": "rot_beast", "pos": Vector2i(6, 0)},
+			{"id": "e_shell_top", "enemy_id": "shell_beetle", "pos": Vector2i(2, 0)},
+		],
+		"scripted_spawns": [
+			{"round": 3, "enemy_id": "rot_beast", "pos": Vector2i(1, 6)},
+			{"round": 4, "enemy_id": "plague_archer", "pos": Vector2i(6, 6)},
+		],
+		"rift_schedule": [],
+		"reward_tasks": ["perfect_defense", "low_loss_line", "all_wardens_survive"],
+		"runtime_reward_tasks": ["perfect_defense", "low_loss_line", "all_wardens_survive"],
+		"design_notes": [
+			"普通战候补地图，给军需线和断墙外环提供非裂隙侧翼压力。",
+			"护壳虫只作为慢速推进核心，不叠加裂隙排程，避免普通池压力过载。",
+		],
+	},
+	"battle_candidate_bone_rift_nest": {
+		"config_id": "battle_candidate_bone_rift_nest",
+		"node_id": "",
+		"map_id": "map_demo_bone_rift_nest",
+		"display_name": "蚀骨裂巢",
+		"candidate_only": true,
+		"max_rounds": 5,
+		"rift_strength": 1,
+		"pressure_tags": ["裂隙压力", "快速近身", "低血潮涌"],
+		"preview_flags": ["候补地图", "骨蛆裂隙", "轻量波次"],
+		"terrain_roles": [
+			{"role": "hazard_preview", "hazard_type": "void_gap", "cells": [Vector2i(3, 5), Vector2i(4, 5)]},
+			{"role": "rift_influence", "cells": [Vector2i(3, 0), Vector2i(4, 0), Vector2i(3, 2), Vector2i(4, 2), Vector2i(0, 4), Vector2i(7, 4)]},
+			{"role": "attack_lane", "cells": [Vector2i(2, 0), Vector2i(5, 0), Vector2i(0, 4), Vector2i(7, 4), Vector2i(1, 6), Vector2i(6, 6)]},
+			{"role": "protect_ring", "cells": [Vector2i(2, 3), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(2, 4), Vector2i(4, 4), Vector2i(5, 4)]},
+			{"role": "choke", "cells": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(3, 4)]},
+			{"role": "deploy_buffer", "cells": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(5, 5), Vector2i(6, 5), Vector2i(1, 6), Vector2i(2, 6), Vector2i(5, 6), Vector2i(6, 6)]},
+		],
+		"element_pools": {
+			"rift_cluster": [
+				{"id": "bone_side_rifts", "weight": 2, "rift_ids": ["r_top_l", "r_top_r", "r_left"], "roles": ["rift_influence"]},
+				{"id": "bone_cross_rifts", "weight": 1, "rift_ids": ["r_top_l", "r_top_r", "r_right"], "roles": ["rift_influence"]},
+			],
+			"blocker_cluster": [
+				{"id": "nest_center_choke", "weight": 1, "cells": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(3, 4)], "roles": ["choke"]},
+			],
+			"hazard_cluster": [
+				{"id": "lower_nest_gap", "weight": 1, "hazard_type": "void_gap", "cells": [Vector2i(3, 5), Vector2i(4, 5)], "stage": "runtime"},
+			],
+		},
+		"spawn_pools": {
+			"front_lane_pool": {"cells": [Vector2i(2, 0), Vector2i(5, 0)], "enemy_weights": {"rot_beast": 2, "bone_grub": 1}, "rounds": [1], "warns_before_spawn": false, "max_per_round": 1},
+			"rift_pool": {"rift_ids": ["r_top_l", "r_top_r", "r_left", "r_right"], "enemy_weights": {"bone_grub": 3, "rot_beast": 1}, "rounds": [2, 3, 4], "warns_before_spawn": true, "max_per_round": 1},
+			"flank_pool": {"cells": [Vector2i(1, 6), Vector2i(6, 6)], "enemy_weights": {"bone_grub": 2, "rot_beast": 1}, "rounds": [4], "warns_before_spawn": false, "max_per_round": 1},
+		},
+		"deploy_zone": [
+			Vector2i(1, 5), Vector2i(2, 5), Vector2i(5, 5), Vector2i(6, 5),
+			Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6), Vector2i(6, 6),
+		],
+		"warden_spawns": [Vector2i(2, 5), Vector2i(5, 5), Vector2i(5, 6)],
+		"protected_targets": [
+			{"id": "b_nest_l", "kind": "building", "pos": Vector2i(2, 3), "hp": 2},
+			{"id": "b_nest_c", "kind": "building", "pos": Vector2i(4, 3), "hp": 2},
+			{"id": "b_nest_r", "kind": "building", "pos": Vector2i(5, 3), "hp": 2},
+		],
+		"pillars": [
+			{"id": "s_nest_l", "pos": Vector2i(3, 2)},
+			{"id": "s_nest_r", "pos": Vector2i(4, 2)},
+			{"id": "s_lower_l", "pos": Vector2i(2, 4)},
+			{"id": "s_lower_r", "pos": Vector2i(6, 3)},
+		],
+		"rifts": [
+			{"id": "r_top_l", "pos": Vector2i(3, 0)},
+			{"id": "r_top_r", "pos": Vector2i(4, 0)},
+			{"id": "r_left", "pos": Vector2i(0, 4)},
+			{"id": "r_right", "pos": Vector2i(7, 4)},
+		],
+		"void_cells": [Vector2i(3, 5), Vector2i(4, 5)],
+		"initial_enemies": [
+			{"id": "e_grub_top_l", "enemy_id": "bone_grub", "pos": Vector2i(2, 0)},
+			{"id": "e_rot_top_r", "enemy_id": "rot_beast", "pos": Vector2i(5, 0)},
+		],
+		"scripted_spawns": [
+			{"round": 4, "enemy_id": "bone_grub", "pos": Vector2i(1, 6)},
+		],
+		"rift_schedule": [
+			{"round": 2, "rift_id": "r_top_l", "enemy_id": "bone_grub"},
+			{"round": 3, "rift_id": "r_left", "enemy_id": "bone_grub"},
+			{"round": 4, "rift_id": "r_right", "enemy_id": "rot_beast"},
+		],
+		"reward_tasks": ["rift_suppression", "physical_kills_3", "terminal_clear"],
+		"runtime_reward_tasks": ["rift_suppression", "physical_kills_3", "terminal_clear"],
+		"design_notes": [
+			"普通战候补地图，用低血高速敌人提供节奏变化，避免所有裂隙图都依赖弓手线压。",
+			"下方裂口压缩部署，但保留两侧守护路径，防止建筑不可救援。",
 		],
 	},
 }
@@ -532,7 +684,7 @@ static func build_runtime_config(config: Dictionary) -> Dictionary:
 		"deploy_zone": build_deploy_zone(config, grid),
 		"rift_positions": rift_data.get("positions", []),
 		"rift_schedule": rift_data.get("schedule", []),
-			"bell_wave_schedule": build_bell_wave_schedule(config, grid),
+		"bell_wave_schedule": build_bell_wave_schedule(config, grid),
 		"abyss_edges": build_abyss_edges(config),
 		"scripted_spawn_schedule": build_scripted_spawns(config, grid),
 		"terrain_roles": build_terrain_roles(config),
@@ -558,11 +710,6 @@ static func build_grid(config: Dictionary) -> Dictionary:
 			continue
 		grid.set_tile(pos, Grid.TileType.BUILDING, int(target.get("hp", Grid.DEFAULT_BUILDING_HP)))
 		protected_targets.append(pos)
-	for rift in config.get("rifts", []):
-		var pos := _entry_pos(rift)
-		if _is_runtime_cell_blocked_by_void(grid, pos):
-			continue
-		grid.set_tile(pos, Grid.TileType.RIFT)
 	return {"grid": grid, "protected_targets": protected_targets}
 
 static func build_initial_enemies(config: Dictionary, grid: Grid = null) -> Array:
@@ -584,12 +731,6 @@ static func build_initial_enemies(config: Dictionary, grid: Grid = null) -> Arra
 	return result
 
 static func build_rifts(config: Dictionary, grid: Grid = null) -> Dictionary:
-	var positions: Array[Vector2i] = []
-	for rift in config.get("rifts", []):
-		var rift_pos := _entry_pos(rift)
-		if _is_runtime_cell_blocked_by_void(grid, rift_pos):
-			continue
-		positions.append(rift_pos)
 	var schedule: Array = []
 	for entry in config.get("rift_schedule", []):
 		var enemy_id := String(entry.get("enemy_id", ""))
@@ -608,6 +749,10 @@ static func build_rifts(config: Dictionary, grid: Grid = null) -> Dictionary:
 			"enemy_id": enemy_id,
 			"rift_id": String(entry.get("rift_id", "")),
 		})
+	var positions := positions_from_rift_schedule(schedule)
+	for pos in positions:
+		if grid != null:
+			grid.set_tile(pos, Grid.TileType.RIFT)
 	return {"positions": positions, "schedule": schedule}
 
 static func build_scripted_spawns(config: Dictionary, grid: Grid = null) -> Array:
@@ -797,6 +942,15 @@ static func _runtime_available_rift_ids(config: Dictionary, rift_ids: Array[Stri
 		if _is_runtime_cell_blocked_by_void(grid, pos):
 			continue
 		result.append(rift_id)
+	return result
+
+static func positions_from_rift_schedule(schedule: Array) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for entry in schedule:
+		var pos: Vector2i = entry.get("pos", Vector2i(-1, -1))
+		if pos == Vector2i(-1, -1) or pos in result:
+			continue
+		result.append(pos)
 	return result
 
 static func _is_runtime_cell_blocked_by_void(grid: Grid, cell: Vector2i) -> bool:

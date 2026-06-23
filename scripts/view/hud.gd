@@ -50,24 +50,10 @@ const ICON_ATTACK := preload("res://art/atlases/battle/battle_ui.attack_icon.tre
 const ICON_MOVE := preload("res://art/atlases/battle/battle_ui.move_icon.tres")
 const ICON_RELIC := preload("res://art/atlases/battle/battle_ui.relic_icon.tres")
 const ICON_WAIT := preload("res://art/atlases/battle/battle_ui.wait_icon.tres")
+const ICON_COOLDOWN_RING := preload("res://art/atlases/battle/battle_ui.cooldown_ring.tres")
+const ICON_COOLDOWN_RING_MUTED := preload("res://art/atlases/battle/battle_ui.cooldown_ring_muted.tres")
+const SHADER_COOLDOWN_RADIAL_CLIP := preload("res://shaders/ui/cooldown_radial_clip.gdshader")
 const BattleStatusPresenter := preload("res://scripts/view/battle_status_presenter.gd")
-
-class AbilityCooldownRing extends Control:
-	var progress: float = 1.0
-	var cooldown_active: bool = false
-
-	func _draw() -> void:
-		var center := size * 0.5
-		if not cooldown_active:
-			return
-		var radius := minf(size.x, size.y) * 0.46
-		draw_arc(center, radius, 0.0, TAU, 36, Color(0.13, 0.14, 0.18, 0.92), 4.0, true)
-		var clamped := clampf(progress, 0.0, 1.0)
-		if clamped <= 0.0:
-			return
-		var start := -PI * 0.5
-		var end := start + TAU * clamped
-		draw_arc(center, radius, start, end, max(6, int(36.0 * clamped)), Color(1.0, 0.52, 0.16, 0.96), 4.0, true)
 
 @onready var round_label: Label = $Root/TopRow/RoundLabel
 @onready var phase_label: Label = $Root/TopRow/PhaseLabel
@@ -1432,16 +1418,24 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 			slot.add_child(icon_scrim)
 
 		if is_cooling_down:
-			var cooldown_ring := AbilityCooldownRing.new()
+			var cooldown_ring_bg := TextureRect.new()
+			cooldown_ring_bg.name = "CooldownRingMuted"
+			_layout_cooldown_ring(cooldown_ring_bg, icon_frame)
+			cooldown_ring_bg.texture = ICON_COOLDOWN_RING_MUTED
+			slot.add_child(cooldown_ring_bg)
+
+			var cooldown_ring := TextureRect.new()
 			cooldown_ring.name = "CooldownRing"
-			cooldown_ring.offset_left = icon_frame.offset_left - 3.0
-			cooldown_ring.offset_top = icon_frame.offset_top - 3.0
-			cooldown_ring.offset_right = icon_frame.offset_right + 3.0
-			cooldown_ring.offset_bottom = icon_frame.offset_bottom + 3.0
-			cooldown_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			cooldown_ring.cooldown_active = true
-			cooldown_ring.progress = float(cooldown_remaining) / float(maxi(1, cooldown_rounds))
+			_layout_cooldown_ring(cooldown_ring, icon_frame)
+			cooldown_ring.texture = ICON_COOLDOWN_RING
+			var cooldown_material := ShaderMaterial.new()
+			cooldown_material.shader = SHADER_COOLDOWN_RADIAL_CLIP
+			cooldown_material.set_shader_parameter("progress", float(cooldown_remaining) / float(maxi(1, cooldown_rounds)))
+			cooldown_ring.material = cooldown_material
 			slot.add_child(cooldown_ring)
+
+			var cooldown_badge := _make_cooldown_count_badge(cooldown_remaining, icon_frame)
+			slot.add_child(cooldown_badge)
 
 		var name := Label.new()
 		name.offset_left = 58.0
@@ -1482,8 +1476,12 @@ func show_ability_bar(warden_data, abilities: Array) -> void:
 			card_scrim.color = Color(0.005, 0.007, 0.012, 0.32)
 			card_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			slot.add_child(card_scrim)
+			if slot.has_node("CooldownRingMuted"):
+				slot.move_child(slot.get_node("CooldownRingMuted"), slot.get_child_count() - 1)
 			if slot.has_node("CooldownRing"):
 				slot.move_child(slot.get_node("CooldownRing"), slot.get_child_count() - 1)
+			if slot.has_node("CooldownCountBadge"):
+				slot.move_child(slot.get_node("CooldownCountBadge"), slot.get_child_count() - 1)
 
 		var tint := Color(0.86, 0.86, 0.88, 1.0)
 		var desc_tint := UI_TEXT_DIM
@@ -1528,6 +1526,46 @@ func hide_ability_bar() -> void:
 	_hovered_ability.clear()
 	_armed_ability_detail.clear()
 	_hide_ability_detail()
+
+func _layout_cooldown_ring(ring: TextureRect, icon_frame: Control) -> void:
+	ring.offset_left = icon_frame.offset_left - 7.0
+	ring.offset_top = icon_frame.offset_top - 7.0
+	ring.offset_right = icon_frame.offset_right + 7.0
+	ring.offset_bottom = icon_frame.offset_bottom + 7.0
+	ring.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ring.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+func _make_cooldown_count_badge(cooldown_remaining: int, icon_frame: Control) -> Label:
+	var badge := Label.new()
+	badge.name = "CooldownCountBadge"
+	var badge_size := 18.0 if cooldown_remaining < 10 else 22.0
+	badge.offset_left = icon_frame.offset_right - 9.0
+	badge.offset_top = icon_frame.offset_top - 8.0
+	badge.offset_right = badge.offset_left + badge_size
+	badge.offset_bottom = badge.offset_top + 18.0
+	badge.text = str(cooldown_remaining)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.add_theme_font_size_override("font_size", 11)
+	badge.add_theme_color_override("font_color", Color(1.0, 0.86, 0.52, 1.0))
+	badge.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.92))
+	badge.add_theme_constant_override("shadow_offset_x", 0)
+	badge.add_theme_constant_override("shadow_offset_y", 1)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.070, 0.048, 0.030, 0.96)
+	style.border_color = Color(1.0, 0.55, 0.16, 0.94)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.corner_radius_top_left = 7
+	style.corner_radius_top_right = 7
+	style.corner_radius_bottom_right = 7
+	style.corner_radius_bottom_left = 7
+	badge.add_theme_stylebox_override("normal", style)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return badge
 
 func _layout_selected_unit_panel() -> void:
 	if ability_bar_bg == null:

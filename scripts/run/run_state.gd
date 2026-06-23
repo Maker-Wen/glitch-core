@@ -1,5 +1,5 @@
 class_name RunState extends RefCounted
-## Mutable state for the fixed demo roguelite run.
+## Mutable state for a commission-deck roguelite run.
 
 const RelicCatalogScript := preload("res://scripts/data/relic_catalog.gd")
 const BattleConfigCatalogScript := preload("res://scripts/data/battle_config_catalog.gd")
@@ -37,7 +37,7 @@ const MAP_POOL_ELITE := "elite"
 const MAP_POOL_BOSS := "boss"
 const DEFAULT_SANCTUARY_INTEGRITY := 12
 const COMMISSION_BOARD_SIZE := 3
-const COMMISSION_BOSS_UNLOCK_COUNT := 5
+const COMMISSION_BOSS_UNLOCK_COUNT := 8
 const WARDEN_ROSTER_IDS := ["warden_bountyhunter", "warden_graverobber", "warden_mage"]
 const WARDEN_HP_UPGRADE_IDS := {
 	"upgrade_bountyhunter_vanguard": true,
@@ -60,10 +60,17 @@ var embers: int = 0
 var corruption: int = 0
 var wardens: Array[Dictionary] = []
 var relics: Array[Dictionary] = []
-## Internal commission candidates for the current expedition.
+## Internal commission deck nodes for the current expedition map.
 ## Kept as route_nodes for save/test compatibility; this is not a player-facing node graph.
 var route_nodes: Array[Dictionary] = []
+var commission_deck_ids: Array[String] = []
+var commission_draw_pile_ids: Array[String] = []
+var discarded_commission_ids: Array[String] = []
 var active_commission_ids: Array[String] = []
+var commission_hand_size: int = COMMISSION_BOARD_SIZE
+var boss_unlock_count: int = COMMISSION_BOSS_UNLOCK_COUNT
+var refresh_charges: int = 0
+var refresh_charges_max: int = 0
 var visited_nodes: Array[String] = []
 var claimed_reward_ids: Array[String] = []
 var pending_reward: Dictionary = {}
@@ -96,8 +103,8 @@ func setup_new_demo() -> void:
 	chapter_guardian_reward_used = false
 	result_outcome = ""
 	wardens = _initial_wardens()
-	route_nodes = _build_demo_route()
-	_initialize_commission_board()
+	route_nodes = _build_commission_deck(run_seed, expedition_id)
+	_initialize_commission_deck_state()
 
 func setup_new_random_route(seed: int = 0, selected_expedition_id: String = EXPEDITION_BROKEN_WALL) -> void:
 	run_id = "random-%d" % Time.get_unix_time_from_system()
@@ -123,8 +130,8 @@ func setup_new_random_route(seed: int = 0, selected_expedition_id: String = EXPE
 	chapter_guardian_reward_used = false
 	result_outcome = ""
 	wardens = _initial_wardens()
-	route_nodes = _build_random_route(run_seed, expedition_id)
-	_initialize_commission_board()
+	route_nodes = _build_commission_deck(run_seed, expedition_id)
+	_initialize_commission_deck_state()
 
 func current_commission() -> Dictionary:
 	var available := available_commissions()
@@ -283,8 +290,22 @@ func max_visited_route_layer() -> int:
 			max_layer = maxi(max_layer, int(node.get("layer", 0)))
 	return max_layer
 
-func _initialize_commission_board() -> void:
+func _initialize_commission_deck_state() -> void:
+	var deck_config := _commission_deck_config()
+	commission_hand_size = maxi(1, int(deck_config.get("hand_size", COMMISSION_BOARD_SIZE)))
+	boss_unlock_count = maxi(1, int(deck_config.get("boss_unlock_count", COMMISSION_BOSS_UNLOCK_COUNT)))
+	refresh_charges_max = maxi(0, int(deck_config.get("initial_refresh_charges", 0)))
+	refresh_charges = refresh_charges_max
+	commission_deck_ids.clear()
+	commission_draw_pile_ids.clear()
+	discarded_commission_ids.clear()
 	active_commission_ids.clear()
+	for node in route_nodes:
+		var node_id := String(node.get("node_id", ""))
+		if node_id.is_empty() or String(node.get("node_type", "")) == NODE_BOSS:
+			continue
+		commission_deck_ids.append(node_id)
+		commission_draw_pile_ids.append(node_id)
 	_refill_commission_board()
 
 func _refill_commission_board() -> void:
@@ -298,11 +319,11 @@ func _refill_commission_board() -> void:
 		if not boss.is_empty():
 			active_commission_ids.append(String(boss.get("node_id", "")))
 		return
-	while active_commission_ids.size() < COMMISSION_BOARD_SIZE:
-		var candidates := _commission_refill_candidates()
-		if candidates.is_empty():
+	while active_commission_ids.size() < commission_hand_size:
+		var next_id := _draw_next_commission_id()
+		if next_id.is_empty():
 			return
-		active_commission_ids.append(String(candidates[0].get("node_id", "")))
+		active_commission_ids.append(next_id)
 
 func _trim_active_commission_ids() -> void:
 	var trimmed: Array[String] = []
@@ -314,36 +335,77 @@ func _trim_active_commission_ids() -> void:
 			trimmed.append(node_id)
 	active_commission_ids = trimmed
 
-func _commission_refill_candidates() -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	for node in route_nodes:
-		var node_id := String(node.get("node_id", ""))
-		if node_id.is_empty() or bool(node.get("visited", false)):
+func _draw_next_commission_id() -> String:
+	while not commission_draw_pile_ids.is_empty():
+		var node_id := String(commission_draw_pile_ids.pop_front())
+		var node := node_by_id(node_id)
+		if node.is_empty() or bool(node.get("visited", false)):
 			continue
 		if node_id in active_commission_ids:
 			continue
 		if String(node.get("node_type", "")) == NODE_BOSS:
 			continue
-		if _commission_node_is_reachable(node):
-			result.append(node)
-	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var layer_a := int(a.get("layer", 0))
-		var layer_b := int(b.get("layer", 0))
-		if layer_a == layer_b:
-			var lane_a := int(a.get("lane", 0))
-			var lane_b := int(b.get("lane", 0))
-			if lane_a == lane_b:
-				return String(a.get("node_id", "")) < String(b.get("node_id", ""))
-			return lane_a < lane_b
-		return layer_a < layer_b
-	)
-	return result
+		return node_id
+	return ""
+
+func can_refresh_commission(slot_index: int) -> bool:
+	_trim_active_commission_ids()
+	if refresh_charges <= 0 or _boss_commission_should_unlock():
+		return false
+	if slot_index < 0 or slot_index >= active_commission_ids.size():
+		return false
+	var node := node_by_id(active_commission_ids[slot_index])
+	if node.is_empty() or String(node.get("node_type", "")) == NODE_BOSS:
+		return false
+	return _next_drawable_commission_index() >= 0
+
+func refresh_commission(slot_index: int) -> bool:
+	if not can_refresh_commission(slot_index):
+		return false
+	var old_id := active_commission_ids[slot_index]
+	var next_index := _next_drawable_commission_index()
+	if next_index < 0:
+		return false
+	var replacement_id := String(commission_draw_pile_ids[next_index])
+	commission_draw_pile_ids.remove_at(next_index)
+	active_commission_ids[slot_index] = replacement_id
+	if not (old_id in discarded_commission_ids):
+		discarded_commission_ids.append(old_id)
+	refresh_charges -= 1
+	return true
+
+func _next_drawable_commission_index() -> int:
+	for i in range(commission_draw_pile_ids.size()):
+		var node_id := String(commission_draw_pile_ids[i])
+		var node := node_by_id(node_id)
+		if node.is_empty() or bool(node.get("visited", false)):
+			continue
+		if node_id in active_commission_ids:
+			continue
+		if String(node.get("node_type", "")) == NODE_BOSS:
+			continue
+		return i
+	return -1
 
 func _boss_commission_should_unlock() -> bool:
 	var boss := _boss_node()
 	if boss.is_empty() or bool(boss.get("visited", false)):
 		return false
-	return _completed_non_boss_count() >= COMMISSION_BOSS_UNLOCK_COUNT
+	return _completed_non_boss_count() >= boss_unlock_count
+
+func completed_commission_count() -> int:
+	return _completed_non_boss_count()
+
+func commission_goal_count() -> int:
+	return boss_unlock_count
+
+func remaining_commission_deck_count() -> int:
+	var count := 0
+	for node_id in commission_draw_pile_ids:
+		var node := node_by_id(String(node_id))
+		if not node.is_empty() and not bool(node.get("visited", false)):
+			count += 1
+	return count
 
 func _completed_non_boss_count() -> int:
 	var count := 0
@@ -447,7 +509,7 @@ func build_pending_reward(node: Dictionary, resolution: Dictionary) -> Dictionar
 		reward.fixed_rewards.append({"reward_type": "embers", "amount": boss_heart_bonus, "reason": "心脏钟命中 %d 次" % clampi(boss_heart_hits, 0, 3), "visible_order": 25})
 		reward.modifiers.append({"modifier_id": "boss_heart_bell_bonus", "description": "Boss 心脏钟命中：额外 +%d 余烬。" % boss_heart_bonus})
 	if _should_offer_guardian_recovery(node_type, completed):
-		reward.fixed_rewards.append({"reward_type": "sanctuary_integrity", "amount": 1, "reason": "本章首次完美守住防线", "visible_order": 30})
+		reward.fixed_rewards.append({"reward_type": "sanctuary_integrity", "amount": 1, "reason": "本次地图首次完美守住防线", "visible_order": 30})
 		reward.modifiers.append({"modifier_id": "guardian_recovery_fixed", "description": "完成 3 个奖励任务：守护值恢复 +1。"})
 	elif _should_convert_guardian_recovery_to_embers(node_type, completed):
 		reward.fixed_rewards.append({"reward_type": "embers", "amount": 3, "reason": "守护值已满，恢复机会转化", "visible_order": 30})
@@ -926,11 +988,302 @@ func battle_map_assignment_debug_text() -> String:
 func _expedition_route_pools(selected_expedition_id: String) -> Dictionary:
 	return RunExpeditionCatalogScript.route_pools(selected_expedition_id)
 
+func _commission_deck_config() -> Dictionary:
+	return RunExpeditionCatalogScript.commission_deck_config(expedition_id)
+
+func _build_commission_deck(seed: int, selected_expedition_id: String = EXPEDITION_BROKEN_WALL) -> Array[Dictionary]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var expedition_config := RunExpeditionCatalogScript.get_config(selected_expedition_id)
+	var deck_config: Dictionary = expedition_config.get("commission_deck", {})
+	var deck_size := maxi(COMMISSION_BOARD_SIZE, int(deck_config.get("deck_size", 16)))
+	var max_consecutive_non_combat := maxi(1, int(deck_config.get("max_consecutive_non_combat", 2)))
+	var type_counts: Dictionary = deck_config.get("type_counts", {}).duplicate(true)
+	_normalize_commission_type_counts(type_counts, deck_size)
+	var type_sequence := _generate_commission_type_sequence(type_counts, deck_size, rng, max_consecutive_non_combat)
+	var pools: Dictionary = expedition_config.get("node_pools", {})
+	var result: Array[Dictionary] = []
+	var used_source_counts := {}
+	for i in range(type_sequence.size()):
+		var node_type := String(type_sequence[i])
+		var source_id := _pick_commission_source_id_for_type(node_type, i, pools, rng)
+		var layer := _commission_layer_for_type(node_type, i, type_sequence.size())
+		var lane := i % COMMISSION_BOARD_SIZE
+		var source_use_count := int(used_source_counts.get(source_id, 0))
+		used_source_counts[source_id] = source_use_count + 1
+		var node_id := source_id if source_use_count == 0 else _commission_generated_node_id(i, source_id, node_type)
+		var node := _commission_node_from_source(source_id, node_id, layer, lane)
+		if node.is_empty():
+			continue
+		node["deck_index"] = i
+		node["depth_band"] = _commission_depth_band(i, type_sequence.size())
+		result.append(node)
+	var boss := _commission_node_from_source("boss_outer_bell_01", "boss_outer_bell_01", 6, 1)
+	if not boss.is_empty():
+		boss["deck_index"] = result.size()
+		boss["depth_band"] = "boss"
+		result.append(boss)
+	_assign_commission_deck_battle_maps(result, expedition_config, rng)
+	return result
+
+func _normalize_commission_type_counts(type_counts: Dictionary, deck_size: int) -> void:
+	for node_type in [NODE_NORMAL, NODE_ELITE, NODE_EVENT, NODE_CAMP, NODE_SHOP]:
+		type_counts[node_type] = maxi(0, int(type_counts.get(node_type, 0)))
+	var total := 0
+	for node_type in type_counts.keys():
+		total += maxi(0, int(type_counts.get(node_type, 0)))
+	if total < deck_size:
+		type_counts[NODE_NORMAL] = int(type_counts.get(NODE_NORMAL, 0)) + deck_size - total
+	elif total > deck_size:
+		var overflow := total - deck_size
+		for node_type in [NODE_SHOP, NODE_CAMP, NODE_EVENT, NODE_ELITE, NODE_NORMAL]:
+			if overflow <= 0:
+				break
+			var current := int(type_counts.get(node_type, 0))
+			var removed := mini(current, overflow)
+			type_counts[node_type] = current - removed
+			overflow -= removed
+	if int(type_counts.get(NODE_NORMAL, 0)) <= 0:
+		type_counts[NODE_NORMAL] = 1
+
+func _generate_commission_type_sequence(type_counts: Dictionary, deck_size: int, rng: RandomNumberGenerator, max_consecutive_non_combat: int = 2) -> Array[String]:
+	var remaining := type_counts.duplicate(true)
+	var sequence: Array[String] = []
+	for opening_type in [NODE_NORMAL, NODE_EVENT, NODE_SHOP]:
+		if sequence.size() >= mini(COMMISSION_BOARD_SIZE, deck_size):
+			break
+		if int(remaining.get(opening_type, 0)) <= 0:
+			continue
+		sequence.append(opening_type)
+		remaining[opening_type] = int(remaining.get(opening_type, 0)) - 1
+	while sequence.size() < deck_size:
+		var candidates := _commission_type_candidates_for_position(remaining, sequence, deck_size, max_consecutive_non_combat)
+		if candidates.is_empty():
+			break
+		var node_type := _weighted_type_pick(candidates, remaining, rng)
+		sequence.append(node_type)
+		remaining[node_type] = int(remaining.get(node_type, 0)) - 1
+	return sequence
+
+func _commission_type_candidates_for_position(remaining: Dictionary, sequence: Array[String], deck_size: int, max_consecutive_non_combat: int = 2) -> Array[String]:
+	var result: Array[String] = []
+	var force_combat := sequence.size() >= 2 \
+		and not _commission_type_is_combat(sequence[sequence.size() - 1]) \
+		and not _commission_type_is_combat(sequence[sequence.size() - 2])
+	var late_start := deck_size / 2
+	for node_type in [NODE_NORMAL, NODE_ELITE, NODE_EVENT, NODE_CAMP, NODE_SHOP]:
+		if int(remaining.get(node_type, 0)) <= 0:
+			continue
+		if force_combat and not _commission_type_is_combat(node_type):
+			continue
+		if node_type == NODE_ELITE and sequence.size() < 5 and _remaining_non_elite_count(remaining) > 0:
+			continue
+		if (node_type == NODE_CAMP or node_type == NODE_SHOP) and sequence.size() < 2 and _remaining_alternative_count(remaining, node_type) > 0:
+			continue
+		if node_type == NODE_CAMP and sequence.size() < late_start and _remaining_alternative_count(remaining, node_type) > 0:
+			continue
+		if not sequence.is_empty() and node_type == sequence[sequence.size() - 1] and not _commission_type_is_combat(node_type) and _remaining_alternative_count(remaining, node_type) > 0:
+			continue
+		result.append(node_type)
+	var feasible := _feasible_commission_type_candidates(result, remaining, sequence, max_consecutive_non_combat)
+	if not feasible.is_empty():
+		return feasible
+	if result.is_empty():
+		for node_type in [NODE_NORMAL, NODE_ELITE, NODE_EVENT, NODE_CAMP, NODE_SHOP]:
+			if int(remaining.get(node_type, 0)) > 0:
+				result.append(node_type)
+		feasible = _feasible_commission_type_candidates(result, remaining, sequence, max_consecutive_non_combat)
+		if not feasible.is_empty():
+			return feasible
+	return result
+
+func _feasible_commission_type_candidates(candidates: Array[String], remaining: Dictionary, sequence: Array[String], max_consecutive_non_combat: int) -> Array[String]:
+	var result: Array[String] = []
+	for node_type in candidates:
+		var after := remaining.duplicate(true)
+		after[node_type] = int(after.get(node_type, 0)) - 1
+		var suffix := _non_combat_suffix_after_pick(sequence, node_type)
+		if _commission_type_sequence_can_complete(after, suffix, max_consecutive_non_combat):
+			result.append(node_type)
+	return result
+
+func _non_combat_suffix_after_pick(sequence: Array[String], node_type: String) -> int:
+	if _commission_type_is_combat(node_type):
+		return 0
+	var suffix := 1
+	for i in range(sequence.size() - 1, -1, -1):
+		if _commission_type_is_combat(String(sequence[i])):
+			break
+		suffix += 1
+	return suffix
+
+func _commission_type_sequence_can_complete(remaining: Dictionary, current_non_combat_suffix: int, max_consecutive_non_combat: int) -> bool:
+	var combat_remaining := 0
+	var non_combat_remaining := 0
+	for node_type in [NODE_NORMAL, NODE_ELITE, NODE_EVENT, NODE_CAMP, NODE_SHOP]:
+		if _commission_type_is_combat(node_type):
+			combat_remaining += maxi(0, int(remaining.get(node_type, 0)))
+		else:
+			non_combat_remaining += maxi(0, int(remaining.get(node_type, 0)))
+	var initial_capacity := maxi(0, max_consecutive_non_combat - current_non_combat_suffix)
+	var separated_capacity := combat_remaining * max_consecutive_non_combat
+	return non_combat_remaining <= initial_capacity + separated_capacity
+
+func _weighted_type_pick(candidates: Array[String], remaining: Dictionary, rng: RandomNumberGenerator) -> String:
+	var total := 0
+	for node_type in candidates:
+		total += maxi(1, int(remaining.get(node_type, 0)))
+	var roll := rng.randi_range(1, total)
+	var cursor := 0
+	for node_type in candidates:
+		cursor += maxi(1, int(remaining.get(node_type, 0)))
+		if roll <= cursor:
+			return node_type
+	return candidates[0]
+
+func _remaining_non_elite_count(remaining: Dictionary) -> int:
+	var total := 0
+	for node_type in [NODE_NORMAL, NODE_EVENT, NODE_CAMP, NODE_SHOP]:
+		total += maxi(0, int(remaining.get(node_type, 0)))
+	return total
+
+func _remaining_alternative_count(remaining: Dictionary, excluded_type: String) -> int:
+	var total := 0
+	for node_type in [NODE_NORMAL, NODE_ELITE, NODE_EVENT, NODE_CAMP, NODE_SHOP]:
+		if node_type == excluded_type:
+			continue
+		total += maxi(0, int(remaining.get(node_type, 0)))
+	return total
+
+func _commission_type_is_combat(node_type: String) -> bool:
+	return node_type == NODE_NORMAL or node_type == NODE_ELITE
+
+func _pick_commission_source_id_for_type(node_type: String, deck_index: int, pools: Dictionary, rng: RandomNumberGenerator) -> String:
+	if deck_index == 0 and node_type == NODE_NORMAL:
+		var start_ids := _pool_source_ids(pools.get("start", []))
+		if not start_ids.is_empty():
+			return start_ids[0]
+	if deck_index == 1 and node_type == NODE_EVENT:
+		for source_id in _pool_source_ids(pools.get("early", [])):
+			if _source_node_type(source_id) == NODE_EVENT:
+				return source_id
+	if deck_index == 2 and node_type == NODE_SHOP:
+		for source_id in _pool_source_ids(pools.get("early", [])):
+			if _source_node_type(source_id) == NODE_SHOP:
+				return source_id
+	if deck_index == 3 and node_type == NODE_NORMAL:
+		for source_id in _pool_source_ids(pools.get("early", [])):
+			if _source_node_type(source_id) == NODE_NORMAL:
+				return source_id
+	var source_ids := _commission_source_ids_for_type(node_type, deck_index, pools)
+	if source_ids.is_empty():
+		source_ids = _all_commission_source_ids_for_type(node_type, pools)
+	if source_ids.is_empty():
+		return _fallback_source_id_for_type(node_type)
+	return String(source_ids[rng.randi_range(0, source_ids.size() - 1)])
+
+func _commission_source_ids_for_type(node_type: String, deck_index: int, pools: Dictionary) -> Array[String]:
+	var band_keys: Array[String] = []
+	if deck_index <= 2:
+		band_keys = ["start", "early", "middle"]
+	elif deck_index <= 8:
+		band_keys = ["middle", "early", "elite", "extra_elite", "prep"]
+	else:
+		band_keys = ["prep", "middle", "elite", "extra_elite", "early"]
+	var result: Array[String] = []
+	for key in band_keys:
+		for source_id in _pool_source_ids(pools.get(key, [])):
+			if _source_node_type(source_id) == node_type and not (source_id in result):
+				result.append(source_id)
+	return result
+
+func _all_commission_source_ids_for_type(node_type: String, pools: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	for key in ["start", "early", "middle", "elite", "extra_elite", "prep"]:
+		for source_id in _pool_source_ids(pools.get(key, [])):
+			if _source_node_type(source_id) == node_type and not (source_id in result):
+				result.append(source_id)
+	return result
+
+func _pool_source_ids(raw_pool) -> Array[String]:
+	var result: Array[String] = []
+	if typeof(raw_pool) == TYPE_STRING:
+		result.append(String(raw_pool))
+	elif typeof(raw_pool) == TYPE_ARRAY:
+		for source_id in raw_pool:
+			result.append(String(source_id))
+	return result
+
+func _source_node_type(source_id: String) -> String:
+	if source_id == "broken_bridge_edge":
+		return NODE_NORMAL
+	var source := _demo_route_node_template(source_id)
+	return String(source.get("node_type", ""))
+
+func _fallback_source_id_for_type(node_type: String) -> String:
+	match node_type:
+		NODE_ELITE:
+			return "iron_gate_04"
+		NODE_EVENT:
+			return "scout_ritual_03"
+		NODE_CAMP:
+			return "ember_camp_05"
+		NODE_SHOP:
+			return "quartermaster_cache_05"
+	return "crack_courtyard_03"
+
+func _commission_layer_for_type(node_type: String, deck_index: int, deck_size: int) -> int:
+	if deck_index == 0 and node_type == NODE_NORMAL:
+		return 1
+	match node_type:
+		NODE_ELITE:
+			return 4
+		NODE_CAMP:
+			return 5 if deck_index >= deck_size / 2 else 3
+		NODE_SHOP:
+			return 5 if deck_index >= deck_size / 2 else 2
+		NODE_EVENT:
+			return 5 if deck_index >= deck_size - 4 else 3
+	if deck_index < deck_size / 3:
+		return 2
+	if deck_index < deck_size * 2 / 3:
+		return 3
+	return 4
+
+func _commission_depth_band(deck_index: int, deck_size: int) -> String:
+	if deck_index < deck_size / 3:
+		return "early"
+	if deck_index < deck_size * 2 / 3:
+		return "mid"
+	return "late"
+
+func _commission_generated_node_id(deck_index: int, source_id: String, node_type: String) -> String:
+	return "deck_%02d_%s_%s" % [deck_index + 1, node_type, source_id.replace("-", "_")]
+
+func _commission_node_from_source(source_id: String, node_id: String, layer: int, lane: int) -> Dictionary:
+	if source_id == "broken_bridge_edge":
+		return _random_broken_bridge_node(node_id, layer, lane)
+	return _random_route_node_from_demo(source_id, node_id, layer, lane)
+
+func _assign_commission_deck_battle_maps(nodes: Array[Dictionary], expedition_config: Dictionary, rng: RandomNumberGenerator) -> void:
+	var layers: Array = []
+	var by_layer := {}
+	for node in nodes:
+		var layer := int(node.get("layer", 0))
+		if not by_layer.has(layer):
+			by_layer[layer] = []
+		by_layer[layer].append(node)
+	var keys := by_layer.keys()
+	keys.sort()
+	for layer in keys:
+		layers.append(by_layer[layer])
+	_assign_random_route_battle_maps(layers, expedition_config, rng)
+
 func _assign_random_route_battle_maps(layers: Array, expedition_config: Dictionary, rng: RandomNumberGenerator) -> void:
 	var map_pool: Dictionary = expedition_config.get("map_pool", {})
 	if map_pool.is_empty():
 		return
-	var used_repeat_groups := {}
+	var used_repeat_groups_by_pool := {}
 	for layer_nodes in layers:
 		for node in layer_nodes:
 			if not is_battle_node(node):
@@ -941,6 +1294,9 @@ func _assign_random_route_battle_maps(layers: Array, expedition_config: Dictiona
 				candidates = map_pool.get(MAP_POOL_NORMAL, [])
 			if candidates.is_empty():
 				continue
+			if not used_repeat_groups_by_pool.has(pool_key):
+				used_repeat_groups_by_pool[pool_key] = {}
+			var used_repeat_groups: Dictionary = used_repeat_groups_by_pool.get(pool_key, {})
 			var pick := _pick_map_pool_entry_for_node(candidates, node, pool_key, expedition_config, used_repeat_groups, rng)
 			if pick.is_empty():
 				continue
@@ -953,6 +1309,12 @@ func _pick_map_pool_entry_for_node(candidates: Array, node: Dictionary, pool_key
 	var filtered := _filtered_map_pool_candidates(candidates, node, pool_key, expedition_config, used_repeat_groups, false, false)
 	if not filtered.is_empty():
 		var result := _weighted_map_pool_pick(filtered, rng)
+		result["map_assignment_relaxed"] = ""
+		return result
+	var repeat_reset_filtered := _filtered_map_pool_candidates(candidates, node, pool_key, expedition_config, {}, false, false)
+	if not repeat_reset_filtered.is_empty():
+		used_repeat_groups.clear()
+		var result := _weighted_map_pool_pick(repeat_reset_filtered, rng)
 		result["map_assignment_relaxed"] = ""
 		return result
 	filtered = _filtered_map_pool_candidates(candidates, node, pool_key, expedition_config, used_repeat_groups, true, false)

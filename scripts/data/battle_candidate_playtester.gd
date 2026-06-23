@@ -46,14 +46,17 @@ static func evaluate_candidate(config: Dictionary, candidate: Dictionary) -> Dic
 
 static func _start_candidate_battle(config: Dictionary, candidate: Dictionary, deploy_spawns: Array) -> BattleEngine:
 	var runtime := BattleConfigCatalogScript.build_runtime_config(config)
+	var candidate_rift_schedule := _candidate_schedule(candidate.get("rift_schedule", []), true)
+	var candidate_grid: Grid = runtime.get("grid").clone()
+	var candidate_rift_positions := BattleConfigCatalogScript.positions_from_rift_schedule(candidate_rift_schedule)
 	var engine := BattleEngine.new()
 	engine.start_battle(
-		runtime.get("grid"),
+		candidate_grid,
 		_load_warden_defs(),
 		_candidate_initial_enemies(candidate.get("initial_enemies", [])),
 		runtime.get("deploy_zone", []),
-		runtime.get("rift_positions", []),
-		_candidate_schedule(candidate.get("rift_schedule", []), true),
+		candidate_rift_positions,
+		candidate_rift_schedule,
 		int(runtime.get("max_rounds", 5)),
 		runtime.get("protected_targets", []),
 		runtime.get("reward_tasks", []),

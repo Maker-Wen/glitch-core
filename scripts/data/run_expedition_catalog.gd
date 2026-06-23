@@ -15,6 +15,9 @@ const MAP_POOL_BOSS := "boss"
 const NODE_NORMAL := "normal"
 const NODE_ELITE := "elite"
 const NODE_BOSS := "boss"
+const NODE_EVENT := "event"
+const NODE_CAMP := "camp"
+const NODE_SHOP := "shop"
 
 static func expedition_ids() -> Array[String]:
 	return [
@@ -36,6 +39,9 @@ static func display_name(selected_expedition_id: String) -> String:
 
 static func route_pools(selected_expedition_id: String) -> Dictionary:
 	return get_config(selected_expedition_id).get("node_pools", {}).duplicate(true)
+
+static func commission_deck_config(selected_expedition_id: String) -> Dictionary:
+	return get_config(selected_expedition_id).get("commission_deck", _default_commission_deck_config()).duplicate(true)
 
 static func map_pool_config_ids(selected_expedition_id: String, pool_key: String) -> Array[String]:
 	var result: Array[String] = []
@@ -64,10 +70,19 @@ static func _rift_corridor_config() -> Dictionary:
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD, 4, 2, 7, "archer", "裂隙庭院。浅裂隙和弓手长线制造持续压迫。"),
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD, 2, 3, 8, "pillar", "石柱墓园。密集阻挡物和推撞口袋考验站位。"),
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE, 2, 3, 8, "bridge", "断桥边缘。边缘处决和裂隙节奏制造高压普通战。"),
+				_map_pool_entry(BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST, 2, 3, 8, "bone_rift", "蚀骨裂巢。低血高速敌人从裂隙和侧翼交替逼近。"),
+				_map_pool_entry(BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD, 1, 2, 7, "supply_relay", "军需中继场。护壳虫推进和侧翼骚扰拉扯防线。"),
 			],
 			MAP_POOL_ELITE: [_map_pool_entry(BattleConfigCatalogScript.CONFIG_IRON_GATE, 1, 3, 11, "elite", "铁角闸门。精英冲撞配合侧翼裂隙压缩防线。")],
 			MAP_POOL_BOSS: [_map_pool_entry(BattleConfigCatalogScript.CONFIG_OUTER_BELL, 1, 5, 14, "boss", "钟楼外环。Boss 脚本和心脏钟窗口决定终局节奏。")],
 		},
+		"commission_deck": _commission_deck_config(16, 3, 9, 2, {
+			NODE_NORMAL: 7,
+			NODE_ELITE: 4,
+			NODE_EVENT: 2,
+			NODE_CAMP: 1,
+			NODE_SHOP: 2,
+		}),
 		"pressure_budget": _default_map_pressure_budget(),
 	}
 
@@ -87,10 +102,19 @@ static func _supply_line_config() -> Dictionary:
 			MAP_POOL_NORMAL: [
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD, 2, 2, 7, "archer", "裂隙庭院。浅裂隙和弓手长线制造持续压迫。"),
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD, 3, 3, 8, "pillar", "石柱墓园。密集阻挡物和推撞口袋考验站位。"),
+				_map_pool_entry(BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD, 3, 2, 7, "supply_relay", "军需中继场。护壳虫推进和侧翼骚扰拉扯防线。"),
+				_map_pool_entry(BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST, 1, 3, 8, "bone_rift", "蚀骨裂巢。低血高速敌人从裂隙和侧翼交替逼近。"),
 			],
 			MAP_POOL_ELITE: [_map_pool_entry(BattleConfigCatalogScript.CONFIG_IRON_GATE, 1, 3, 11, "elite", "铁角闸门。精英冲撞配合侧翼裂隙压缩防线。")],
 			MAP_POOL_BOSS: [_map_pool_entry(BattleConfigCatalogScript.CONFIG_OUTER_BELL, 1, 5, 14, "boss", "钟楼外环。Boss 脚本和心脏钟窗口决定终局节奏。")],
 		},
+		"commission_deck": _commission_deck_config(18, 3, 8, 3, {
+			NODE_NORMAL: 6,
+			NODE_ELITE: 3,
+			NODE_EVENT: 3,
+			NODE_CAMP: 2,
+			NODE_SHOP: 4,
+		}),
 		"pressure_budget": _default_map_pressure_budget(),
 	}
 
@@ -111,11 +135,40 @@ static func _broken_wall_config() -> Dictionary:
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_RIFT_COURTYARD, 2, 2, 7, "archer", "裂隙庭院。浅裂隙和弓手长线制造持续压迫。"),
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_PILLAR_GRAVEYARD, 2, 3, 8, "pillar", "石柱墓园。密集阻挡物和推撞口袋考验站位。"),
 				_map_pool_entry(BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE, 1, 3, 8, "bridge", "断桥边缘。边缘处决和裂隙节奏制造高压普通战。"),
+				_map_pool_entry(BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD, 2, 2, 7, "supply_relay", "军需中继场。护壳虫推进和侧翼骚扰拉扯防线。"),
+				_map_pool_entry(BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST, 1, 3, 8, "bone_rift", "蚀骨裂巢。低血高速敌人从裂隙和侧翼交替逼近。"),
 			],
 			MAP_POOL_ELITE: [_map_pool_entry(BattleConfigCatalogScript.CONFIG_IRON_GATE, 1, 3, 11, "elite", "铁角闸门。精英冲撞配合侧翼裂隙压缩防线。")],
 			MAP_POOL_BOSS: [_map_pool_entry(BattleConfigCatalogScript.CONFIG_OUTER_BELL, 1, 5, 14, "boss", "钟楼外环。Boss 脚本和心脏钟窗口决定终局节奏。")],
 		},
+		"commission_deck": _commission_deck_config(16, 3, 8, 2, {
+			NODE_NORMAL: 7,
+			NODE_ELITE: 3,
+			NODE_EVENT: 3,
+			NODE_CAMP: 1,
+			NODE_SHOP: 2,
+		}),
 		"pressure_budget": _default_map_pressure_budget(),
+	}
+
+static func _default_commission_deck_config() -> Dictionary:
+	return _commission_deck_config(16, 3, 8, 2, {
+		NODE_NORMAL: 7,
+		NODE_ELITE: 3,
+		NODE_EVENT: 3,
+		NODE_CAMP: 1,
+		NODE_SHOP: 2,
+	})
+
+static func _commission_deck_config(deck_size: int, hand_size: int, boss_unlock_count: int, initial_refresh_charges: int, type_counts: Dictionary) -> Dictionary:
+	return {
+		"deck_size": deck_size,
+		"hand_size": hand_size,
+		"boss_unlock_count": boss_unlock_count,
+		"initial_refresh_charges": initial_refresh_charges,
+		"type_counts": type_counts.duplicate(true),
+		"max_consecutive_non_combat": 2,
+		"opening_pool": "early",
 	}
 
 static func _default_map_pressure_budget() -> Dictionary:
@@ -170,6 +223,10 @@ static func _default_map_layer_range(config_id: String) -> Vector2i:
 			return Vector2i(3, 4)
 		BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE:
 			return Vector2i(3, 4)
+		BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD:
+			return Vector2i(2, 4)
+		BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST:
+			return Vector2i(2, 4)
 		BattleConfigCatalogScript.CONFIG_IRON_GATE:
 			return Vector2i(4, 4)
 		BattleConfigCatalogScript.CONFIG_OUTER_BELL:
@@ -186,6 +243,10 @@ static func _default_enemy_family_hint(config_id: String) -> String:
 			return "pillar_push"
 		BattleConfigCatalogScript.CONFIG_BROKEN_BRIDGE_EDGE:
 			return "bridge_execution"
+		BattleConfigCatalogScript.CONFIG_SUPPLY_RELAY_YARD:
+			return "supply_shell"
+		BattleConfigCatalogScript.CONFIG_BONE_RIFT_NEST:
+			return "bone_rift"
 		BattleConfigCatalogScript.CONFIG_IRON_GATE:
 			return "ironhorn_elite"
 		BattleConfigCatalogScript.CONFIG_OUTER_BELL:
